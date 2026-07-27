@@ -12,7 +12,8 @@ Lesson 1-7    Pi 篇          agent engine + 領域工具 + 評估      ✅ 完�
 Lesson 8-9    OpenWorker 篇  權限引擎 + 無人值守批准             ✅ 完成
 Lesson 10-14  OpenWorker 續  GUI / OAuth / MCP / 排程 / audit    待寫
 Lesson 15     Hermes 篇      長期記憶 + 注入防禦                  ✅ 完成
-Lesson 16-19  Hermes 篇      skills / 搜尋 / 排程 / 委派          待寫
+Lesson 16     Hermes 篇      skills + 審核閘門                    ✅ 完成
+Lesson 17-19  Hermes 篇      搜尋 / 排程 / 委派                   待寫
 Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20 完成
 ```
 
@@ -61,6 +62,7 @@ GPT Researcher、txtai 好幾個專案，因為「AI Search」本來就是好幾
 | 課 | 主題 | 狀態 |
 |---|---|---|
 | 15 | 長期記憶與注入防禦 | ✅ |
+| 16 | Skills 與自我改進 | ✅ |
 
 ---
 
@@ -152,7 +154,7 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
   記憶什麼時候寫入、怎麼避免記憶把 context 塞爆
 - **可以寫可跑的 code**：✅ 這課完全可以接在現有的 `shared/` 上
 
-### Lesson 16：Skills 與自我改進（**這課要謹慎寫**）
+### ~~Lesson 16：Skills 與自我改進~~ ✅ 已完成
 
 - **來源**：`agent/skill_utils.py`（854）、`skill_commands.py`（808）、
   `skill_bundles.py`（438）、`skill_preprocessing.py`（144）、
