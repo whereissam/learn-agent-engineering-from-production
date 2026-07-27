@@ -1,5 +1,7 @@
 # 從零打造一個 AI Agent
 
+> 🇬🇧 [English version](README.en.md)（精簡版）
+
 > 給「會寫程式，但完全不知道 AI agent 怎麼運作」的人。
 > 每一課都是一個能跑的小程式，不用框架，看得完、改得動。
 >
