@@ -12,6 +12,6 @@
 		"skipLibCheck": true,
 		"types": ["node"]
 	},
-	"include": ["lesson-*/**/*.ts", "shared/**/*.ts"],
+	"include": ["lesson-*/**/*.ts", "shared/**/*.ts", "tests/**/*.ts"],
 	"exclude": ["**/playground/**"]
 }

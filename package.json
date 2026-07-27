@@ -25,6 +25,7 @@
 		"lesson-21:measure": "bun run lesson-21-crawl/extract/measure.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
 		"reset": "for d in lesson-02-tools lesson-03-streaming lesson-04-sessions lesson-05-compaction; do sed -i '' 's|entries.set(code.toLowerCase(), url);|entries.set(code, url);|' $d/playground/src/store.ts 2>/dev/null; done; echo 'all playgrounds reset to the buggy state'",
+		"test": "bun test tests/",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
