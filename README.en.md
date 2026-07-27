@@ -208,9 +208,12 @@ Lesson 5 addresses that. Use a cheap model, or `PROVIDER=fake`.
 
 ## Status and known gaps
 
-Verified against a live model (Gemini 3.6 Flash): Lessons 1, 2, 6, 7.
-Lessons 3-5 are verified with the fake provider only. Anthropic and OpenAI
-providers are implemented but have not been exercised against live models.
+Lessons 1-7 have all been run end to end against a live model
+(Gemini 3.6 Flash). Lessons 8-9 and 15-17 are offline demos. `bun test`
+runs 74 tests without a key.
+
+Not yet verified: the Anthropic and OpenAI providers are implemented and
+typecheck, but have not been exercised against live models.
 
 Full roadmap and gaps: [docs/TODO.md](docs/TODO.md).
 

@@ -15,7 +15,7 @@ Lesson 15     Hermes 篇      長期記憶 + 注入防禦                  ✅ �
 Lesson 16     Hermes 篇      skills + 審核閘門                    ✅ 完成
 Lesson 17     Hermes 篇      跨 session 搜尋 + 排序衛生           ✅ 完成
 Lesson 18-19  Hermes 篇      排程 / 委派                          需要時再寫
-Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20-21 完成
+Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20-22 完成
 ```
 
 三個專案的定位（不在同一個抽象層級）：
@@ -222,7 +222,7 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 
 ---
 
-## AI Search 篇（Lesson 20-25）— Lesson 20-21 已完成
+## AI Search 篇（Lesson 20-25）— Lesson 20-22 已完成
 
 - **前置**：Lesson 1-3（loop、工具、streaming）＋ Lesson 7（evaluation）
 - ⚠️ **下面列的開源專案還沒逐一讀過原始碼**，架構描述目前只是根據公開說明
@@ -234,7 +234,8 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 |---|---|---|
 | 20 | ✅ [`lesson-20-search-agent/`](../lesson-20-search-agent/) | 語料 14 頁、BM25 檢索、`web_search` 工具、自備 fake provider。Gemini 3.6 Flash 實測過兩段軌跡 |
 | 21 | ✅ [`lesson-21-crawl/`](../lesson-21-crawl/) | 正文抽取（含量測）、robots/403/JS 空殼/404、切塊、`fetch_page`。實測四段軌跡 |
-| 22-25 | 待寫 | |
+| 22 | ✅ [`lesson-22-retrieval/`](../lesson-22-retrieval/) | BM25 + dense + RRF + 去重 + 品質訊號 + rerank，八題評估集（nDCG / recall / novelty）。embedding 快取進版控所以離線可跑 |
+| 23-25 | 待寫 | |
 
 **Lesson 20 實測記錄**（寫進課程的兩段都是真的跑出來的）：
 
@@ -360,7 +361,7 @@ robots.txt              逾時                PDF / SPA / 被封鎖
   一句沒有來源支持的話掛上了一個真實的 URL。
   → 這就是 Lesson 25 要做的事，而且要用確定性的檢查，不是叫模型評分
 
-### Lesson 22：檢索與排序
+### Lesson 22：檢索與排序 ✅
 
 這一課要打掉「AI Search = 丟進 vector DB 取 top 5」這個誤解。實際 pipeline：
 
@@ -376,6 +377,43 @@ document
 
 再加上 metadata filtering、query rewriting、新鮮度、權威度、去重、
 來源多樣性。做完這課才會知道「語義搜尋」不只是把文字丟進向量資料庫。
+
+**Lesson 22 實測記錄**（八題評估集，nDCG@5）：
+
+```
+BM25 only  Dense only  + RRF   + 去重   + 品質訊號  + 多樣性   + LLM rerank
+  0.655      0.689     0.720   0.693     0.845      0.845       0.858
+```
+
+- ⚠️ **評估抓到一個我沒看到的迴歸。** 第一版的關鍵字堆砌偵測只看比例，
+  平均從 0.720 升到 0.768 看起來很成功，但 q8 從 **1.000 崩到 0.131**。
+  原因是比例對短文件有系統性偏誤（25 字的 LICENSE 檔重複 4 次 license
+  就被判成農場）。加上「絕對重複次數」門檻後修好，平均變成 0.845。
+
+  > **平均分數上升，不代表沒有東西壞掉。** 沒有逐題表格我會直接把
+  > 0.768 寫進 README，然後帶著這個 bug 再寫三課
+
+- **去重讓 nDCG 變差**（0.720 → 0.693），因為評估集把兩個鏡像頁都標成
+  相關。我沒有改標註，而是**加了一個 novelty@5 指標**（0.975 → 1.000）
+  來衡量 nDCG 看不到的東西。留下去重的理由不在 nDCG 裡：對 agent 來說
+  重複頁面等於浪費一次 `fetch_page` 和一塊 context
+
+- **兩個階段誠實標示為沒有效果**：來源多樣性在這份語料上是死碼
+  （每個網域最多 3 頁，前五名從來不會擠三個同網域）；
+  LLM rerank 只有 +0.013，八題裡只有中文那題變好
+
+- 近似重複的門檻我第一次也猜錯：憑印象設 0.5，實測鏡像對只有 0.174
+  （5-gram）。**後果是去重一次都沒生效，而 nDCG 完全不會告訴你**——
+  「沒做事」和「做了但沒差」在平均分數上長得一樣
+
+- ⚠️ **檢索變好，agent 沒有變好。** 同一個問題（Lesson 20 那題）跑兩次，
+  兩次都是 14 次搜尋 + 2 次抓取然後**撞上 16 步上限、沒有答案**，
+  比 Lesson 21（11 搜 + 2 抓，有答出來）更糟。因為模型把步數花在
+  搜尋訓練資料裡記得的專案名（HumanPlus、dex-retargeting、Open-TeleVision、
+  GMR——語料裡都不存在）。
+
+  > 排序解決「回來的東西好不好」，不解決「要搜幾次、什麼時候停、
+  > 已經搜過什麼」。**後者完全在 agent 那一側 → 這是 Lesson 24 的題目。**
 
 ### Lesson 23：自己做一個 Tavily-lite
 
@@ -506,10 +544,17 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
 
 ### 高優先
 
-- [ ] **Lesson 2-5 沒有用真模型端到端測過**
-      目前只有 Lesson 1、2、6、7 跑過真的 Gemini。
-      3、4、5 是用 fake provider 驗證的（邏輯共用同一套 provider 層，
-      但值得實測確認）
+- [x] ~~**Lesson 2-5 沒有用真模型端到端測過**~~ ✅ 2026-07-27 完成
+      Lesson 1-7 全部跑過真的 Gemini 3.6 Flash。實測結果：
+      - Lesson 3：streaming 正常
+      - Lesson 4：session 落地 12 筆、`--resume` 正常、`/tree` 正常
+      - Lesson 5：連續三次壓縮，省下 49% / 47% / 53%，
+        而且摘要確實照 prompt 的優先序寫（需求 → 檔案 → 發現 → 失敗）
+
+      **順帶抓到一個真的沙箱逃逸**：agent 下 `npm test`，因為
+      `playground/` 沒有自己的 `package.json`，npm 往上找到了本專案的
+      package.json，跑了這裡的 74 個測試。已修（每個 playground 都補上
+      `package.json`），並寫進 Lesson 2 的 README 當實例。
 
 - [ ] **Lesson 8-9 沒有接進真的 agent**
       目前是獨立的 `table.ts` 和 `demo.ts`。
@@ -522,20 +567,21 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
       （`lesson-20-search-agent/fake-provider.ts`），Lesson 6 應該照做。
       「開源前的檢查清單」裡那條「九課都能用 fake 跑」目前是**不成立**的
 
-- [ ] **只測過 Gemini**
+- [ ] **只測過 Gemini**（仍待辦）
       Anthropic 和 OpenAI 的 provider 實作沒有跑過真模型。
       特別是 streaming provider 的 `raw` 保留邏輯
       （Anthropic 的 thinking block、OpenAI 的 tool_calls）
 
 ### 中優先
 
-- [ ] **加測試**
-      目前沒有任何自動化測試。至少該有：
-      路徑逃逸、截斷、壓縮切點、inbox 狀態機、權限決策表
+- [x] ~~**加測試**~~ ✅ 2026-07-27 完成
+      `tests/` 下 74 個測試，不需要 API key。涵蓋路徑逃逸（含字首碰撞）、
+      截斷方向、壓縮切點與不划算保護、inbox 冪等與孤兒回收、
+      權限決策順序、記憶圍欄偽造、skill 閘門、搜尋排序衛生。
+      `bun test` 執行。
 
-- [ ] **英文版**
-      如果要開源給更多人看，README 需要英文版
-      （或至少主 README）
+- [x] ~~**英文版**~~ ✅ 2026-07-27 完成
+      `README.en.md`（精簡版），中文仍是主要版本。
 
 - [ ] **Lesson 6 的資料產生器可以更豐富**
       現在 5 個 session。加「兩次事件」「極慢傾倒」這類案例
@@ -558,10 +604,10 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
 - [x] typecheck 乾淨
 - [ ] 每一課都能用 `PROVIDER=fake` 跑（不需要 key）
       ← Lesson 1-5、20 可以；**6、7 不行**，見上面的缺口
-- [ ] 加 LICENSE 檔案（README 寫 MIT，但沒有實際的 LICENSE 檔）
+- [x] 加 LICENSE 檔案
 - [ ] 加 `CONTRIBUTING.md`（如果要收 PR）
 - [ ] 決定要不要收 issue / PR
-- [ ] git init + 分批 commit（目前還沒進版控）
+- [x] git init + 分批 commit
 
 ---
 

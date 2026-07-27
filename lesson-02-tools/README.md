@@ -260,9 +260,34 @@ const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, time
 
 模型跑 `npm run dev` 是很常見的事。沒有 timeout 的話 agent 就永遠卡在那裡。
 
-### 這三層都不夠強
+### 這三層都不夠強（實測踩到過）
 
 `cwd` 只是「起始目錄」，指令自己還是可以 `cd /` 或寫絕對路徑。
+
+**而且不需要惡意就會逃出去。** 我在測 Lesson 3 的時候，agent 送出一個
+再正常不過的指令：
+
+```
+→ run_command(command: "npm test")
+    │ (pass) progressive disclosure（Lesson 16） > 未知的 skill 名稱…
+    │ (pass) 輸出截斷（Lesson 2） > truncateTail 保留結尾…
+  ✓ [exit 0]
+```
+
+那是**這個課程專案自己的 74 個測試**，不是 playground 的測試。
+
+原因：`playground/` 當時沒有 `package.json`，而 `npm` 會**往上層目錄找**，
+一路找到 `agent-lessons/package.json`，然後跑了它的 `test` script。
+
+`cwd` 完全沒有被違反，但 agent 的動作跑出了沙箱。
+
+> **這是沙箱最常見的漏法：不是有人翻牆，是工具自己會往上走。**
+> `npm`、`git`、`pytest`、`tsc` 全都會往上找設定檔。
+
+已經修掉了（每個 playground 現在有自己的 `package.json`），
+但這個例子值得記住：**`cwd` 限制的是「從哪裡開始」，
+不是「能碰到哪裡」。**
+
 真的要跑不受信任的指令，需要 Docker、micro-VM 或 OS 層的沙箱。
 
 Pi 的做法是把整個執行環境抽象成一個介面

@@ -289,7 +289,8 @@ Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而�
 |---|------|---------|
 | **[20](lesson-20-search-agent/)** | 最小的 search agent | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
 | **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
-| 22-25 | 檢索排序 / Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
+| **[22](lesson-22-retrieval/)** | 檢索與排序 | BM25 + dense + RRF、去重、品質訊號、**平均分數會騙人** |
+| 23-25 | Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
 
 每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
 
@@ -321,6 +322,11 @@ lesson-21-crawl/
   extract/       HTML → 正文、切塊、以及對照答案量抽取品質
   tools/         fetch_page 工具
 
+lesson-22-retrieval/
+  embed/         embedding provider + 進版控的向量快取（離線可跑）
+  retrieve/      dense、RRF 融合、去重、品質訊號、rerank
+  eval/          八個查詢的分級標註 + nDCG / recall / novelty
+
 shared/permissions/  風險分級與權限引擎（Lesson 8）
 shared/inbox/        無人值守批准佇列（Lesson 9）
 shared/memory/       長期記憶與圍欄防禦（Lesson 15）
@@ -333,6 +339,15 @@ Lesson 1-5 是「怎麼造引擎」，Lesson 6-7 是「怎麼讓引擎在你的�
 
 **其他情況建議照順序讀**，因為每一課都建立在前一課上。
 每一課的 README 都會標出前置。
+
+### 目前的驗證狀態
+
+Lesson 1-7 全部用真的 Gemini 3.6 Flash 端到端跑過。
+Lesson 8-9、15-17 是離線示範，不需要 key。
+`bun test` 有 74 個測試，也不需要 key。
+
+**還沒驗證的**：Anthropic 與 OpenAI 的 provider 實作沒跑過真模型
+（介面共用，但值得實測）。
 
 ### 一件值得注意的事
 
