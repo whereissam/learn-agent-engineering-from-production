@@ -1,0 +1,47 @@
+[
+  {
+    "session_id": "sess_001",
+    "robot_id": "unitree-go2-a",
+    "recorded_at": "2026-07-21T09:00:00Z",
+    "duration_ms": 14000,
+    "sample_count": 700,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
+  },
+  {
+    "session_id": "sess_002",
+    "robot_id": "unitree-go2-a",
+    "recorded_at": "2026-07-22T09:00:00Z",
+    "duration_ms": 12000,
+    "sample_count": 600,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
+  },
+  {
+    "session_id": "sess_003",
+    "robot_id": "unitree-go2-b",
+    "recorded_at": "2026-07-23T09:00:00Z",
+    "duration_ms": 13000,
+    "sample_count": 650,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
+  },
+  {
+    "session_id": "sess_004",
+    "robot_id": "unitree-go2-b",
+    "recorded_at": "2026-07-24T09:00:00Z",
+    "duration_ms": 12000,
+    "sample_count": 450,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
+  },
+  {
+    "session_id": "sess_005",
+    "robot_id": "unitree-go2-c",
+    "recorded_at": "2026-07-25T09:00:00Z",
+    "duration_ms": 13000,
+    "sample_count": 650,
+    "sample_rate_hz": 50,
+    "video_offset_ms": -2300
+  }
+]
