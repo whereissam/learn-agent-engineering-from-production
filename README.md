@@ -279,13 +279,15 @@ Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而�
 |---|------|---------|
 | **[15](lesson-15-memory/)** | 長期記憶 | 三個掛勾點、MEMORY.md/USER.md、**記憶是持續性的注入面** |
 | **[16](lesson-16-skills/)** | Skills 與自我改進 | progressive disclosure、審核閘門、工具白名單 |
+| **[17](lesson-17-search/)** | 跨 session 搜尋 | 排序衛生、recall blindness、為什麼不用 LLM |
 
 **AI Search 篇**（Lesson 20-25，進行中）
 
 | 課 | 主題 | 你會學到 |
 |---|------|---------|
 | **[20](lesson-20-search-agent/)** | 最小的 search agent | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
-| 21-25 | crawl / 檢索 / Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
+| **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
+| 22-25 | 檢索排序 / Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
 
 每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
 
@@ -312,10 +314,16 @@ lesson-20-search-agent/
   search/        BM25 檢索，可以單獨當 CLI 跑，不需要模型
   tools/         web_search 工具
 
+lesson-21-crawl/
+  fetcher.ts     模擬真實 web：robots / 403 / JS 空殼 / 超長頁面
+  extract/       HTML → 正文、切塊、以及對照答案量抽取品質
+  tools/         fetch_page 工具
+
 shared/permissions/  風險分級與權限引擎（Lesson 8）
 shared/inbox/        無人值守批准佇列（Lesson 9）
 shared/memory/       長期記憶與圍欄防禦（Lesson 15）
 shared/skills/       skill 格式、索引、審核閘門（Lesson 16）
+shared/search/       跨 session 搜尋與排序衛生（Lesson 17）
 ```
 
 Lesson 1-5 是「怎麼造引擎」，Lesson 6-7 是「怎麼讓引擎在你的領域裡真的有用」。
@@ -459,8 +467,8 @@ Lesson 1 的每次對話大概讀 3-5 個小檔案，成本很低（通常不到
 | **Lesson 1-7** | [earendil-works/pi](https://github.com/earendil-works/pi) | 怎麼造一顆 agent engine，並用在你自己的領域 | ✅ 完成 |
 | **Lesson 8-9** | [andrewyng/openworker](https://github.com/andrewyng/openworker) | 權限引擎、無人值守批准 | ✅ 完成 |
 | Lesson 10-14 | 同上 | GUI 通訊、OAuth/connector、MCP client、排程、audit | 待寫 |
-| **Lesson 15-16** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶、skills 與自我改進 | ✅ 完成 |
-| Lesson 17-19 | 同上 | 跨 session 搜尋、排程、委派 | 待寫 |
+| **Lesson 15-17** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶、skills、跨 session 搜尋 | ✅ 完成 |
+| Lesson 18-19 | 同上 | 排程、subagent 委派 | 需要時再寫 |
 
 完整規劃（含每一課要讀哪些檔案、以及明確**不寫**哪些部分）在
 [docs/TODO.md](docs/TODO.md)。

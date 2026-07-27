@@ -13,8 +13,9 @@ Lesson 8-9    OpenWorker 篇  權限引擎 + 無人值守批准             ✅ 
 Lesson 10-14  OpenWorker 續  GUI / OAuth / MCP / 排程 / audit    待寫
 Lesson 15     Hermes 篇      長期記憶 + 注入防禦                  ✅ 完成
 Lesson 16     Hermes 篇      skills + 審核閘門                    ✅ 完成
-Lesson 17-19  Hermes 篇      搜尋 / 排程 / 委派                   待寫
-Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20 完成
+Lesson 17     Hermes 篇      跨 session 搜尋 + 排序衛生           ✅ 完成
+Lesson 18-19  Hermes 篇      排程 / 委派                          需要時再寫
+Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20-21 完成
 ```
 
 三個專案的定位（不在同一個抽象層級）：
@@ -63,6 +64,7 @@ GPT Researcher、txtai 好幾個專案，因為「AI Search」本來就是好幾
 |---|---|---|
 | 15 | 長期記憶與注入防禦 | ✅ |
 | 16 | Skills 與自我改進 | ✅ |
+| 17 | 跨 session 搜尋 | ✅ |
 
 ---
 
@@ -176,13 +178,13 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
   而且把關點要能非同步（Lesson 9 的 inbox）。這是我想在這課點出的連結。
 - **可以寫可跑的 code**：✅ 但要把「審核閘門」做進去，不要示範裸的自我改進
 
-### Lesson 17：跨 session 搜尋
+### ~~Lesson 17：跨 session 搜尋~~ ✅ 已完成
 
 - **來源**：Hermes 用 SQLite FTS5 + LLM 摘要做 recall
   （`hermes_state.py` 10,850 行裡有一部分，要再定位）
-- **會學到**：怎麼找回「上次是怎麼做的」、
-  FTS5 全文檢索 + LLM 摘要的兩段式設計（先便宜地縮小範圍，再用模型判斷，
-  **跟 Lesson 6 的 `find_anomalies` 是同一個模式**）
+- **實際發現**：我原本以為是「FTS5 + LLM 摘要」的兩段式，**這是錯的**。
+  Hermes 明確寫 `No LLM calls anywhere`，而且那個摘要路徑是後來拿掉的。
+  真正的重點是排序衛生（來源降權、壓縮摘要排除）。已在 Lesson 17 修正。
 - **接得上 Lesson 4**：我們的 session 已經是 JSONL 了，加搜尋是自然的下一步
 - **可以寫可跑的 code**：✅
 
@@ -220,7 +222,7 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 
 ---
 
-## AI Search 篇（Lesson 20-25）— Lesson 20 已完成
+## AI Search 篇（Lesson 20-25）— Lesson 20-21 已完成
 
 - **前置**：Lesson 1-3（loop、工具、streaming）＋ Lesson 7（evaluation）
 - ⚠️ **下面列的開源專案還沒逐一讀過原始碼**，架構描述目前只是根據公開說明
@@ -231,7 +233,7 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 | 課 | 狀態 | 備註 |
 |---|---|---|
 | 20 | ✅ [`lesson-20-search-agent/`](../lesson-20-search-agent/) | 語料 14 頁、BM25 檢索、`web_search` 工具、自備 fake provider。Gemini 3.6 Flash 實測過兩段軌跡 |
-| 21 | 待寫 | 語料的 `corpus/pages/*.html` 已經先產生好了 |
+| 21 | ✅ [`lesson-21-crawl/`](../lesson-21-crawl/) | 正文抽取（含量測）、robots/403/JS 空殼/404、切塊、`fetch_page`。實測四段軌跡 |
 | 22-25 | 待寫 | |
 
 **Lesson 20 實測記錄**（寫進課程的兩段都是真的跑出來的）：
@@ -311,7 +313,7 @@ SearXNG + Crawl4AI / Firecrawl + reranker + API service
 - **snippet 的挑法要跟真實搜尋引擎一樣**（取跟 query 最匹配的視窗），
   不能只截開頭。整課最重要的那個現象是這樣才長出來的
 
-### Lesson 21：Crawl 與內容抽取
+### Lesson 21：Crawl 與內容抽取 ✅
 
 搜尋只回傳 URL 和 snippet，agent 要回答問題必須真的打開網頁。而 crawl
 不是 `fetch(url)`：
@@ -326,7 +328,37 @@ robots.txt              逾時                PDF / SPA / 被封鎖
 
 - **Content extraction**：HTML 裡哪些是正文，哪些是導航、廣告、推薦內容
 - **Chunking**：長網頁怎麼切，才能保持語意又不超過 context window
-- **Crawl strategy**：只抓單頁還是沿 link 做 BFS / DFS，什麼時候停
+- ~~**Crawl strategy**：沿 link 做 BFS / DFS~~ → **沒做**，這一課只抓單頁。
+  沿連結展開會跟 Lesson 24 的「什麼時候該停」重疊，留在那裡講比較好
+
+**Lesson 21 實測記錄**（四段軌跡，全部是真的跑出來的）：
+
+- 樸素的 `stripTags` 抽取：recall 100% 但 **noise 51%**，抽出來的量是正文的
+  2.00 倍。導覽列、廣告、訂閱表單、footer 全部進 context
+- 加了 `fetch_page` 之後，Lesson 20 那個「retarget-anything 開箱即用支援 G1」
+  的錯誤答案自己消失了，而且模型引用到了論壇裡「把播放速率降到 0.8x」
+  這種只有讀完整頁才拿得到的一手經驗
+
+- ⚠️ **最重要的一段：靜默的抽取失敗。** 問「waist_yaw 在 2026 SDK 是第幾號」
+  （答案在一個 HTML `<table>` 裡）：
+
+  | 版本 | 結果 |
+  |---|---|
+  | 抽取器只取 `<p>`（表格被丟掉） | 讀完全部 7 個 chunk + 搜 6 次 → **撞上 16 步上限，沒有答案** |
+  | 工具輸出加警告「這頁有表格沒抽到」 | **還是撞上 16 步上限**。它最後在猜號碼：`web_search("waist_yaw" "12" OR "13" OR "14"…)` |
+  | 抽取器真的把表格抽出來 | **8 步答對**，引用正確 |
+
+  > 這是 Lesson 6「能用 harness 保證的事，不要交給 prompt 祈禱」最乾淨的
+  > 一次實證：在工具輸出裡拜託模型沒有用，改抽取器才有用。
+  >
+  > 而且**抽取失敗沒有任何錯誤訊號**——頁面抓到了、chunk 讀完了，
+  > 模型只是永遠找不到那個數字。抓不到頁面至少還有 404。
+
+- **fetch 修好的是「漏讀」，沒修好「無中生有」。** 模型仍然會把訓練資料裡的
+  專案（Pink、DexRetargeting、WHAM）寫進答案。好消息是三級標籤真的開始被使用
+  （Lesson 20 是每一條都 CONFIRMED），壞消息是出現了**引用嫁接**：
+  一句沒有來源支持的話掛上了一個真實的 URL。
+  → 這就是 Lesson 25 要做的事，而且要用確定性的檢查，不是叫模型評分
 
 ### Lesson 22：檢索與排序
 
