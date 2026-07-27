@@ -1,0 +1,20 @@
+# 相依套件
+node_modules/
+
+# 祕密。.env.example 是範本，會進版控；.env 是你的真 key，不會。
+.env
+.env.*
+!.env.example
+
+# 執行時產生的東西
+*.log
+.sessions/
+lesson-*/.sessions/
+lesson-06-domain-tools/reports/
+lesson-07-evaluation/results/
+
+# 編輯器 / 作業系統
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,34 @@
+{
+	"name": "agent-lessons",
+	"private": true,
+	"type": "module",
+	"description": "Build an AI coding agent from scratch, one small lesson at a time.",
+	"scripts": {
+		"lesson-01": "bun run lesson-01-agent-loop/agent.ts",
+		"lesson-01:node": "tsx lesson-01-agent-loop/agent.ts",
+		"lesson-02": "bun run lesson-02-tools/agent.ts",
+		"lesson-03": "bun run lesson-03-streaming/agent.ts",
+		"lesson-04": "bun run lesson-04-sessions/agent.ts",
+		"lesson-05": "bun run lesson-05-compaction/agent.ts",
+		"lesson-06": "bun run lesson-06-domain-tools/agent.ts",
+		"lesson-06:data": "bun run lesson-06-domain-tools/data/generate.ts",
+		"lesson-07": "bun run lesson-07-evaluation/eval.ts",
+		"lesson-08": "bun run lesson-08-permissions/table.ts",
+		"lesson-09": "bun run lesson-09-unattended/demo.ts",
+		"eval": "bun run lesson-07-evaluation/eval.ts",
+		"reset": "for d in lesson-02-tools lesson-03-streaming lesson-04-sessions lesson-05-compaction; do sed -i '' 's|entries.set(code.toLowerCase(), url);|entries.set(code, url);|' $d/playground/src/store.ts 2>/dev/null; done; echo 'all playgrounds reset to the buggy state'",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@anthropic-ai/sdk": "^0.71.0",
+		"openai": "^6.9.0"
+	},
+	"devDependencies": {
+		"@types/node": "22",
+		"tsx": "^4.22.1",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}
