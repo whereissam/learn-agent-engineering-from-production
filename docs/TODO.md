@@ -11,8 +11,9 @@
 Lesson 1-7    Pi 篇          agent engine + 領域工具 + 評估      ✅ 完成
 Lesson 8-9    OpenWorker 篇  權限引擎 + 無人值守批准             ✅ 完成
 Lesson 10-14  OpenWorker 續  GUI / OAuth / MCP / 排程 / audit    待寫
-Lesson 15-19  Hermes 篇      記憶 / skills / 搜尋 / 排程 / 委派   待寫
-Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  待寫
+Lesson 15     Hermes 篇      長期記憶 + 注入防禦                  ✅ 完成
+Lesson 16-19  Hermes 篇      skills / 搜尋 / 排程 / 委派          待寫
+Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20 完成
 ```
 
 三個專案的定位（不在同一個抽象層級）：
@@ -54,6 +55,12 @@ GPT Researcher、txtai 好幾個專案，因為「AI Search」本來就是好幾
 |---|---|---|
 | 08 | 風險分級與權限引擎 | ✅ |
 | 09 | 無人值守批准與 inbox | ✅ |
+
+### Hermes 篇
+
+| 課 | 主題 | 狀態 |
+|---|---|---|
+| 15 | 長期記憶與注入防禦 | ✅ |
 
 ---
 
@@ -127,7 +134,7 @@ skills、gateway、cron、TUI、voice、subagents、sandbox backends。
 gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過，
 因為那些是「配置 Hermes」而不是「理解 agent」。
 
-### Lesson 15：長期記憶
+### ~~Lesson 15：長期記憶~~ ✅ 已完成
 
 - **來源**：`agent/memory_manager.py`（1241 行）、`agent/memory_provider.py`（315 行）
 - **為什麼先做這個**：它的介面非常乾淨，而且**直接對應我們的 loop**。
@@ -211,11 +218,34 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 
 ---
 
-## 待寫：AI Search 篇（Lesson 20-25）
+## AI Search 篇（Lesson 20-25）— Lesson 20 已完成
 
 - **前置**：Lesson 1-3（loop、工具、streaming）＋ Lesson 7（evaluation）
 - ⚠️ **下面列的開源專案還沒逐一讀過原始碼**，架構描述目前只是根據公開說明
   的推測。寫課之前要先實際讀（設計原則 4）
+
+### 進度
+
+| 課 | 狀態 | 備註 |
+|---|---|---|
+| 20 | ✅ [`lesson-20-search-agent/`](../lesson-20-search-agent/) | 語料 14 頁、BM25 檢索、`web_search` 工具、自備 fake provider。Gemini 3.6 Flash 實測過兩段軌跡 |
+| 21 | 待寫 | 語料的 `corpus/pages/*.html` 已經先產生好了 |
+| 22-25 | 待寫 | |
+
+**Lesson 20 實測記錄**（寫進課程的兩段都是真的跑出來的）：
+
+- 問「有哪些專案支援 G1」→ 模型搜了 **11 次**（其中三個 query 是從訓練
+  資料撈出來的、語料裡根本不存在的專案名），最後把一個**已棄用**的
+  G1 profile 講成「開箱即用」，而且標了 `CONFIRMED`
+- 問「G1 profile 還能用在 2026 SDK 上嗎」→ **完全正確**，只搜了 2 次
+
+  > 同一頁、同一個模型、相反的結論。差別只有 query。
+  > 因為 snippet 是「跟 query 最像的那一段」，所以 **query 決定了模型
+  > 看到頁面的哪一面**。這比原本預想的「snippet 太短」尖銳很多，
+  > 已經變成 Lesson 20 的主軸。
+
+**還沒做的**：Lesson 20 沒有評估集（要等 Lesson 25），
+語料的 `groundTruth` 欄位已經先埋好了。
 
 ### 為什麼不從「怎麼呼叫 Tavily API」開始
 
@@ -253,22 +283,31 @@ SearXNG + Crawl4AI / Firecrawl + reranker + API service
 
 | 課 | 主題 | 會學到 | 對照原始碼 |
 |---|---|---|---|
-| **20** | 最小的 search agent | 把一個 `web_search` 工具接進 Lesson 1 的 loop。為什麼 snippet 不夠、query 是模型生的所以 query 品質就是搜尋品質 | dzhng/deep-research |
+| **20** ✅ | 最小的 search agent | 把一個 `web_search` 工具接進 Lesson 3 的 loop。snippet 不等於網頁、**query 決定你看到頁面的哪一面**、query 是模型生的所以 query 品質就是搜尋品質 | dzhng/deep-research |
 | **21** | Crawl 與內容抽取 | HTML → 正文 → chunk。boilerplate / 導航 / 廣告怎麼去、JS render 的界線、robots.txt、逾時與封鎖 | Crawl4AI、Firecrawl |
 | **22** | 檢索與排序 | BM25 + dense retrieval + RRF 融合 + cross-encoder rerank、去重、來源多樣性、新鮮度。**vector DB 只是其中一個零件** | txtai、Qdrant |
 | **23** | 自己做一個 Tavily-lite | 把 20-22 組成一個 `POST /search` 服務，理解 Tavily 到底解決了哪些工程問題 | SearXNG + Crawl4AI |
 | **24** | Deep Research loop | planner、子問題、平行搜尋、evidence store、gap analysis、**什麼時候該停**。第一版自己寫 loop，不用框架 | GPT Researcher、LangChain `open_deep_research` |
 | **25** | 引用與評估 | claim ↔ evidence 對齊、引用驗證、確定性 rubric、回歸測試。接回 Lesson 7 | 本系列 `lesson-07-evaluation/rubric.ts` |
 
-### Lesson 20：最小的 search agent
+### Lesson 20：最小的 search agent ✅
 
 核心迴圈完全不動（設計原則 6），只是多一個工具。要讓讀者親眼看到：
 模型拿到的只有 title、URL 跟一小段 snippet，所以它會開始亂猜——
 這就是 Lesson 21 存在的理由。
 
 **要能用 `PROVIDER=fake` 跑**（設計原則 1），所以需要一份固定快照的語料：
-把 N 個網頁的 HTML 存進 `lesson-20/data/`，搜尋結果可重現、不用金鑰、
-不打外網。這份快照後面幾課共用，跟 Lesson 6 的 telemetry 產生器是同一個做法。
+`lesson-20-search-agent/corpus/` 有 14 頁，`generate.ts` 同時產出
+「已清乾淨的純文字索引」和「有雜訊的原始 HTML」，前者這一課用，
+後者留給 Lesson 21。跟 Lesson 6 的 telemetry 產生器是同一個做法。
+
+實作上有兩個當初沒想到的決定，寫 21 的時候要沿用：
+
+- **這一課自備 fake provider**（`fake-provider.ts`）。`shared/streaming/fake.ts`
+  是寫給 coding agent 的，會去呼叫 `list_files`，在這裡只會拿到 `Unknown tool`。
+  順帶一提，Lesson 6 也有同樣的問題，還沒修（見下面「現有課程的缺口」）
+- **snippet 的挑法要跟真實搜尋引擎一樣**（取跟 query 最匹配的視窗），
+  不能只截開頭。整課最重要的那個現象是這樣才長出來的
 
 ### Lesson 21：Crawl 與內容抽取
 
@@ -442,6 +481,13 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
       目前是獨立的 `table.ts` 和 `demo.ts`。
       Lesson 9 練習 3 是「接上去」，但課程本身沒做
 
+- [ ] **Lesson 6-7 其實不能用 `PROVIDER=fake` 跑**（違反設計原則 1）
+      `shared/streaming/fake.ts` 的腳本是寫給 Lesson 1-5 的 coding agent 的，
+      它會呼叫 `list_files` / `read_file`，在 Lesson 6 只會得到三次
+      `Unknown tool`。Lesson 20 的做法是**自備一支 fake provider**
+      （`lesson-20-search-agent/fake-provider.ts`），Lesson 6 應該照做。
+      「開源前的檢查清單」裡那條「九課都能用 fake 跑」目前是**不成立**的
+
 - [ ] **只測過 Gemini**
       Anthropic 和 OpenAI 的 provider 實作沒有跑過真模型。
       特別是 streaming provider 的 `raw` 保留邏輯
@@ -476,7 +522,8 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
 - [x] `.sessions/`、`reports/`、`results/` 在 `.gitignore` 裡
 - [x] 沒有硬編碼的 API key
 - [x] typecheck 乾淨
-- [x] 九課都能用 `PROVIDER=fake` 跑（不需要 key）
+- [ ] 每一課都能用 `PROVIDER=fake` 跑（不需要 key）
+      ← Lesson 1-5、20 可以；**6、7 不行**，見上面的缺口
 - [ ] 加 LICENSE 檔案（README 寫 MIT，但沒有實際的 LICENSE 檔）
 - [ ] 加 `CONTRIBUTING.md`（如果要收 PR）
 - [ ] 決定要不要收 issue / PR

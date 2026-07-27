@@ -273,6 +273,19 @@ Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而�
 | **[08](lesson-08-permissions/)** | 風險分級與權限引擎 | 從 boolean 到四級風險、模式、為什麼 AUTO 也擋不住路徑逃逸 |
 | **[09](lesson-09-unattended/)** | 沒人在場的時候 | 無人值守批准、inbox 佇列、agent 暫停與喚醒 |
 
+**Hermes 篇**（長期運行的 agent）
+
+| 課 | 主題 | 你會學到 |
+|---|------|---------|
+| **[15](lesson-15-memory/)** | 長期記憶 | 三個掛勾點、MEMORY.md/USER.md、**記憶是持續性的注入面** |
+
+**AI Search 篇**（Lesson 20-25，進行中）
+
+| 課 | 主題 | 你會學到 |
+|---|------|---------|
+| **[20](lesson-20-search-agent/)** | 最小的 search agent | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
+| 21-25 | crawl / 檢索 / Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
+
 每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
 
 ```
@@ -293,8 +306,14 @@ lesson-07-evaluation/
   rubric.ts      確定性的評分標準
   eval.ts        執行器（支援 --save / --compare 做回歸測試）
 
+lesson-20-search-agent/
+  corpus/        14 頁的假 web（純文字索引 + 有雜訊的原始 HTML）
+  search/        BM25 檢索，可以單獨當 CLI 跑，不需要模型
+  tools/         web_search 工具
+
 shared/permissions/  風險分級與權限引擎（Lesson 8）
 shared/inbox/        無人值守批准佇列（Lesson 9）
+shared/memory/       長期記憶與圍欄防禦（Lesson 15）
 ```
 
 Lesson 1-5 是「怎麼造引擎」，Lesson 6-7 是「怎麼讓引擎在你的領域裡真的有用」。
@@ -438,7 +457,8 @@ Lesson 1 的每次對話大概讀 3-5 個小檔案，成本很低（通常不到
 | **Lesson 1-7** | [earendil-works/pi](https://github.com/earendil-works/pi) | 怎麼造一顆 agent engine，並用在你自己的領域 | ✅ 完成 |
 | **Lesson 8-9** | [andrewyng/openworker](https://github.com/andrewyng/openworker) | 權限引擎、無人值守批准 | ✅ 完成 |
 | Lesson 10-14 | 同上 | GUI 通訊、OAuth/connector、MCP client、排程、audit | 待寫 |
-| Lesson 15-19 | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶、skills 與自我改進、跨 session 搜尋、委派 | 待寫 |
+| **Lesson 15** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶與記憶注入防禦 | ✅ 完成 |
+| Lesson 16-19 | 同上 | skills 與自我改進、跨 session 搜尋、排程、委派 | 待寫 |
 
 完整規劃（含每一課要讀哪些檔案、以及明確**不寫**哪些部分）在
 [docs/TODO.md](docs/TODO.md)。

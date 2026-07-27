@@ -15,6 +15,10 @@
 		"lesson-07": "bun run lesson-07-evaluation/eval.ts",
 		"lesson-08": "bun run lesson-08-permissions/table.ts",
 		"lesson-09": "bun run lesson-09-unattended/demo.ts",
+		"lesson-15": "bun run lesson-15-memory/demo.ts",
+		"lesson-20": "bun run lesson-20-search-agent/agent.ts",
+		"lesson-20:corpus": "bun run lesson-20-search-agent/corpus/generate.ts",
+		"lesson-20:search": "bun run lesson-20-search-agent/search/engine.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
 		"reset": "for d in lesson-02-tools lesson-03-streaming lesson-04-sessions lesson-05-compaction; do sed -i '' 's|entries.set(code.toLowerCase(), url);|entries.set(code, url);|' $d/playground/src/store.ts 2>/dev/null; done; echo 'all playgrounds reset to the buggy state'",
 		"typecheck": "tsc --noEmit"
