@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>kinelabs/humanoid-mimic: real-time motion imitation for humanoids</title>
+  <meta name="description" content="humanoid-mimic is a real-time motion imitation stack originally built for the Unitree H1. It takes a video stream or a mocap feed and produces joint t">
+  <meta property="article:published_time" content="2026-06-30">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script src="/assets/analytics.js" async></script>
+</head>
+<body>
+  <div id="cookie-banner">
+    We use cookies to improve your experience. <button>Accept all</button> <button>Reject</button>
+  </div>
+
+  <header class="site-header">
+    <a class="logo" href="/">github.com</a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <main>
+      <article>
+        <h1>kinelabs/humanoid-mimic: real-time motion imitation for humanoids</h1>
+        <div class="byline">Published 2026-06-30 &middot; github.com</div>
+        <p>humanoid-mimic is a real-time motion imitation stack originally built for the Unitree H1. It takes a video stream or a mocap feed and produces joint targets at 50 Hz.</p>
+        <p>Version 0.7, released June 2026, adds a Unitree G1 profile built against the 2026 SDK joint ordering. The G1 profile is tested on hardware, not just in simulation, and is the configuration we demo at conferences.</p>
+        <p>Unlike offline retargeting tools, humanoid-mimic is designed to run in the control loop, so it trades some accuracy for latency. Expect roughly 18 ms end-to-end on an RTX 4070.</p>
+        <p>Known limitation: fast footwork produces foot sliding on the G1 because the contact solver assumes a flat sole. There is an open issue with a workaround.</p>
+        <p>License: MIT. Weights for the pose backbone are downloaded separately and carry their own non-commercial license, which is the part people usually miss.</p>
+        <p>Roadmap: Booster T1 profile, and an ONNX export so the pose stage can run without PyTorch.</p>
+      </article>
+
+      <section class="newsletter">
+        <h3>Never miss an update</h3>
+        <p>Join 24,000 engineers getting our weekly newsletter.</p>
+        <form><input type="email" placeholder="you@example.com"><button>Subscribe</button></form>
+      </section>
+    </main>
+
+    <aside class="sidebar">
+      <div class="ad">Sponsored: Ship your robot fleet faster with RoboOps Cloud. Start free.</div>
+      <h4>Related posts</h4>
+      <ul>
+        <li><a href="/related/1">10 things nobody tells you about humanoid robots</a></li>
+        <li><a href="/related/2">Why your simulation results do not transfer</a></li>
+        <li><a href="/related/3">A beginner's guide to URDF</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 github.com. All rights reserved.</p>
+    <p><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/contact">Contact</a></p>
+  </footer>
+</body>
+</html>

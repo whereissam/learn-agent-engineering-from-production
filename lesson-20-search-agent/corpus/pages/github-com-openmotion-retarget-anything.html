@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>openmotion/retarget-anything: video to humanoid motion retargeting</title>
+  <meta name="description" content="retarget-anything turns monocular video of a human into joint trajectories for a humanoid robot. Out of the box it ships retargeting profiles for the ">
+  <meta property="article:published_time" content="2026-05-12">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script src="/assets/analytics.js" async></script>
+</head>
+<body>
+  <div id="cookie-banner">
+    We use cookies to improve your experience. <button>Accept all</button> <button>Reject</button>
+  </div>
+
+  <header class="site-header">
+    <a class="logo" href="/">github.com</a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <main>
+      <article>
+        <h1>openmotion/retarget-anything: video to humanoid motion retargeting</h1>
+        <div class="byline">Published 2026-05-12 &middot; github.com</div>
+        <p>retarget-anything turns monocular video of a human into joint trajectories for a humanoid robot. Out of the box it ships retargeting profiles for the Unitree G1, the Unitree H1, and the Booster T1, plus a generic 23-DoF profile you can adapt.</p>
+        <p>The pipeline is three stages: pose estimation on the video, a kinematic solve against the robot URDF, and a physics feasibility pass that rejects trajectories the robot cannot actually track.</p>
+        <p>Installation requires Python 3.11 and a CUDA 12 device for the pose stage. CPU-only inference works but runs roughly 40x slower, which is fine for offline batches.</p>
+        <p>Deprecation notice, v2.0, March 2026: the G1 profile is deprecated and no longer maintained. It was written against the 2024 G1 URDF and the joint ordering changed in the 2026 SDK, so trajectories produced by the G1 profile will not load on current firmware. We are not planning to fix it. Use the H1 profile, or see humanoid-mimic which tracks the current G1 SDK.</p>
+        <p>The H1 profile is actively maintained and is what we run in CI on every commit. Booster T1 support is community maintained and lags about one release behind.</p>
+        <p>License: Apache-2.0. Commercial use is fine, no copyleft obligations on your own code.</p>
+        <p>If you use this in academic work please cite the accompanying tech report rather than the repository URL.</p>
+      </article>
+
+      <section class="newsletter">
+        <h3>Never miss an update</h3>
+        <p>Join 24,000 engineers getting our weekly newsletter.</p>
+        <form><input type="email" placeholder="you@example.com"><button>Subscribe</button></form>
+      </section>
+    </main>
+
+    <aside class="sidebar">
+      <div class="ad">Sponsored: Ship your robot fleet faster with RoboOps Cloud. Start free.</div>
+      <h4>Related posts</h4>
+      <ul>
+        <li><a href="/related/1">10 things nobody tells you about humanoid robots</a></li>
+        <li><a href="/related/2">Why your simulation results do not transfer</a></li>
+        <li><a href="/related/3">A beginner's guide to URDF</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 github.com. All rights reserved.</p>
+    <p><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/contact">Contact</a></p>
+  </footer>
+</body>
+</html>

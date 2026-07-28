@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>G1 retargeting: foot sliding with retarget-anything, switched to humanoid-mimic</title>
+  <meta name="description" content="We spent two weeks trying to get retarget-anything's G1 profile working on a 2026 SDK G1 and eventually gave up. The trajectories load but the joint o">
+  <meta property="article:published_time" content="2026-07-08">
+  <link rel="stylesheet" href="/assets/site.css">
+  <script src="/assets/analytics.js" async></script>
+</head>
+<body>
+  <div id="cookie-banner">
+    We use cookies to improve your experience. <button>Accept all</button> <button>Reject</button>
+  </div>
+
+  <header class="site-header">
+    <a class="logo" href="/">discourse.ros.org</a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <main>
+      <article>
+        <h1>G1 retargeting: foot sliding with retarget-anything, switched to humanoid-mimic</h1>
+        <div class="byline">Published 2026-07-08 &middot; discourse.ros.org</div>
+        <p>We spent two weeks trying to get retarget-anything's G1 profile working on a 2026 SDK G1 and eventually gave up. The trajectories load but the joint ordering is wrong, so the robot immediately goes into a protective stop.</p>
+        <p>Confirmed with the maintainer in an issue: the G1 profile targets the 2024 URDF and is deprecated. It is not a configuration problem on our end.</p>
+        <p>We switched to humanoid-mimic 0.7 which has a current G1 profile. It works, but we do see the foot sliding people have reported on fast footwork. Slowing the playback to 0.8x makes it usable for our demo.</p>
+        <p>If anyone has a cleaner fix for the contact solver we would love to hear it.</p>
+      </article>
+
+      <section class="newsletter">
+        <h3>Never miss an update</h3>
+        <p>Join 24,000 engineers getting our weekly newsletter.</p>
+        <form><input type="email" placeholder="you@example.com"><button>Subscribe</button></form>
+      </section>
+    </main>
+
+    <aside class="sidebar">
+      <div class="ad">Sponsored: Ship your robot fleet faster with RoboOps Cloud. Start free.</div>
+      <h4>Related posts</h4>
+      <ul>
+        <li><a href="/related/1">10 things nobody tells you about humanoid robots</a></li>
+        <li><a href="/related/2">Why your simulation results do not transfer</a></li>
+        <li><a href="/related/3">A beginner's guide to URDF</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 discourse.ros.org. All rights reserved.</p>
+    <p><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/contact">Contact</a></p>
+  </footer>
+</body>
+</html>
