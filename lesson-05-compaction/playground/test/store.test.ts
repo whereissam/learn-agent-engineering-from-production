@@ -7,6 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { record, statsFor } from "../src/analytics.ts";
 import { generateCode, lookup, save, size } from "../src/store.ts";
 
 test("save then lookup returns the original url", () => {
@@ -38,4 +39,32 @@ test("round-trips many links without losing any", () => {
 	for (const [i, code] of codes.entries()) {
 		assert.equal(lookup(code), urls[i], `link ${i} (code ${code}) must resolve`);
 	}
+});
+
+// ─────────────────────────────────────────────────────────────
+// 分析（新增）
+// ─────────────────────────────────────────────────────────────
+
+test("stats count the clicks that actually happened", () => {
+	const code = save("https://example.com/tracked");
+
+	record(code);
+	record(code);
+
+	assert.equal(
+		statsFor(code).clicks,
+		2,
+		"a link that was followed twice must not report zero clicks",
+	);
+});
+
+test("stats are case-insensitive for the caller", () => {
+	const code = save("https://example.com/case");
+	record(code);
+
+	assert.equal(
+		statsFor(code.toUpperCase()).clicks,
+		statsFor(code).clicks,
+		"asking for stats in a different case must give the same answer",
+	);
 });
