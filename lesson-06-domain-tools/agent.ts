@@ -13,6 +13,7 @@
 
 import { resolve } from "node:path";
 import { LineReader } from "../shared/repl.ts";
+import { fakeTelemetryProvider } from "./fake-provider.ts";
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { Message, StreamingProvider, ToolResult } from "../shared/streaming/types.ts";
 import {
@@ -268,8 +269,20 @@ function firstLine(text: string): string {
 	return line.length > 90 ? `${line.slice(0, 90)}…` : line;
 }
 
+/**
+ * 這一課自備 fake provider。
+ *
+ * `shared/streaming/fake.ts` 是寫給 Lesson 1-5 的 coding agent 的，
+ * 它會呼叫 list_files / read_file，在這裡只會拿到 Unknown tool。
+ * 設計原則 1 說每一課都要能不用金鑰跑，所以要自己準備一支。
+ */
+function selectProvider(): StreamingProvider {
+	if (process.env.PROVIDER?.toLowerCase() === "fake") return fakeTelemetryProvider();
+	return selectStreamingProvider();
+}
+
 async function main(): Promise<void> {
-	const provider = selectStreamingProvider();
+	const provider = selectProvider();
 	const messages: Message[] = [];
 	const reader = new LineReader();
 	reader.raw.on("SIGINT", handleInterrupt);

@@ -49,9 +49,24 @@ export interface EvalCase {
 
 	/**
 	 * 報告的 caveats 或 summary 裡「必須」提到的關鍵字（任一即可）。
-	 * 用來檢查它有沒有察覺資料品質問題。
+	 *
+	 * ⚠️ 這個欄位只管「有沒有講到」，**不代表這個案例有資料問題**。
+	 * 兩者原本是綁在一起的（rubric 直接拿 `mustMention` 的存在當成
+	 * 「資料有問題」的代理），加了 two-events 之後就爆了：
+	 * 那一題用 mustMention 檢查「有沒有提到前一次踉蹌」，
+	 * 結果 agent 因為「資料很乾淨卻回報 high confidence」被扣分。
+	 *
+	 * **用一個欄位的存在與否當成另一件事的代理，遲早會爆。**
 	 */
 	mustMention?: string[];
+
+	/**
+	 * 這個 session 真的有資料品質問題（取樣缺口、時鐘偏移…）。
+	 *
+	 * 有問題卻回報 high confidence，是校準失敗。
+	 * 這件事跟 `mustMention` 是兩回事，所以分開成兩個欄位。
+	 */
+	dataQualityIssue?: boolean;
 
 	/**
 	 * 「絕對不該」出現的分類。
@@ -61,10 +76,18 @@ export interface EvalCase {
 }
 
 /**
- * 五個案例。前三個測「判斷準不準」，後兩個測「知不知道自己不知道」。
+ * 七個案例。
  *
- * 後兩個其實更重要。一個會在資料不足時老實說「無法判斷」的 agent，
+ *   1-3  判斷準不準
+ *   4-5  知不知道自己不知道
+ *   6-7  工具的形狀有沒有預設「一個 session 一個突發事件」
+ *
+ * 4-5 比 1-3 重要：一個會在資料不足時老實說「無法判斷」的 agent，
  * 比一個總是給出自信答案的 agent 有用得多。
+ *
+ * 6-7 是後來補的，因為前五題有一個共同的盲點——它們全部都是
+ * 「單一、突發」的事件，於是「照抄 find_anomalies 的候選視窗」
+ * 這種偷懶做法在前五題**永遠不會被扣分**。
  */
 export const CASES: EvalCase[] = [
 	{
@@ -109,6 +132,7 @@ export const CASES: EvalCase[] = [
 		acceptableClassifications: ["inconclusive", "nominal"],
 		// 一定要察覺並說出資料有洞
 		mustMention: ["gap", "missing", "缺", "洞", "無資料", "no data", "sampling"],
+		dataQualityIssue: true,
 		// 對一段沒有資料的時間下確定的結論，是最糟的行為
 		forbiddenClassifications: ["fall", "external_collision"],
 	},
@@ -121,5 +145,45 @@ export const CASES: EvalCase[] = [
 		acceptableClassifications: ["near_miss", "fall", "external_collision", "inconclusive"],
 		trueWindow: { start_ms: 7000, end_ms: 7400 },
 		mustMention: ["offset", "clock", "時鐘", "偏移", "2300"],
+		dataQualityIssue: true,
+	},
+
+	// ── 後來補的兩題 ───────────────────────────────────────────
+	//
+	// 原本五題有一個共同的形狀：**一個 session 一個突發事件**。
+	// 那個形狀讓工具和 prompt 都可以偷懶，而真實 telemetry 不長那樣。
+	{
+		id: "two-events",
+		sessionId: "sess_006",
+		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
+		groundTruth:
+			"兩次事件：t≈3460ms 踉蹌但恢復，t≈9400ms 真的跌倒。" +
+			"find_anomalies 兩個候選都給了，問題是報告會不會只寫最嚴重的那一個",
+		idealClassification: "fall",
+		acceptableClassifications: ["fall"],
+		trueWindow: { start_ms: 9200, end_ms: 10000 },
+		// 分類要照最嚴重的事件，但**前一次踉蹌也必須被提到**。
+		// 只報最嚴重的那個，是這一題真正要抓的失敗：
+		// 維修人員需要知道「它今天已經不穩過一次了」。
+		mustMention: ["3460", "3500", "3.4", "3.5", "兩次", "第一次", "earlier", "another"],
+		forbiddenClassifications: ["nominal", "near_miss"],
+	},
+	{
+		id: "slow-tip",
+		sessionId: "sess_007",
+		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
+		groundTruth:
+			"從 t=4000ms 開始緩慢傾倒，6 秒內 pitch 爬到 55 度，t=9500ms 四腳離地。" +
+			"關鍵：find_anomalies 的候選從 t=7060ms 才開始（門檻要 pitch>30 才觸發），" +
+			"比事件真正的起點晚了三秒",
+		idealClassification: "fall",
+		acceptableClassifications: ["fall"],
+		// ⚠️ 這個時間窗刻意設在**候選視窗之前**。
+		//
+		// 直接照抄 find_anomalies 給的 7060.. 會在這裡失敗，
+		// 而那正是要測的：**候選不是答案**（Lesson 6 Step 3 講過，
+		// 但那時候沒有任何案例會因此失敗，所以那條原則沒有被驗證過）。
+		trueWindow: { start_ms: 4000, end_ms: 7000 },
+		forbiddenClassifications: ["nominal"],
 	},
 ];

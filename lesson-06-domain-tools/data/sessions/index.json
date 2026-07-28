@@ -43,5 +43,23 @@
     "sample_count": 650,
     "sample_rate_hz": 50,
     "video_offset_ms": -2300
+  },
+  {
+    "session_id": "sess_006",
+    "robot_id": "unitree-go2-a",
+    "recorded_at": "2026-07-26T09:00:00Z",
+    "duration_ms": 14000,
+    "sample_count": 700,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
+  },
+  {
+    "session_id": "sess_007",
+    "robot_id": "unitree-go2-c",
+    "recorded_at": "2026-07-27T09:00:00Z",
+    "duration_ms": 13000,
+    "sample_count": 650,
+    "sample_rate_hz": 50,
+    "video_offset_ms": 0
   }
 ]

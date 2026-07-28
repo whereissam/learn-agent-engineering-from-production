@@ -68,7 +68,7 @@ bun run lesson-07-evaluation/eval.ts --save baseline
 bun run lesson-07-evaluation/eval.ts --compare baseline
 ```
 
-> ⚠️ 這會呼叫真的模型，跑完五個案例大約 2.5 分鐘、48 次工具呼叫。
+> ⚠️ 這會呼叫真的模型，跑完七個案例大約 2.5 分鐘、48 次工具呼叫。
 > 用便宜的 model 省錢：`MODEL=gemini-3.5-flash-lite bun run lesson-07-evaluation/eval.ts`
 
 ---
@@ -191,7 +191,7 @@ checks.push({
 
 ---
 
-## Step 5：五個案例的設計邏輯
+## Step 5：七個案例的設計邏輯
 
 ```
 sess_001  real-fall            真的跌倒        → 測「抓得到嗎」

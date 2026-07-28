@@ -14,7 +14,22 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { runTurn } from "../lesson-06-domain-tools/agent.ts";
 import { REPORT_DIR } from "../lesson-06-domain-tools/tools/report.ts";
+import { fakeTelemetryProvider } from "../lesson-06-domain-tools/fake-provider.ts";
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
+import type { StreamingProvider } from "../shared/streaming/types.ts";
+
+/**
+ * 跟 Lesson 6 一樣自備 fake provider。
+ *
+ * ⚠️ 用 `PROVIDER=fake` 跑評估**只能驗證管線本身有沒有壞**
+ * （案例讀得到嗎、rubric 算得出來嗎、`--save` / `--compare` 正常嗎），
+ * **不能拿來判斷 agent 好不好**——假 provider 每個案例都演同一套動作，
+ * 分數沒有意義。真正的評估一定要用真模型。
+ */
+function selectProvider(): StreamingProvider {
+	if (process.env.PROVIDER?.toLowerCase() === "fake") return fakeTelemetryProvider();
+	return selectStreamingProvider();
+}
 import type { Message } from "../shared/streaming/types.ts";
 import type { ToolContext } from "../shared/tools/index.ts";
 import { CASES, type EvalCase, type IncidentReport } from "./cases.ts";
@@ -54,7 +69,7 @@ async function loadFacts(sessionId: string): Promise<TelemetryFacts> {
 // ─────────────────────────────────────────────────────────────
 
 async function runCase(testCase: EvalCase): Promise<CaseResult> {
-	const provider = selectStreamingProvider();
+	const provider = selectProvider();
 	const started = Date.now();
 
 	// 每個案例都從乾淨的報告目錄開始，
@@ -203,7 +218,7 @@ interface Baseline {
 }
 
 async function saveBaseline(label: string, results: CaseResult[]): Promise<void> {
-	const provider = selectStreamingProvider();
+	const provider = selectProvider();
 	const baseline: Baseline = {
 		label,
 		savedAt: new Date().toISOString(),
@@ -296,7 +311,7 @@ async function main(): Promise<void> {
 		process.exit(1);
 	}
 
-	const provider = selectStreamingProvider();
+	const provider = selectProvider();
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
 	console.log(dim(`跑 ${selected.length} 個案例\n`));
 

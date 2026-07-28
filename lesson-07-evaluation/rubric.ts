@@ -191,7 +191,12 @@ export function gradeReport(
 	// ── 7. 信心度校準 ───────────────────────────────────
 	//
 	// 資料有問題卻回報 high confidence，是一種校準失敗。
-	if (testCase.mustMention && report.confidence === "high") {
+	// ⚠️ 這裡原本看的是 `testCase.mustMention` 的存在，
+	// 也就是拿「有沒有要求提到某些關鍵字」當成「資料有沒有問題」的代理。
+	// 加了 two-events 那一題（用 mustMention 檢查「有沒有提到前一次踉蹌」）
+	// 之後就誤判了：資料明明很乾淨，卻因為 high confidence 被扣分。
+	// 現在改成看明確的 `dataQualityIssue`。
+	if (testCase.dataQualityIssue && report.confidence === "high") {
 		checks.push({
 			name: "calibrated_confidence",
 			passed: false,

@@ -88,7 +88,17 @@ function round(n: number): number {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 五個案例。每一個都是 Lesson 7 的一個評估案例。
+// 七個案例。每一個都是 Lesson 7 的一個評估案例。
+//
+// 前五個是原始的五題。後兩個（006、007）是後來補的，
+// 因為原本五題有一個共同的形狀：**每個 session 只有一個事件，
+// 而且事件是突然發生的**。真實的 telemetry 不是這樣。
+//
+//   006  同一段紀錄裡有兩次事件  → 只報最嚴重那個算不算對？
+//   007  非常緩慢的傾倒          → 單點門檻要很晚才會觸發
+//
+// 這兩題測的都不是「模型聰不聰明」，是**工具的形狀有沒有預設
+// 「一個 session 一個突發事件」**。
 // ─────────────────────────────────────────────────────────────
 
 const SESSIONS: SessionSpec[] = [
@@ -183,6 +193,76 @@ const SESSIONS: SessionSpec[] = [
 				s.imu_pitch_deg = round(2 + 41 + noise(r, 3));
 				s.joint_torque_max = round(66 + noise(r, 7));
 				s.foot_contact = [false, false, true, true];
+			}
+			return s;
+		},
+	},
+	{
+		id: "sess_006",
+		robot: "unitree-go2-a",
+		groundTruth:
+			"兩次事件：t=3000ms 踉蹌後恢復（near miss），t=9200ms 真的跌倒。" +
+			"測「只報告最嚴重的那一個」這個很常見的失敗",
+		durationMs: 14000,
+		seed: 1006,
+		build(t, r) {
+			const s = nominal(t, r);
+
+			// 第一次：踉蹌，腳沒有全部離地，1 秒後恢復
+			if (t >= 3000 && t < 4000) {
+				const p = Math.sin(((t - 3000) / 1000) * Math.PI);
+				s.imu_roll_deg = round(28 * p + noise(r, 3));
+				s.joint_torque_max = round(18 + 40 * p + noise(r, 5));
+				if (t >= 3300 && t < 3500) s.foot_contact = [false, true, true, false];
+				return s;
+			}
+
+			// 第二次：真的跌倒
+			if (t >= 9200 && t < 9600) {
+				const p = (t - 9200) / 400;
+				s.imu_pitch_deg = round(2 + 58 * p + noise(r, 2));
+				s.joint_torque_max = round(18 + 48 * p + noise(r, 5));
+			} else if (t >= 9600 && t < 10000) {
+				s.imu_pitch_deg = round(64 + noise(r, 4));
+				s.imu_accel_z = round(23 + noise(r, 3));
+				s.foot_contact = [false, false, false, false];
+				s.joint_torque_max = round(91 + noise(r, 8));
+			} else if (t >= 10000) {
+				s.imu_pitch_deg = round(73 + noise(r, 1));
+				s.foot_contact = [false, false, false, false];
+				s.joint_torque_max = round(3 + noise(r, 1));
+				s.cmd_vel_x = 0;
+			}
+			return s;
+		},
+	},
+	{
+		id: "sess_007",
+		robot: "unitree-go2-c",
+		groundTruth:
+			"極慢傾倒：從 t=4000ms 開始，pitch 用 6 秒緩慢增加到 55 度，" +
+			"腳到 t=9500ms 才全部離地。每一個「單點門檻」都要很晚才會觸發，" +
+			"測 find_anomalies 的候選會不會來得太晚、模型會不會因此把起點抓錯",
+		durationMs: 13000,
+		seed: 1007,
+		build(t, r) {
+			const s = nominal(t, r);
+
+			if (t >= 4000 && t < 10000) {
+				// 線性、非常慢的傾倒。單看任何一個瞬間都不像事故。
+				const p = (t - 4000) / 6000;
+				s.imu_pitch_deg = round(2 + 53 * p + noise(r, 1.5));
+				s.joint_torque_max = round(18 + 26 * p + noise(r, 3));
+				s.cmd_vel_x = round(0.6 * (1 - p) * 100) / 100;
+				// 腳是逐一離地的，不是一次全離
+				if (t >= 8000) s.foot_contact = [false, true, true, false];
+				if (t >= 9000) s.foot_contact = [false, false, true, false];
+				if (t >= 9500) s.foot_contact = [false, false, false, false];
+			} else if (t >= 10000) {
+				s.imu_pitch_deg = round(56 + noise(r, 1));
+				s.foot_contact = [false, false, false, false];
+				s.joint_torque_max = round(4 + noise(r, 1));
+				s.cmd_vel_x = 0;
 			}
 			return s;
 		},
