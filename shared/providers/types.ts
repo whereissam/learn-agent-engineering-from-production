@@ -102,6 +102,24 @@ export interface ModelResponse {
 	blocks: AssistantBlock[];
 	raw: unknown;
 	stopReason: StopReason;
+	/**
+	 * 這一次呼叫用掉多少 token。provider 沒回報就是 undefined。
+	 *
+	 * ⚠️ **`total` 不等於 `input + output`**，而且差很多。
+	 * Gemini 3.6 Flash 實測：input=20、output=710，但 total=2016——
+	 * 中間 1286 個是 thinking token，它不在 output 裡，但你要付錢，
+	 * 而且它**跟 output 共用 `maxTokens` 額度**。
+	 *
+	 * 所以算錢要用 `total`，不要自己加。完整實驗在 Lesson 26。
+	 */
+	usage?: TokenUsage;
+}
+
+export interface TokenUsage {
+	input: number;
+	output: number;
+	/** provider 回報的總數。可能大於 input + output（thinking token）。 */
+	total: number;
 }
 
 export interface Provider {

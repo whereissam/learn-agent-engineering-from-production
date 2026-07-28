@@ -20,6 +20,7 @@ import type {
 	StopReason,
 	StreamEvent,
 	StreamingProvider,
+	TokenUsage,
 	ToolSpec,
 } from "./types.ts";
 import { drain } from "./types.ts";
@@ -57,6 +58,9 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						],
 						tools: request.tools.map(toOpenAiTool),
 						stream: true,
+						// 沒有這一行，串流回應**不會**帶 usage。
+						// 這是 OpenAI 相容 API 的預設，很多人因此以為串流量不到 token。
+						stream_options: { include_usage: true },
 					},
 					{ signal },
 				);
@@ -65,7 +69,8 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 				let text = "";
 				let textOpen = false;
 				let finishReason: string | null = null;
-				// index -> 累積中的 tool call
+				let usage: TokenUsage | undefined;
+				// key -> 累積中的 tool call
 				//
 				// `extra` 存的是 provider 自己塞在 tool call 上的額外欄位。
 				// Gemini 會放 extra_content.google.thought_signature，而且
@@ -75,15 +80,27 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 				// 這跟 Anthropic 的 thinking block 是同一個問題：
 				// 中立表示涵蓋不了每家 provider 的內部欄位，所以原始的也要留一份。
 				const pending = new Map<
-					number,
+					string,
 					{ id: string; name: string; args: string; extra?: Record<string, unknown> }
 				>();
+				/** 沒有 index 也沒有 id 的碎片，接到上一個 key 上。 */
+				let lastKey: string | undefined;
 
 				for await (const chunk of stream) {
 					if (signal?.aborted) {
 						if (textOpen) yield { type: "text_end" };
 						yield { type: "error", message: "Aborted by user", aborted: true };
 						return;
+					}
+
+					// usage 通常在**最後一個 chunk**，而且那個 chunk 沒有 choices。
+					// 所以這一行必須在 `if (!choice) continue` 之前，不然永遠讀不到。
+					if (chunk.usage) {
+						usage = {
+							input: chunk.usage.prompt_tokens ?? 0,
+							output: chunk.usage.completion_tokens ?? 0,
+							total: chunk.usage.total_tokens ?? 0,
+						};
 					}
 
 					const choice = chunk.choices[0];
@@ -102,10 +119,30 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						yield { type: "text_delta", delta: delta.content };
 					}
 
-					// 工具參數碎片，依 index 累積
+					// 工具參數碎片，累積到同一個 tool call 上。
+					//
+					// ⚠️ 這裡**不能只看 index**。OpenAI 每個碎片都帶 index、只有第一個帶 id；
+					// 但 Gemini 的 OpenAI 相容層**完全不送 index**（每個 delta 是一個
+					// 完整的 tool call，各自帶不同的 id）。
+					//
+					// 只用 index 當 key 的話，Gemini 一次回多個工具呼叫時，
+					// 它們會全部塞進 `pending.get(undefined)`，於是：
+					//   args = '{"query":"a"}{"query":"b"}{"query":"c"}'   ← 三段 JSON 黏在一起
+					// JSON.parse 失敗 → 參數變成 {} → 工具收到空 query，
+					// 而且這個壞掉的字串會被送回下一輪，換來 400 status code (no body)。
+					//
+					// 這個 bug 在 Lesson 20-22 都沒發作，因為模型剛好每輪只叫一個工具。
+					// Lesson 23 把 deep-research 的「一次規劃 3-4 條 query」抄進 prompt 之後，
+					// 第一次跑就炸了。完整的除錯過程在 Lesson 23 Step 6。
 					for (const call of delta?.tool_calls ?? []) {
-						const index = call.index;
-						const existing = pending.get(index) ?? { id: "", name: "", args: "" };
+						const key =
+							typeof call.index === "number"
+								? `index:${call.index}`
+								: call.id
+									? `id:${call.id}`
+									: (lastKey ?? "index:0");
+						lastKey = key;
+						const existing = pending.get(key) ?? { id: "", name: "", args: "" };
 
 						if (call.id) existing.id = call.id;
 						if (call.function?.name) existing.name = call.function.name;
@@ -113,12 +150,14 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						if (call.function?.arguments) existing.args += call.function.arguments;
 
 						// 把 provider 自訂的欄位原樣收下來（Gemini 的 thought_signature 在這裡）
-						for (const [key, value] of Object.entries(call)) {
-							if (key === "index" || key === "id" || key === "type" || key === "function") continue;
-							existing.extra = { ...existing.extra, [key]: value };
+						for (const [field, value] of Object.entries(call)) {
+							if (field === "index" || field === "id" || field === "type" || field === "function") {
+								continue;
+							}
+							existing.extra = { ...existing.extra, [field]: value };
 						}
 
-						pending.set(index, existing);
+						pending.set(key, existing);
 					}
 				}
 
@@ -136,6 +175,10 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 							blocks: text ? [{ type: "text", text }] : [],
 							raw: { role: "assistant", content: text },
 							stopReason,
+							// ⚠️ usage 一定要帶上。**被截斷的呼叫一樣要付錢**，
+							// 而且它通常是最貴的那幾筆（模型想了很久才被砍斷）。
+							// 這一行漏了三課才被 Lesson 26 的計量發現。
+							usage,
 						},
 					};
 					return;
@@ -144,8 +187,10 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 				const blocks: AssistantBlock[] = [];
 				if (text) blocks.push({ type: "text", text });
 
-				// 依 index 排序，讓輸出順序穩定
-				const ordered = [...pending.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call);
+				// Map 保留插入順序，而插入順序就是 provider 送出的順序，
+				// 所以直接取值就好。（之前這裡是照 index 數字排序，
+				// 但 key 現在可能是 id，沒有數字可以排。）
+				const ordered = [...pending.values()];
 
 				for (const call of ordered) {
 					let args: Record<string, unknown>;
@@ -180,7 +225,7 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 					}));
 				}
 
-				yield { type: "done", response: { blocks, raw, stopReason } };
+				yield { type: "done", response: { blocks, raw, stopReason, usage } };
 			} catch (error) {
 				const aborted =
 					signal?.aborted === true ||

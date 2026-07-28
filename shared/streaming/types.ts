@@ -18,6 +18,7 @@ export type {
 	ModelRequest,
 	ModelResponse,
 	StopReason,
+	TokenUsage,
 	ToolResult,
 	ToolResultMessage,
 	ToolSpec,

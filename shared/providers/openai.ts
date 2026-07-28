@@ -68,17 +68,37 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 
 			const stopReason = toStopReason(choice.finish_reason);
 
+			// 非串流版的 usage 直接在回應 body 裡，不需要 stream_options。
+			//
+			// ⚠️ 這一段是後來補的：Lesson 26 把 `usage` 加進共用的
+			// `ModelResponse`，但**只在串流那一支填**。型別答應了一件事，
+			// 一半的實作沒做到——Lesson 1-2 的讀者拿到的永遠是 undefined，
+			// 而且沒有任何訊息說為什麼。
+			//
+			// **共用型別是一種承諾。加欄位的時候要檢查所有實作，
+			// 不是只改你正在看的那一支。**
+			const usage = completion.usage
+				? {
+						input: completion.usage.prompt_tokens ?? 0,
+						output: completion.usage.completion_tokens ?? 0,
+						total: completion.usage.total_tokens ?? 0,
+					}
+				: undefined;
+
 			// 被截斷時，tool_calls 的 arguments 可能是半截的 JSON。
 			// 這種參數解析得出來也不能用 ， 直接放棄這一輪，別執行。
 			// 對照 Pi：agent-loop.ts:211 failToolCallsFromTruncatedMessage
+			// 被截斷的呼叫一樣要付錢，所以這條路徑也要帶 usage。
+			// （串流那一支漏了這件事三課，見 Lesson 26 Step 3。）
 			if (stopReason === "max_tokens") {
-				return { blocks: [], raw: choice.message, stopReason };
+				return { blocks: [], raw: choice.message, stopReason, usage };
 			}
 
 			return {
 				blocks: fromOpenAiMessage(choice.message),
 				raw: choice.message,
 				stopReason,
+				usage,
 			};
 		},
 	};
