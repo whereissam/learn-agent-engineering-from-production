@@ -48,6 +48,19 @@ export interface RetrievedHit {
 	/** 這一筆在各階段的名次，用來解釋「為什麼它在這裡」。 */
 	bm25Rank?: number;
 	denseRank?: number;
+	/**
+	 * 跟 query 的 cosine 相似度（0-1）。
+	 *
+	 * ⚠️ 這是整個回傳值裡**唯一有絕對意義**的分數。
+	 *
+	 * `score` 是候選集內 min-max 正規化過的，所以最高分永遠接近 1，
+	 * **不管那一批候選到底相不相關**。單一來源的時候沒差（使用者自己會
+	 * 看出來前五名都是垃圾），但要跟另一個來源融合的時候就會出事：
+	 * 一個完全不相關的來源，它的「第 1 名」還是會被當成第 1 名。
+	 *
+	 * Lesson 27 就是因此被一篇 sous vide 烹飪指南汙染的。
+	 */
+	denseScore?: number;
 	signals?: Signals;
 }
 
@@ -84,10 +97,12 @@ export async function retrieve(
 		if (ids.length > 0) lists.push(ids);
 	}
 
+	const denseScores = new Map<string, number>();
 	if (stages.dense) {
 		const ranked = (await denseRank(query)).slice(0, CANDIDATES);
 		const ids = ranked.map((r) => r.id);
 		ids.forEach((id, i) => densePosition.set(id, i + 1));
+		for (const item of ranked) denseScores.set(item.id, item.score);
 		lists.push(ids);
 	}
 
@@ -157,6 +172,7 @@ export async function retrieve(
 			score: Math.round(item.score * 1000) / 1000,
 			bm25Rank: bm25Position.get(item.id),
 			denseRank: densePosition.get(item.id),
+			denseScore: denseScores.get(item.id),
 			signals: item.signals,
 		};
 	});
