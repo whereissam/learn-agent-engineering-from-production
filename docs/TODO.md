@@ -15,7 +15,9 @@ Lesson 15     Hermes 篇      長期記憶 + 注入防禦                  ✅ �
 Lesson 16     Hermes 篇      skills + 審核閘門                    ✅ 完成
 Lesson 17     Hermes 篇      跨 session 搜尋 + 排序衛生           ✅ 完成
 Lesson 18-19  Hermes 篇      排程 / 委派                          需要時再寫
-Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  🚧 20-22 完成
+Lesson 20-25  AI Search 篇   crawl / 索引 / 檢索 / research loop  ✅ 完成
+Lesson 26     AI Search 續   成本與預算                           ✅ 完成
+Lesson 27     AI Search 續   本地文件 + web 混合檢索              ✅ 完成
 ```
 
 三個專案的定位（不在同一個抽象層級）：
@@ -222,11 +224,13 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 
 ---
 
-## AI Search 篇（Lesson 20-25）— Lesson 20-22 已完成
+## AI Search 篇（Lesson 20-25）— ✅ 全部完成
 
 - **前置**：Lesson 1-3（loop、工具、streaming）＋ Lesson 7（evaluation）
-- ⚠️ **下面列的開源專案還沒逐一讀過原始碼**，架構描述目前只是根據公開說明
-  的推測。寫課之前要先實際讀（設計原則 4）
+- ~~⚠️ 下面列的開源專案還沒逐一讀過原始碼~~ → **Lesson 23 讀完了**：
+  deep-research `1f8f3e2`、gpt-researcher `5d84d2f5`、firecrawl `ab033afd9`、
+  crawl4ai `7e80152`。23 條引用都標了檔案與行號，而且 `bun run lesson-23:check`
+  會驗證它們還對不對
 
 ### 進度
 
@@ -235,7 +239,9 @@ gateway（92k 行）、plugins（117k 行）、六種 terminal backend 都跳過
 | 20 | ✅ [`lesson-20-search-agent/`](../lesson-20-search-agent/) | 語料 14 頁、BM25 檢索、`web_search` 工具、自備 fake provider。Gemini 3.6 Flash 實測過兩段軌跡 |
 | 21 | ✅ [`lesson-21-crawl/`](../lesson-21-crawl/) | 正文抽取（含量測）、robots/403/JS 空殼/404、切塊、`fetch_page`。實測四段軌跡 |
 | 22 | ✅ [`lesson-22-retrieval/`](../lesson-22-retrieval/) | BM25 + dense + RRF + 去重 + 品質訊號 + rerank，八題評估集（nDCG / recall / novelty）。embedding 快取進版控所以離線可跑 |
-| 23-25 | 待寫 | |
+| 23 | ✅ [`lesson-23-real-world/`](../lesson-23-real-world/) | 對照四個真實專案的原始碼，把四條 query 規則抄回來實測。可執行的引用檢查器 |
+| 24 | ✅ [`lesson-24-research-loop/`](../lesson-24-research-loop/) | 結構性預算、learnings 壓縮、visited/query 去重、失敗隔離。同一個問題 28 秒跑完 |
+| 25 | ✅ [`lesson-25-citations/`](../lesson-25-citations/) | 引用嫁接 / 數字漂移 / 裸露斷言的確定性檢查，`--save` / `--compare` 回歸 |
 
 **Lesson 20 實測記錄**（寫進課程的兩段都是真的跑出來的）：
 
@@ -289,11 +295,13 @@ SearXNG + Crawl4AI / Firecrawl + reranker + API service
 | 課 | 主題 | 會學到 | 對照原始碼 |
 |---|---|---|---|
 | **20** ✅ | 最小的 search agent | 把一個 `web_search` 工具接進 Lesson 3 的 loop。snippet 不等於網頁、**query 決定你看到頁面的哪一面**、query 是模型生的所以 query 品質就是搜尋品質 | dzhng/deep-research |
-| **21** | Crawl 與內容抽取 | HTML → 正文 → chunk。boilerplate / 導航 / 廣告怎麼去、JS render 的界線、robots.txt、逾時與封鎖 | Crawl4AI、Firecrawl |
-| **22** | 檢索與排序 | BM25 + dense retrieval + RRF 融合 + cross-encoder rerank、去重、來源多樣性、新鮮度。**vector DB 只是其中一個零件** | txtai、Qdrant |
-| **23** | 自己做一個 Tavily-lite | 把 20-22 組成一個 `POST /search` 服務，理解 Tavily 到底解決了哪些工程問題 | SearXNG + Crawl4AI |
-| **24** | Deep Research loop | planner、子問題、平行搜尋、evidence store、gap analysis、**什麼時候該停**。第一版自己寫 loop，不用框架 | GPT Researcher、LangChain `open_deep_research` |
-| **25** | 引用與評估 | claim ↔ evidence 對齊、引用驗證、確定性 rubric、回歸測試。接回 Lesson 7 | 本系列 `lesson-07-evaluation/rubric.ts` |
+| **21** ✅ | Crawl 與內容抽取 | HTML → 正文 → chunk。boilerplate 怎麼去、JS render 的界線、robots.txt、**靜默的抽取失敗** | Crawl4AI、Firecrawl |
+| **22** ✅ | 檢索與排序 | BM25 + dense + RRF 融合 + rerank、去重、品質訊號。**vector DB 只是其中一個零件**，而且**平均分數會騙人** | txtai、Qdrant |
+| **23** ✅ | ~~Tavily-lite 服務~~ → **對照真實原始碼** | 讀四個專案的原始碼，跟我們自己推導的做法逐項對照，再把做法抄回來實測 | 四個專案都讀了，23 條引用可驗證 |
+| **24** ✅ | Deep Research loop | **控制流從模型手上拿回來**：結構性預算、learnings 壓縮、visited/query 去重、失敗隔離 | deep-research、gpt-researcher |
+| **25** ✅ | 引用與評估 | claim ↔ evidence 對齊、引用驗證、確定性 rubric、回歸測試。接回 Lesson 7 | 本系列 `lesson-07-evaluation/rubric.ts` |
+| **26** ✅ | 成本與預算 | `total ≠ input + output`、thinking 吃掉 maxTokens、錢花在哪一步、每條證據多少錢 | `gpt_researcher/utils/costs.py` |
+| **27** ✅ | 本地文件 + web 混合 | 增量索引、來源識別（`path#L12-L48`）、跨來源融合、**相關性門檻** | `gpt_researcher/document/`、`vector_store/` |
 
 ### Lesson 20：最小的 search agent ✅
 
@@ -415,7 +423,52 @@ BM25 only  Dense only  + RRF   + 去重   + 品質訊號  + 多樣性   + LLM re
   > 排序解決「回來的東西好不好」，不解決「要搜幾次、什麼時候停、
   > 已經搜過什麼」。**後者完全在 agent 那一側 → 這是 Lesson 24 的題目。**
 
-### Lesson 23：自己做一個 Tavily-lite
+### ~~Lesson 23：自己做一個 Tavily-lite~~ → 改成「對照真實原始碼」✅
+
+**原本的規劃被否決了，理由值得記下來。**
+
+原本要把 Lesson 20-22 包成一個帶 `search_depth` 旋鈕的 HTTP 服務。
+但拆開來看，「包成服務」裡面真正在學 AI Search 的只有一部分：
+
+| 原本要做的 | 學到東西嗎 |
+|---|---|
+| `POST /search`、JSON schema、起服務、部署 | ❌ 那是 web 開發 |
+| 一次 query 要抓幾頁、延遲預算怎麼分、部分失敗怎麼回 | ✅ 但這些是**呼叫端**的決定，屬於 Lesson 24 |
+
+而**真正缺的是「他們到底怎麼做的」**——那也是這份 TODO 從一開始就掛著的
+技術債（「還沒讀過原始碼」）。所以 Lesson 23 改成實際讀四個專案的原始碼，
+跟我們自己推導出來的做法逐項對照。
+
+**Lesson 23 實測記錄**：
+
+- 抄了四條 query 規則（禁用搜尋運算子、一次規劃 N 條、附研究目標、
+  不要搜記憶中的專案名）進 system prompt，其他完全不動。
+  Lesson 22 那個**兩次都撞 16 步上限、沒有答案**的問題，
+  變成**兩次都完成、答案有完整引用**；帶運算子的 query 從 3、10 降到 0、1
+
+- ⚠️ **抄完第一次跑就炸了，炸出一個潛伏三課的 bug。**
+  `shared/streaming/openai.ts` 的 tool call 累積器是照 `index` 分組的，
+  但 **Gemini 的 OpenAI 相容層完全不送 `index`**。模型一次發多個工具呼叫時，
+  四段 arguments JSON 會被串成一個字串 → parse 失敗 → 空參數 →
+  下一輪 `400 status code (no body)`。
+
+  > 前三課沒發作，因為模型剛好每輪只叫一個工具。
+  > 規則 B（一次規劃 3-4 條 query）讓它開始平行呼叫，bug 才現形。
+  > 修法：有 `index` 用 `index`，沒有就用 `id`。已回歸測試 Lesson 21、22
+
+- **規則 A 有效、規則 D 無效**：「不要用 `site:` 這種語法」擋得住，
+  「不要去搜你記憶中的專案名」擋不住——它照樣搜 HumanPlus、GMR、
+  dex-retargeting。
+
+  > 格式規則可以用 prompt 約束，先驗信念不行。
+  > 這正是為什麼 deep-research 不用 prompt 要求模型停止，
+  > 而是用 `breadth/2`、`depth-1` 把停止條件寫死。**第三次驗證同一條原則。**
+
+- **一個意外的對照結果**：四個專案**都沒有檢索評估集**。
+  我們 Lesson 22 有 nDCG/recall/novelty，他們靠使用者回報和眼睛看。
+  這不是他們差，是評估集只有領域內的人做得出來
+
+#### 原始規劃保留在這裡（被否決的那一版，當作決策紀錄）
 
 ```http
 POST /search
@@ -436,7 +489,7 @@ SearXNG 搜尋候選 URL
 不是說做完就有 Tavily 的規模與穩定性，而是會清楚知道**它賣的是哪些工程
 問題的答案**。
 
-### Lesson 24：Deep Research loop
+### Lesson 24：Deep Research loop ✅
 
 ```text
 分析問題 → 拆子問題 → 產生多個 query → 平行搜尋 → 閱讀網頁
@@ -470,7 +523,34 @@ type ResearchState = {
 LangChain 的 `open_deep_research` 放在課末當對照組：planner / researcher
 分工、state 設計、子任務平行化、retry 與 termination condition。
 
-### Lesson 25：引用與評估
+**Lesson 24 實測記錄**：
+
+- 同一個問題（Lesson 22 那題），agent 版跑兩次都撞 16 步上限沒答案；
+  research loop 版 **28 秒跑完，13 條證據全部掛著真的抓過的網址**，
+  7 次搜尋 / 9 次抓取 / 9 次模型呼叫，都在開跑前算出來的上界之內
+
+- **URL 去重擋掉 22 次重複抓取**。deep-research 沒有做這件事
+  （`visitedUrls` 只用來列 Sources），gpt-researcher 有（`_get_new_urls`）。
+  我們照後者
+
+- **query 去重要寫進程式**。prompt 裡已經寫了「不要重複」，
+  但假 provider 第一次跑就重複兩條。同一條原則第四次出現
+
+- ⚠️ **又踩到兩個靜默失敗，都是自己寫的**：
+
+  | 症狀 | 原因 | 修法 |
+  |---|---|---|
+  | 抓了四頁、0 條結論、沒有訊息 | 三種原因（JSON 壞 / 沒結論 / 來源被過濾）分不出來 | `Extraction.failure` 強迫講出原因 |
+  | 報告在網址中間斷掉 `(https://github.com/kin` | `stopReason === "max_tokens"` 被忽略 | 記錄 `truncatedOutputs` 並顯示 |
+
+  > 這已經是系列裡第四次同一種病（21 Step 5、22 Step 5、23 Step 6、24 Step 5）。
+  > **每加一個階段就要問：這一步什麼都沒做的時候，我看得出來嗎？**
+
+- **我們比 deep-research 多做的**：learning 綁 sources，而且用程式檢查
+  「只能引用真的抓過的網址」。這是 Lesson 25 做引用驗證的前提。
+  但目前只擋得住「引用沒抓過的頁面」，擋不住「那一頁沒說這句話」
+
+### Lesson 25：引用與評估 ✅
 
 Lesson 7 的做法直接搬過來：確定性評分，不用 LLM 當裁判。
 
@@ -478,8 +558,153 @@ Lesson 7 的做法直接搬過來：確定性評分，不用 LLM 當裁判。
 引用的句子在來源網頁裡真的存在嗎？
 引用的數字有沒有被改寫？
 每個 claim 都有對應 evidence 嗎，還是有裸露的斷言？
-換 reranker / 換 chunk 大小之後，有沒有退步？（--compare）
+換 reranker / 換 breadth 之後，有沒有退步？（--compare）
 ```
+
+**前面幾課已經替它鋪好的路**（寫這課的時候直接接上）：
+
+| 素材 | 在哪 | 用途 |
+|---|---|---|
+| 每頁的「真正事實」 | `lesson-20-search-agent/corpus/pages.ts` 的 `groundTruth` | 標準答案，agent 看不到 |
+| 證據綁來源 | `lesson-24-research-loop/state.ts` 的 `Learning.sources` | 逐句比對的前提 |
+| 只能引用抓過的頁面 | `steps.ts` 的來源過濾 | 已經擋掉一半的問題 |
+| 確定性 rubric 的寫法 | `lesson-07-evaluation/rubric.ts` | 直接沿用形狀 |
+
+**要抓的三種錯**（前四課實測都出現過）：
+
+1. **引用嫁接**：句子掛著真實 URL，但那一頁沒說這句話（Lesson 21 Step 6 的 `Pink`）
+2. **數字漂移**：來源寫 0.8x，報告寫成 0.5x 之類
+3. **裸露斷言**：報告裡有句子完全沒有引用
+
+第 1 種要逐句對回正文，這是這一課的主要工作量。
+
+**還沒併進來的**：長報告怎麼寫又不掉引用
+（`gpt-researcher/.../report_generation.py`，309 行）。這一課只做「驗」，
+沒做「寫」。如果要補，是 Lesson 25 的第二版。
+
+**Lesson 25 實測記錄**：
+
+- 對 Lesson 24 的**真實輸出**跑檢查，12 條 claim / 68 個原子，
+  抓到三個問題，**三個都是真的**：
+
+  | 問題 | 內容 |
+  |---|---|
+  | 裸露斷言 | 報告的**核心結論**那句一個來源都沒掛（細項倒是都有） |
+  | 引用嫁接 | 授權那條掛了三個網址，其中論壇那篇從沒提過授權 |
+  | 無來源的補完 | 來源寫「CPU-only… 40x slower」，報告寫成「比 GPU 慢 40 倍」 |
+
+- ⚠️ **這一課我踩的三個坑全部在「評估這一側」**，比系統本身的錯更危險，
+  因為它會叫你去修一個沒壞的東西：
+
+  | 坑 | 症狀 | 教訓 |
+  |---|---|---|
+  | 切句子的佔位符壞了 | **每一條 claim 都變成「沒有引用」**，而程式照樣跑完 | 少一個機制就少一個會壞的地方，最後直接拿掉佔位符 |
+  | 評估讀 `index.json`，agent 讀 `fetchPage` 的長文件 | 正確的引用被判成幻覺 | **評估的來源必須跟系統實際看到的是同一份** |
+  | 去空白讓「June 2026」變成「62026」 | 正確的數字查不到 | 數字和識別字要用不同的正規化 |
+
+  修完之後真實報告從「14 個查無來源」降到「5 個」，而剩下的全是真問題。
+
+- **四個參考專案都沒有引用驗證**。它們產生引用，但沒有任何一個回頭檢查
+  引用是否成立。跟 Lesson 23 發現「都沒有檢索評估集」是同一件事：
+  **評估只有領域內的人做得出來。**
+
+### Lesson 26：成本與預算 ✅
+
+**為什麼是讀完原始碼才想到的**：gpt-researcher 把 `cost_callback` 串進
+**每一個** LLM 呼叫（`actions/query_processing.py`、`context/compression.py`
+都有），而且有 `utils/costs.py:63` 的 `estimate_llm_cost` 和
+`agent.py:773` 的 `add_costs`。我們整個系列從來沒量過錢。
+
+Lesson 24 已經證明「深度旋鈕就是成本旋鈕」——`estimateCost()` 算得出
+搜尋和抓取的次數，但**算不出錢**，因為我們沒有 token 計價。
+
+會學到：
+
+- 每個 provider 的計價怎麼查、怎麼估（input/output 分開算）
+- 把成本累加器串進 loop 而不弄髒每一個函式的簽章
+- 「預算剩下 20% 該做什麼」——是停止、是降級到便宜模型，還是縮小 breadth
+- 成本和品質的取捨要怎麼呈現給使用者
+
+**可以寫可跑的 code**：✅ 而且可以直接接在 Lesson 24 的 `Budget` 上。
+
+**Lesson 26 實測記錄**：
+
+- ⚠️ **`total_tokens` 遠大於 `prompt + completion`**（Gemini 3.6 Flash）：
+
+  ```
+  案例               input  output   total    差額   低估倍數  stopReason
+  極短 (100)            13       1     107      93     7.6x   end
+  一句話 (400)           16      13     412     383    14.2x   max_tokens
+  一句話 (4000)          16      47     686     623    10.9x   end
+  長篇 (2000)           26     643    2022    1353     3.0x   max_tokens
+  ```
+
+  差額是 thinking token：不在 output 裡、要付錢、而且**吃掉 maxTokens 額度**。
+  「一句話」那兩列是同一個問題：額度 400 被截斷，額度 4000 正常。
+
+  > **對推理型模型，`maxTokens` 不是輸出長度上限，是「想 + 寫」的總額度。**
+  > 這也修正了 Lesson 24 Step 5 的因果解釋：報告被截斷不是因為證據太多，
+  > 是 thinking 先吃掉了額度。當時的修法碰巧對，但理由是錯的
+
+- **錢花在哪跟直覺不一樣**：`extractLearnings` 佔 47-56%，
+  `writeReport` 只佔 28-37%。想省錢要先裁短餵進萃取的正文，
+  不是叫報告寫短一點
+
+- **每條證據的單價幾乎不隨深度變化**（$0.0029 vs $0.0031），
+  所以「要不要多跑一層」可以用算術回答。thinking 佔比倒是從 47% 升到 60%
+
+- ⚠️ **第五次「沒出錯、只是沒資料」**：`shared/streaming/openai.ts` 的
+  `max_tokens` 提早 return 路徑沒帶 usage，漏了三課。
+  諷刺的是被截斷的呼叫通常最貴
+
+- **價目表刻意留空**。價格會過期，而過期的精確數字比沒有數字更危險。
+  token 是量測到的事實，錢是需要外部資訊的推算，兩者分開
+
+### Lesson 27：本地文件 + web 混合檢索 ✅
+
+**來源**：`gpt_researcher/document/`（5 個檔案，本地檔案載入器）、
+`gpt_researcher/vector_store/`。
+
+**為什麼值得單獨一課**：「研究我的文件 + 網路上的資料」是最常見的真實需求，
+而我們整個 AI Search 篇只做過 web。這一課會逼出幾個 web-only 遇不到的問題：
+
+- 本地文件沒有 URL，那「來源」是什麼？（檔名 + 第幾頁 + 第幾段）
+- 本地文件沒有新鮮度和權威度訊號，Lesson 22 的排序公式要怎麼改？
+- 同一件事本地和網路說得不一樣時，該相信誰？
+- PDF、docx、投影片怎麼變成 chunk（Lesson 21 只處理 HTML）
+
+**可以寫可跑的 code**：✅ 語料就是這個 repo 自己的 markdown（22 檔、214 chunk）。
+
+**Lesson 27 實測記錄**：
+
+- **增量索引是本地 RAG 的分水嶺**。第二次 ingest：「沿用 22、重切 0」。
+  沒有這一步，你做出的是一個「第二次跑就開始給過期答案」的系統
+
+- **融合幾乎不用寫程式**，因為 Lesson 22 選了 RRF（只看名次）。
+  本地 BM25 分數和網頁融合分數完全不可比，但名次永遠可比。
+  **好的抽象會在你沒預期的地方付利息**
+
+- ⚠️ **但一邊完全不相關的時候會出事，而且我改了三次才對**：
+
+  | 版本 | 結果 |
+  |---|---|
+  | 沒有門檻 | 查「chunk 大小要怎麼選」，**一篇 sous vide 烹飪指南排到第 4 名** |
+  | 相對門檻（低於最高分 35%） | **一筆都沒擋掉**——Lesson 22 的 score 是候選集內 min-max 正規化的，最高分永遠接近 1 |
+  | 抄 gpt-researcher 的 `SIMILARITY_THRESHOLD = 0.35` | **還是一筆都沒擋掉** |
+  | 量自己的分佈後取 0.60 | 網頁 6 筆全擋掉，正確 |
+
+  實測 `gemini-embedding-001` 的分佈：相關 query 0.70-0.79，
+  完全不相關的 query 也有 **0.45-0.52**。gpt-researcher 那個 0.35 是配
+  OpenAI embedding 的。
+
+  > **門檻是模型的性質，不是通則。** 這跟 Lesson 22 猜錯去重門檻是同一種錯，
+  > 但這次更容易中招：抄的是「權威來源的正式常數」，讓人更放心地不去驗證。
+
+  順帶一提，這也讓 Lesson 23 Step 3「gpt-researcher 用門檻不用 top-k」
+  那個觀察從「記下來」變成「必要」：**跨來源融合時 top-k 是有害的**
+
+- **來源分佈本身就是訊號**：只回本地代表外部索引沒涵蓋，
+  只回網頁代表你的文件還沒寫到
 
 ### 延伸專案（不是課程，是練習）
 
@@ -560,17 +785,34 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
       目前是獨立的 `table.ts` 和 `demo.ts`。
       Lesson 9 練習 3 是「接上去」，但課程本身沒做
 
-- [ ] **Lesson 6-7 其實不能用 `PROVIDER=fake` 跑**（違反設計原則 1）
-      `shared/streaming/fake.ts` 的腳本是寫給 Lesson 1-5 的 coding agent 的，
-      它會呼叫 `list_files` / `read_file`，在 Lesson 6 只會得到三次
-      `Unknown tool`。Lesson 20 的做法是**自備一支 fake provider**
-      （`lesson-20-search-agent/fake-provider.ts`），Lesson 6 應該照做。
-      「開源前的檢查清單」裡那條「九課都能用 fake 跑」目前是**不成立**的
+- [x] ~~**Lesson 6-7 其實不能用 `PROVIDER=fake` 跑**~~ ✅ 2026-07-27 修好
+      新增 `lesson-06-domain-tools/fake-provider.ts`，演一次完整的
+      get_session → find_anomalies → query_telemetry → get_video_frame
+      → create_incident_report，Lesson 7 也接上同一支。
 
-- [ ] **只測過 Gemini**（仍待辦）
-      Anthropic 和 OpenAI 的 provider 實作沒有跑過真模型。
-      特別是 streaming provider 的 `raw` 保留邏輯
-      （Anthropic 的 thinking block、OpenAI 的 tool_calls）
+      > ⚠️ 但要注意：`PROVIDER=fake bun run lesson-07` **只驗證評估管線本身**
+      > （案例讀得到、rubric 算得出來、`--save`/`--compare` 正常），
+      > **不能拿來判斷 agent 好不好**——假 provider 每個案例都演同一套動作，
+      > 分數沒有意義。這一點已寫進 `eval.ts` 的註解
+
+- [x] ~~**只測過 Gemini**~~ → **OpenAI 已實測**（2026-07-27）
+      `gpt-5` 跑過 Lesson 21（web_search + fetch_page，五次工具呼叫）
+      和 Lesson 26 的 token probe，`raw` 保留與 tool_calls 都正常。
+
+      **順帶量到一個跨 provider 的差異，已寫進 Lesson 26**：
+
+      ```
+                 差額（total - input - output）
+      Gemini     93 ~ 1353     ← thinking 不在 completion_tokens 裡
+      OpenAI     全部是 0      ← reasoning 已含在 completion_tokens 裡
+      ```
+
+      同一個欄位名、兩家語意不同。這也驗證了「計價一律用 `total`」
+      這個選擇：一個公式對兩家都成立。
+
+- [ ] **Anthropic 仍未實測**
+      沒有 key。`shared/streaming/anthropic.ts` 的 thinking block 保留邏輯
+      和 usage 回報都還沒跑過真模型（usage 根本還沒接，見 Lesson 26 練習 1）
 
 ### 中優先
 
@@ -578,21 +820,106 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
       `tests/` 下 74 個測試，不需要 API key。涵蓋路徑逃逸（含字首碰撞）、
       截斷方向、壓縮切點與不划算保護、inbox 冪等與孤兒回收、
       權限決策順序、記憶圍欄偽造、skill 閘門、搜尋排序衛生。
-      `bun test` 執行。
+      **用 `bun run test`（已鎖定 `tests/`），不要用裸的 `bun test`**——
+      Lesson 23 之後本機會有 clone 下來的參考專案，裸的 `bun test`
+      會把它們的測試也跑進去（實測 firecrawl 有 204 個在我們這裡會失敗）。
+
+- [x] ~~**AI Search 篇沒有納入 `tests/`**~~ ✅ 2026-07-27 完成
+      `tests/ai-search.test.ts` 加了 23 個測試（總數 74 → 97），
+      **每一個都對應到一個實測踩過的坑**，不是為了覆蓋率：
+      短文件不該被判成關鍵字農場（Lesson 22 那個崩塌）、
+      報告解析要抓得到引用（Lesson 25 坑 1）、引用嫁接要抓得到、
+      英文月份要對得上中文月份數字（坑 3）、表格丟掉要回報（Lesson 21）。
+
+      寫測試的時候又發現兩件事：
+      - **停用詞表是手寫的、不完整**（`of` 不在裡面）
+      - **RRF 的「第 1 + 第 3」會贏過「第 2 + 第 2」**（因為 1/x 是凸函數）。
+        我第一次的斷言寫反了。實務上這是好性質：
+        它獎勵「至少有一個來源非常確定」，而不是「大家都覺得還好」
 
 - [x] ~~**英文版**~~ ✅ 2026-07-27 完成
       `README.en.md`（精簡版），中文仍是主要版本。
 
-- [ ] **Lesson 6 的資料產生器可以更豐富**
-      現在 5 個 session。加「兩次事件」「極慢傾倒」這類案例
-      會讓 Lesson 7 的評估更有意思（見 Lesson 7 練習 4）
+- [x] ~~**Lesson 6 的資料產生器可以更豐富**~~ ✅ 2026-07-28 完成
+      加了 `sess_006`（同一段紀錄兩次事件）和 `sess_007`（6 秒的極慢傾倒），
+      Lesson 7 也補上對應的兩個評估案例。
+
+      **原本五題有一個共同的盲點**：全部是「單一、突發」事件，
+      所以「照抄 `find_anomalies` 的候選視窗」這種偷懶做法永遠不會被扣分。
+      `sess_007` 就是為此設計的——候選從 t=7060ms 才開始
+      （門檻要 `pitch>30`），但傾倒 t=4000ms 就啟動了，**晚三秒**。
+
+      實測（Gemini 3.6 Flash，兩次跑）：
+
+      | 案例 | 第一次 | 第二次 |
+      |---|---|---|
+      | two-events | 93%（有提到前一次踉蹌） | 100% |
+      | slow-tip | **83%，window 抄了候選的 7060.. → 沒有重疊** | 100%，自己往前找到起點 |
+
+      > ⚠️ **slow-tip 兩次結果不同**，這不是「修好了」，是變異。
+      > 這一題抓得到那個失敗，但**只是有時候**——而「有時候會照抄候選」
+      > 本身就是值得知道的事實。
+
+- [x] ~~**rubric 把 `mustMention` 當成「有資料品質問題」的代理**~~ ✅ 2026-07-28
+      加 `two-events` 時炸出來的：那一題用 `mustMention` 檢查
+      「有沒有提到前一次踉蹌」，結果 agent 因為「資料很乾淨卻回報
+      high confidence」被扣分。已拆成獨立的 `dataQualityIssue` 欄位。
+
+      > **用一個欄位的存在與否當成另一件事的代理，遲早會爆。**
 
 ### 低優先
 
-- [ ] Lesson 1-5 的 playground 目前是同一份複製五次，
-      可以考慮讓每一課的 playground 有各自的重點
-- [ ] `shared/providers` 跟 `shared/streaming` 有一些重複的轉換邏輯，
-      但**刻意不合併**，合併之後 Lesson 1-2 的讀者會看到用不到的 streaming 概念
+- [x] ~~**Lesson 1-5 的 playground 是同一份複製五次**~~ ✅ 2026-07-28（部分）
+      **只改了 Lesson 5，而且是有理由的**：那一課的 playground 太小
+      （3 個檔案、全部讀完 800 tokens），只能靠 `COMPACT_AT=300`
+      硬逼壓縮——讀者看到的是「參數調很低」，不是「context 真的滿了」。
+
+      現在 Lesson 5 有 14 個檔案、約 26KB（router / routes / analytics /
+      rate-limit / validate / logger / metrics / migrations / 兩份 docs），
+      而且**第二個 bug 埋在 `analytics.ts`**，要跨檔案才找得到。
+
+      實測（預設門檻 8000，一次普通調查）：
+
+      ```
+      [壓縮中… 目前約 8417 tokens]   [已壓縮 43 則訊息：8417 → 406，省下 95%]
+      [壓縮中… 目前約 15638 tokens]  [已壓縮 46 則訊息：15638 → 7351，省下 53%]
+      ```
+
+      **一次調查觸發兩次壓縮**，兩次省下的比例差很多，那個差別本身就是教材。
+
+      **Lesson 1-4 刻意維持原樣**：它們要的是「小到一眼看完」的專案，
+      換成大的只會讓 tool calling、streaming、session 這些主題被雜訊蓋住。
+      差異化要有理由，不是為了不一樣而不一樣。
+
+      順帶把 `reset` 從 package.json 裡的一長串 sed 改成
+      `scripts/reset-playgrounds.ts`——原本那個只處理「agent 改了 save」
+      一種修法，agent 改 `lookup`（一樣正確）就漏掉了
+- [x] ~~`shared/providers` 跟 `shared/streaming` 有重複的轉換邏輯~~
+      **實際比對過了（2026-07-28），結論比原本那句話清楚：**
+
+      重複的只有五個機械式轉換函式（`toOpenAiTool`、`toStopReason`、
+      `toAnthropicTool`、`autoDetect`、`requireKey`），加起來約 60 行，
+      而且**邏輯完全相同，差異只在註解和一行錯誤訊息文字**。
+
+      維持不合併，理由現在比「讀者會看到用不到的概念」更硬：
+      **兩層的 bug 面完全不同。** Lesson 23 那個「平行工具呼叫被合併成一個
+      壞字串」只存在於串流版（它要自己拼 delta 碎片）；非串流版直接讀
+      完整的 `tool_calls` 陣列，結構上不可能有那個 bug。
+      合併之後會變成一個帶「現在是不是串流」分支的函式——
+      那個 bug 只會更難找。
+
+      > **重複 60 行機械轉換，換兩層各自簡單、各自好 debug，這筆划算。**
+
+- [x] ~~**`ModelResponse.usage` 只有串流版有填**~~ ✅ 2026-07-28 修好
+      這是我自己在 Lesson 26 弄出來的：把 `usage` 加進**共用**的
+      `ModelResponse`，但只改了 `shared/streaming/openai.ts`。
+      Lesson 1-2 用的非串流版永遠回 `undefined`，而且沒有任何訊息說為什麼。
+
+      已補上（實測 OpenAI 非串流：`{"input":118,"output":400,"total":518}`），
+      而且截斷路徑也帶了——串流版當初就是漏這條路徑漏了三課。
+
+      > **共用型別是一種承諾。加欄位的時候要檢查所有實作，
+      > 不是只改你正在看的那一支。**
 
 ---
 
@@ -602,8 +929,8 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
 - [x] `.sessions/`、`reports/`、`results/` 在 `.gitignore` 裡
 - [x] 沒有硬編碼的 API key
 - [x] typecheck 乾淨
-- [ ] 每一課都能用 `PROVIDER=fake` 跑（不需要 key）
-      ← Lesson 1-5、20 可以；**6、7 不行**，見上面的缺口
+- [x] 每一課都能用 `PROVIDER=fake` 跑（不需要 key）
+      Lesson 6-7 的 fake provider 已補（2026-07-27）
 - [x] 加 LICENSE 檔案
 - [ ] 加 `CONTRIBUTING.md`（如果要收 PR）
 - [ ] 決定要不要收 issue / PR
@@ -613,7 +940,7 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
 
 ## 設計原則（寫新課程時參考）
 
-這九課下來累積的幾條原則，之後寫新課時應該遵守：
+這些原則是一課一課踩出來的，之後寫新課時應該遵守：
 
 1. **每一課都要能用 `PROVIDER=fake` 跑**
    沒有 API key 的人也要能看到東西動
@@ -634,6 +961,23 @@ learning-to-rank，每個理論都會對應到已經遇過的真實問題。
    如果一件事重要到值得提，就該教。這是 Lesson 6-7 存在的原因
 
 6. **核心 loop 不要動**
-   從 Lesson 1 到 9，`runTurn` 基本沒變。
-   新功能應該加在它周圍，不是改它本身。改到它的時候要問自己
-   是不是抽象拆錯了
+   從 Lesson 1 到 23，`runTurn` 基本沒變。新功能應該加在它周圍，
+   不是改它本身。改到它的時候要問自己是不是抽象拆錯了。
+
+   > Lesson 24 是**唯一的例外，而且是刻意的**：research loop 不是
+   > agent loop 的改良版，是另一個形狀（控制流在程式手上）。
+   > 那一課沒有動 `runTurn`，是在它旁邊蓋了一個新的東西。
+   > **換形狀跟改 loop 是兩件事。**
+
+7. **每加一個階段，就問「它什麼都沒做的時候，我看得出來嗎」**
+   這條是被同一種病咬了四次之後補上的：
+
+   | 課 | 靜默失敗 | 後果 |
+   |---|---|---|
+   | 21 Step 5 | 抽取器丟掉 `<table>`，沒有任何訊號 | 燒掉兩次 16 步上限 |
+   | 22 Step 5 | 品質訊號對短文件有偏誤，被平均分數蓋住 | 一題從 1.000 崩到 0.131 |
+   | 23 Step 6 | 平行工具呼叫被合併成一個壞字串 | 潛伏三課，`400 no body` |
+   | 24 Step 5 | 萃取 0 條、報告被 token 上限截斷 | 看起來像做完了 |
+
+   **會爆的失敗不可怕，安靜的失敗才可怕。**
+   新階段一定要能講出「我這次沒有產出，原因是 X」。

@@ -129,6 +129,8 @@ Case 2：快速蹲下但沒有跌倒          測「會不會假警報」
 Case 3：外力碰撞                    測「分得出成因嗎」
 Case 4：telemetry 缺失              測「知不知道自己不知道」
 Case 5：影片和 telemetry 時鐘偏移   測「有沒有察覺陷阱」
+Case 6：同一段紀錄裡有兩次事件      測「會不會只報最嚴重的那個」
+Case 7：極慢傾倒，候選視窗來得晚    測「會不會照抄工具給的候選」
 ```
 
 評分是**確定性的**（不是用 LLM 當裁判）：是否找到正確時間段？
@@ -290,7 +292,11 @@ Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而�
 | **[20](lesson-20-search-agent/)** | 最小的 search agent | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
 | **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
 | **[22](lesson-22-retrieval/)** | 檢索與排序 | BM25 + dense + RRF、去重、品質訊號、**平均分數會騙人** |
-| 23-25 | Tavily-lite / research loop / 引用評估 | 規劃在 [docs/TODO.md](docs/TODO.md) |
+| **[23](lesson-23-real-world/)** | 對照真實原始碼 | 讀 GPT Researcher / deep-research / Firecrawl / Crawl4AI，把做法抄回來實測 |
+| **[24](lesson-24-research-loop/)** | Deep Research loop | 控制流從模型手上拿回來、結構性預算、learnings 而不是網頁在流動 |
+| **[25](lesson-25-citations/)** | 引用與評估 | 引用嫁接、數字漂移、裸露斷言的確定性檢查。**評估自己也會錯** |
+| **[26](lesson-26-cost/)** | 成本與預算 | `total ≠ input + output`、thinking token 吃掉 maxTokens、錢花在哪一步 |
+| **[27](lesson-27-local-docs/)** | 本地文件 + web 混合 | 增量索引、來源識別、**門檻是模型的性質不是通則** |
 
 每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
 
@@ -304,11 +310,11 @@ shared/
   repl.ts        能正確處理管線輸入的行讀取器
 
 lesson-06-domain-tools/
-  data/          合成的機器人 telemetry（固定 seed，可重現）
+  data/          合成的機器人 telemetry（7 個 session，固定 seed，可重現）
   tools/         領域工具：telemetry 查詢、異常掃描、事故報告
 
 lesson-07-evaluation/
-  cases.ts       五個評估案例與各自的期望
+  cases.ts       七個評估案例與各自的期望
   rubric.ts      確定性的評分標準
   eval.ts        執行器（支援 --save / --compare 做回歸測試）
 
@@ -326,6 +332,30 @@ lesson-22-retrieval/
   embed/         embedding provider + 進版控的向量快取（離線可跑）
   retrieve/      dense、RRF 融合、去重、品質訊號、rerank
   eval/          八個查詢的分級標註 + nDCG / recall / novelty
+
+lesson-23-real-world/
+  citations.ts   23 條引用（檔案 + 行號 + 必須出現的字串）
+  check.ts       驗證這些行號還對不對，上游改版會告訴你哪幾條漂了
+
+lesson-24-research-loop/
+  state.ts       研究狀態：learnings（帶來源）、visited、預算
+  research.ts    遞迴主體，breadth/2、depth-1，沒有 while(true)
+  steps.ts       四個獨立的 LLM 步驟 + 防禦性 JSON 解析
+
+lesson-25-citations/
+  verify.ts      原子抽取 + 逐來源比對，不用 LLM 當裁判
+  fixtures.ts    Lesson 24 的真實輸出 + 三份故意改壞的
+  eval.ts        指標 + --save / --compare 回歸
+
+lesson-26-cost/
+  meter.ts       包一層 provider 就開始記帳，不改任何一課
+  prices.ts      價目表（刻意留空，要自己填並記下確認日期）
+  probe.ts       token 會計實驗：證明 total 遠大於 input + output
+
+lesson-27-local-docs/
+  ingest.ts      掃 repo 的 markdown → 切塊 → 增量索引（內容雜湊）
+  bm25.ts        通用版 BM25（Lesson 20 那支是寫死在語料上的）
+  hybrid.ts      本地 + 網頁用 RRF 融合，含相關性門檻
 
 shared/permissions/  風險分級與權限引擎（Lesson 8）
 shared/inbox/        無人值守批准佇列（Lesson 9）
