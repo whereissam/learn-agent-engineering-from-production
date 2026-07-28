@@ -1,0 +1,38 @@
+[
+  {
+    "id": "real",
+    "claims": 12,
+    "uncited": 1,
+    "atoms": 68,
+    "unsupportedAtoms": 5,
+    "grafted": 1,
+    "unknownSources": 0
+  },
+  {
+    "id": "drifted",
+    "claims": 12,
+    "uncited": 1,
+    "atoms": 68,
+    "unsupportedAtoms": 8,
+    "grafted": 1,
+    "unknownSources": 0
+  },
+  {
+    "id": "grafted",
+    "claims": 12,
+    "uncited": 1,
+    "atoms": 68,
+    "unsupportedAtoms": 10,
+    "grafted": 3,
+    "unknownSources": 0
+  },
+  {
+    "id": "bare",
+    "claims": 12,
+    "uncited": 6,
+    "atoms": 68,
+    "unsupportedAtoms": 37,
+    "grafted": 0,
+    "unknownSources": 0
+  }
+]
