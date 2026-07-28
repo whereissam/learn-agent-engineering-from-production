@@ -260,43 +260,35 @@ Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而�
 
 ## 課程規劃
 
-| 課 | 主題 | 你會學到 |
-|---|------|---------|
-| **[01](lesson-01-agent-loop/)** | 最小的 agent loop | tool calling、對話歷史、provider 抽象 |
-| **[02](lesson-02-tools/)** | 更多工具 | write / edit / bash、輸出截斷、危險操作的批准機制 |
-| **[03](lesson-03-streaming/)** | Streaming 與中斷 | 逐字輸出、Ctrl+C 中斷、中斷後的狀態修復 |
-| **[04](lesson-04-sessions/)** | Session 持久化 | 存檔、續跑、為什麼 session 是「樹」不是陣列 |
-| **[05](lesson-05-compaction/)** | Context 壓縮 | 對話太長怎麼辦、compaction 的取捨 |
-| **[06](lesson-06-domain-tools/)** | 領域工具 | 第 3 層。把通用 agent 變成你領域的專用系統 |
-| **[07](lesson-07-evaluation/)** | Evaluation | 第 4 層。量測 → 發現問題 → 修 → 確認沒退步 |
+整張地圖一次看完。每一課回答一個問題，答案是能跑的程式碼。
 
-**OpenWorker 篇**（第 2 層的產品化）
-
-| 課 | 主題 | 你會學到 |
-|---|------|---------|
-| **[08](lesson-08-permissions/)** | 風險分級與權限引擎 | 從 boolean 到四級風險、模式、為什麼 AUTO 也擋不住路徑逃逸 |
-| **[09](lesson-09-unattended/)** | 沒人在場的時候 | 無人值守批准、inbox 佇列、agent 暫停與喚醒 |
-
-**Hermes 篇**（長期運行的 agent）
-
-| 課 | 主題 | 你會學到 |
-|---|------|---------|
-| **[15](lesson-15-memory/)** | 長期記憶 | 三個掛勾點、MEMORY.md/USER.md、**記憶是持續性的注入面** |
-| **[16](lesson-16-skills/)** | Skills 與自我改進 | progressive disclosure、審核閘門、工具白名單 |
-| **[17](lesson-17-search/)** | 跨 session 搜尋 | 排序衛生、recall blindness、為什麼不用 LLM |
-
-**AI Search 篇**（Lesson 20-25，進行中）
-
-| 課 | 主題 | 你會學到 |
-|---|------|---------|
-| **[20](lesson-20-search-agent/)** | 最小的 search agent | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
-| **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
-| **[22](lesson-22-retrieval/)** | 檢索與排序 | BM25 + dense + RRF、去重、品質訊號、**平均分數會騙人** |
-| **[23](lesson-23-real-world/)** | 對照真實原始碼 | 讀 GPT Researcher / deep-research / Firecrawl / Crawl4AI，把做法抄回來實測 |
-| **[24](lesson-24-research-loop/)** | Deep Research loop | 控制流從模型手上拿回來、結構性預算、learnings 而不是網頁在流動 |
-| **[25](lesson-25-citations/)** | 引用與評估 | 引用嫁接、數字漂移、裸露斷言的確定性檢查。**評估自己也會錯** |
-| **[26](lesson-26-cost/)** | 成本與預算 | `total ≠ input + output`、thinking token 吃掉 maxTokens、錢花在哪一步 |
-| **[27](lesson-27-local-docs/)** | 本地文件 + web 混合 | 增量索引、來源識別、**門檻是模型的性質不是通則** |
+| 課 | 主題 | 這課回答的問題 | 你會學到 |
+|---|------|---------------|---------|
+|    | **Pi 篇 · 引擎本體**（第 1、3、4 層） | | |
+| **[01](lesson-01-agent-loop/)** | 最小的 agent loop | agent 為什麼能自己一直做下去？ | tool calling、對話歷史、provider 抽象 |
+| **[02](lesson-02-tools/)** | 更多工具 | 能改東西之後，怎麼不弄壞東西？ | write / edit / bash、輸出截斷、危險操作的批准機制 |
+| **[03](lesson-03-streaming/)** | Streaming 與中斷 | 執行到一半怎麼喊停？ | 逐字輸出、Ctrl+C 中斷、中斷後的狀態修復 |
+| **[04](lesson-04-sessions/)** | Session 持久化 | 關掉之後怎麼接著上次繼續？ | 存檔、續跑、為什麼 session 是「樹」不是陣列 |
+| **[05](lesson-05-compaction/)** | Context 壓縮 | 對話塞不進 context window 怎麼辦？ | 太長怎麼辦、compaction 的取捨 |
+| **[06](lesson-06-domain-tools/)** | 領域工具 | 通用 agent 怎麼變成你領域的專家？ | 第 3 層。把通用 agent 變成你領域的專用系統 |
+| **[07](lesson-07-evaluation/)** | Evaluation | 改了 prompt，到底有沒有變好？ | 第 4 層。量測 → 發現問題 → 修 → 確認沒退步 |
+|    | **OpenWorker 篇 · 產品化**（第 2 層） | | |
+| **[08](lesson-08-permissions/)** | 風險分級與權限引擎 | 「危險」怎麼分級？誰決定要不要問？ | 從 boolean 到四級風險、模式、為什麼 AUTO 也擋不住路徑逃逸 |
+| **[09](lesson-09-unattended/)** | 沒人在場的時候 | 半夜需要批准，但你在睡覺，怎麼辦？ | 無人值守批准、inbox 佇列、agent 暫停與喚醒 |
+| **[10](lesson-10-agent-server/)** | Agent server 與 UI 通訊 | agent 在 server 上跑，UI 怎麼知道它在幹嘛？ | 事件廣播、跨進程中斷、**重連要重送狀態而不是重播事件** |
+|    | **Hermes 篇 · 長期運行** | | |
+| **[15](lesson-15-memory/)** | 長期記憶 | 這次學到的，下次怎麼還記得？ | 三個掛勾點、MEMORY.md/USER.md、**記憶是持續性的注入面** |
+| **[16](lesson-16-skills/)** | Skills 與自我改進 | 能力怎麼累積，又不弄髒 context？ | progressive disclosure、審核閘門、工具白名單 |
+| **[17](lesson-17-search/)** | 跨 session 搜尋 | 上個月那個 session 怎麼找回來？ | 排序衛生、recall blindness、為什麼不用 LLM |
+|    | **AI Search 篇**（Lesson 20-27） | | |
+| **[20](lesson-20-search-agent/)** | 最小的 search agent | 模型怎麼看到訓練資料以外的東西？ | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
+| **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 搜尋結果點進去之後呢？ | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
+| **[22](lesson-22-retrieval/)** | 檢索與排序 | 找到一堆結果，哪些真的相關？ | BM25 + dense + RRF、去重、品質訊號、**平均分數會騙人** |
+| **[23](lesson-23-real-world/)** | 對照真實原始碼 | 真實產品跟我們的玩具差在哪？ | 讀 GPT Researcher / deep-research / Firecrawl / Crawl4AI，把做法抄回來實測 |
+| **[24](lesson-24-research-loop/)** | Deep Research loop | 研究幾十個網頁，控制流誰說了算？ | 控制流從模型手上拿回來、結構性預算、learnings 而不是網頁在流動 |
+| **[25](lesson-25-citations/)** | 引用與評估 | 報告裡的引用是真的嗎？ | 引用嫁接、數字漂移、裸露斷言的確定性檢查。**評估自己也會錯** |
+| **[26](lesson-26-cost/)** | 成本與預算 | 錢到底花在哪一步？ | `total ≠ input + output`、thinking token 吃掉 maxTokens、錢花在哪一步 |
+| **[27](lesson-27-local-docs/)** | 本地文件 + web 混合 | 自己的文件跟 web 怎麼混在一起搜？ | 增量索引、來源識別、**門檻是模型的性質不是通則** |
 
 每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
 
@@ -372,9 +364,33 @@ Lesson 1-5 是「怎麼造引擎」，Lesson 6-7 是「怎麼讓引擎在你的�
 
 ### 目前的驗證狀態
 
-Lesson 1-7 全部用真的 Gemini 3.6 Flash 端到端跑過。
-Lesson 8-9、15-17 是離線示範，不需要 key。
-`bun test` 有 74 個測試，也不需要 key。
+先講一件容易誤會的事。有一半的課**跑起來完全不會呼叫模型**，
+這不是「還沒做完」，而是因為它們教的東西不在模型裡。
+
+> **模型是這個系列裡唯一一個你不用蓋的零件。**
+> 那些沒有模型的課，教的就是「大的那一半」。
+
+| 課 | 它教什麼 | 怎麼驗證 |
+|---|---|---|
+| 1-7 | agent loop 本身：工具呼叫、串流、中斷、壓縮、領域工具、評估 | ✅ 真的 Gemini 3.6 Flash 端到端跑過 |
+| **10** | agent server：事件廣播、跨進程中斷、重連重送狀態 | ✅ 真 Gemini 跑過，含「server 重開後載回歷史繼續對話」 |
+| 20-24、26 | 搜尋、抓頁、檢索排序、research loop、成本 | ✅ 真模型跑過，軌跡在 [docs/TODO.md](docs/TODO.md) |
+| **8** | 風險分級 + **引擎接進真的 loop**：拒絕之後模型做什麼 | 引擎本身是確定性測試；⚠️ 拒絕之後的行為用真 Gemini 實測過，**結果不好看**（Step 7） |
+| **9** | 無人值守批准 + **批准回來之後模型怎麼收尾** | inbox 是確定性測試；被拒之後的行為用真 Gemini 實測過，**結果跟 Lesson 8 相反**（Step 9） |
+| **15** | 記憶的三個掛勾點 + **記憶注入真的打一次** | 機制是確定性測試；⚠️ 攻擊成功與否用真 Gemini 各跑 3 次（Step 4.5）：**沒防禦 3/3 成功，有防禦 3/3 失敗** |
+| **16** | skill 審核閘門 + **description 被切掉還路由得到嗎** | 閘門是確定性測試；⚠️ 路由用真 Gemini 跑了 30 次矩陣（Step 2.5），**發現 Hermes 原文的斷言講得太滿** |
+| **17** | 排序衛生（**排序器裡永遠沒有 LLM**）+ 排序壞掉時下游 agent 會怎樣 | 排序是確定性測試；下游用真 Gemini 跑了 17 次（Step 3.5），模型接在排序器**外面** |
+| 25 | 確定性引用檢查 | 確定性測試。**刻意不用 LLM 當裁判**，那是這一課的主張。被檢查的報告本身是 Lesson 24 真模型跑出來、一字未改的輸出 |
+| **27** | 增量索引、來源識別、相關性門檻 + **門檻擋掉的東西下游會怎樣** | 檢索是確定性測試；下游用真 Gemini 各跑 5 次，**結果跟我預期的相反**（Step 3） |
+
+下半部那些課的驗證不是比較弱，是**比較強**：
+`bun test` 的 101 個測試每次結果都一樣，真模型跑一次只能證明那一次。
+
+> 如果一個機制的正確性要靠模型才能驗證，那它就不是機制，是祈禱。
+> ，這是 Lesson 6 的主張，Lesson 21 Step 5 有一次乾淨的實證。
+
+Lesson 10 兩種都可以：`bun run lesson-10` 是離線示範（`PROVIDER=fake`），
+`PROVIDER=gemini bun run lesson-10:server` 是真模型。
 
 **還沒驗證的**：Anthropic 與 OpenAI 的 provider 實作沒跑過真模型
 （介面共用，但值得實測）。
@@ -477,7 +493,7 @@ PROVIDER=gemini bun run lesson-01
 ## 開始
 
 ```bash
-bun run lesson-01     # 或 lesson-02 … lesson-09
+bun run lesson-01     # 或 lesson-02 … lesson-10
 ```
 
 用 Node 的話：`npm run lesson-01-agent-loop:node`（走 tsx）。
@@ -512,14 +528,13 @@ Lesson 1 的每次對話大概讀 3-5 個小檔案，成本很低（通常不到
 | 系列 | 專案 | 學什麼 | 狀態 |
 |---|---|---|---|
 | **Lesson 1-7** | [earendil-works/pi](https://github.com/earendil-works/pi) | 怎麼造一顆 agent engine，並用在你自己的領域 | ✅ 完成 |
-| **Lesson 8-9** | [andrewyng/openworker](https://github.com/andrewyng/openworker) | 權限引擎、無人值守批准 | ✅ 完成 |
-| Lesson 10-14 | 同上 | GUI 通訊、OAuth/connector、MCP client、排程、audit | 待寫 |
+| **Lesson 8-10** | [andrewyng/openworker](https://github.com/andrewyng/openworker) | 權限引擎、無人值守批准、agent server | ✅ 完成 |
+| Lesson 12 | 同上 | MCP client（11 的 OAuth 併入，13→18，14 已刪） | 待寫 |
 | **Lesson 15-17** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶、skills、跨 session 搜尋 | ✅ 完成 |
 | Lesson 18-19 | 同上 | 排程、subagent 委派 | 需要時再寫 |
 
 完整規劃（含每一課要讀哪些檔案、以及明確**不寫**哪些部分）在
 [docs/TODO.md](docs/TODO.md)。
-| **Hermes 篇** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 怎麼讓 engine 長期存活、記憶、學習 | 規劃中 |
 
 對照上面「該學的四層」：本系列涵蓋第 1 層（Lesson 1-5）到第 3、4 層
 （Lesson 6-7）。OpenWorker 篇偏第 2 層加產品工程，
