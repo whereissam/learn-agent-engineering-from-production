@@ -145,11 +145,30 @@ function snippetOf(text: string, limit = 150): string {
 	return flat.length <= limit ? flat : `${flat.slice(0, limit)}…`;
 }
 
-export async function hybridSearch(query: string, limit = 8): Promise<HybridResult> {
+export interface HybridOptions {
+	/**
+	 * 關掉相關性門檻，兩邊各取前 N 名直接融合。
+	 *
+	 * **這個選項的存在只有一個目的：讓你親眼看到門檻在擋什麼。**
+	 * 真實系統不該有這個開關。
+	 *
+	 * （跟 Lesson 17 的 `disableSourceWeighting` 是同一個用途。
+	 * 一個機制值不值得存在，最好的說明方式是把它關掉跑一次。）
+	 */
+	disableFloor?: boolean;
+}
+
+export async function hybridSearch(
+	query: string,
+	limit = 8,
+	options: HybridOptions = {},
+): Promise<HybridResult> {
 	const { chunks, bm25 } = localIndex();
 
 	const localRaw = bm25.search(query, limit + 4);
-	const { kept: localHits, dropped: localDropped } = applyLocalFloor(localRaw);
+	const { kept: localHits, dropped: localDropped } = options.disableFloor
+		? { kept: localRaw, dropped: 0 }
+		: applyLocalFloor(localRaw);
 	const byId = new Map(chunks.map((chunk) => [chunk.id, chunk]));
 
 	// 網頁那一側直接用 Lesson 22 的完整管線。
@@ -164,7 +183,9 @@ export async function hybridSearch(query: string, limit = 8): Promise<HybridResu
 		denseAvailable = false;
 		webRaw = (await retrieve(query, { ...ALL_STAGES, dense: false }, limit)).hits;
 	}
-	const { kept: webHits, dropped: webDropped } = applyWebFloor(webRaw, denseAvailable);
+	const { kept: webHits, dropped: webDropped } = options.disableFloor
+		? { kept: webRaw, dropped: 0 }
+		: applyWebFloor(webRaw, denseAvailable);
 
 	const localIds = localHits.map((hit) => `local:${hit.id}`);
 	const webIds = webHits.map((hit) => `web:${hit.url}`);
