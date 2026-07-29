@@ -12,6 +12,7 @@ node_modules/
 lesson-*/.sessions/
 lesson-06-domain-tools/reports/
 lesson-07-evaluation/results/
+lesson-10-agent-server/sessions/
 
 # 編輯器 / 作業系統
 .DS_Store
@@ -20,3 +21,4 @@ lesson-07-evaluation/results/
 *.swp
 lesson-15-memory/.memory/
 lesson-16-skills/.skills/
+lesson-09-unattended/outbox/

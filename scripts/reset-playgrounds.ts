@@ -33,6 +33,7 @@ const LESSONS = [
 	"lesson-03-streaming",
 	"lesson-04-sessions",
 	"lesson-05-compaction",
+	"lesson-10-agent-server",
 ];
 
 /** 每一課都有的：短碼大小寫不一致。 */

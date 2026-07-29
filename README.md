@@ -1,597 +1,333 @@
-# 從零打造一個 AI Agent
+# Build an AI Agent From Scratch
 
-> 🇬🇧 [English version](README.en.md)（精簡版）
+> 🇬🇧 English　|　🇹🇼 [繁體中文](README.zh-TW.md)
 
-> 給「會寫程式，但完全不知道 AI agent 怎麼運作」的人。
-> 每一課都是一個能跑的小程式，不用框架，看得完、改得動。
->
-> **本系列邊讀 [Pi](https://github.com/earendil-works/pi) 的原始碼邊寫。**
+Every lesson is one small program you can run, read in one sitting, and break
+on purpose. **No agent framework in the lesson implementations** — you rebuild
+each mechanism instead of hiding it behind one.
 
-## 這是什麼
+**Most lessons begin with a real open-source implementation**, reduced to the
+smallest version that still runs. The exceptions are the lessons where the
+source projects expose a *gap* rather than a solution — domain tools,
+evaluation and citation verification are built from that gap, and the lessons
+say so.
 
-現在到處都在講 AI agent、Claude Code、Cursor、Devin。但你去看它們的原始碼，
-動輒幾萬行，翻兩頁就放棄了。
+## The whole thing in one sentence
 
-其實 agent 的核心非常小。**小到大概 50 行**。剩下的幾萬行都是工程問題：
-UI、session 管理、權限、錯誤處理、context 壓縮，重要，但那不是 agent 本身。
+> An agent is a while loop: ask the model → it says it wants a tool → **your
+> code** runs that tool → feed the result back → repeat until it stops asking.
 
-這系列課程把那 50 行單獨拿出來，讓你先看懂它，再一層一層加東西上去。
-
-## 為什麼要學這個？大廠不是都做好了嗎
-
-先講一個容易搞混的區別：
-
-> **「會用 Claude Code / Codex」** 和 **「會開發 Agent 系統」** 是兩個不同層次。
-
-Claude Code、Codex 已經把最底層、最通用的能力做好了：理解需求、讀寫檔案、
-呼叫 terminal、修改程式碼、跑測試。你通常不需要自己重造一個 coding agent，
-也不需要從零實作 tool calling、ReAct loop 或聊天介面。
-
-**但大廠做好的是一個「通用型執行者」。** 它不知道你的公司怎麼運作、
-不知道你的產品有哪些特殊規則，也不知道什麼時候該停、什麼操作風險太高、
-產出怎樣才算真的正確。
-
-舉例：你讓 Claude Code 幫你開發一個機器人 observability 產品。
-它可以寫程式，但下面這些還是要由**你**設計：
-
-- 它如何知道 telemetry 每個欄位的含義？
-- 它怎麼判斷一次跌倒偵測是真事故，還是 sensor noise？
-- 哪些程式碼可以自動改，哪些涉及機器人控制與安全設定，必須人工批准？
-- 改完要跑哪些模擬、測試、replay 才算成功？
-- 測試失敗時，是重試、換方案，還是停下來升級給人？
-- 長任務 context 被壓縮之後，怎麼不忘記前面做過什麼？
-- 怎麼衡量 agent 真的幫你省時間，而不是製造更多 review 工作？
-
-這些模型都替你決定不了。
-
-### 一個類比
-
-> Claude Code 是一個很聰明的新工程師。
-> Agent 開發是設計公司的 SOP、權限制度、CI、測試環境和審查流程。
-
-就算新工程師很強，你也不會直接給他 production root access，
-然後只說一句「把產品做好」。
-
-真正難的往往不是 agent 本身，而是它周圍的 **Harness**：
-guides、sensors、測試、權限、沙箱、回饋迴路與退出條件。
-模型負責提出和執行行動，Harness 負責讓它不容易走錯、做完能被驗證、
-失敗時能修正。
-
-### 什麼情況下「不需要」特別學
-
-如果你的目標只是：幫自己寫程式、重構幾個檔案、解釋 codebase、
-寫單元測試、修一般 CI 錯誤、一次性的資料整理，
-
-那學好 Claude Code / Codex 的使用方式，加上 `AGENTS.md`、Skills、MCP
-和基本 CI，可能就夠了。沒必要一開始就學 LangGraph、multi-agent
-orchestration 或自己寫 agent runtime。
-
-很多人所謂的「Agent 開發」，其實只是把一個 LLM 包進 while loop 再加幾個
-tools。這種東西學習價值有限，因為基礎平台確實做得比大多數個人開發者更好。
-
-### 什麼時候「真的需要」學
-
-**當你要把 agent 放進自己的產品，而不只是拿它來寫產品的時候。**
-
-例如一個 Incident Agent：
-
-```text
-接收 session telemetry
-→ 找出異常時間段
-→ 讀取事件前後影片
-→ 比較 joint、IMU、command 資料
-→ 推測跌倒或碰撞原因
-→ 產生 investigation report
-→ 建議下一個檢查步驟
+```mermaid
+flowchart LR
+    U([you ask]) --> M[call the model<br/>with the tool list]
+    M -->|it asks for read_file| X[your code<br/>actually reads it]
+    X -->|result goes back in| M
+    M -->|no tool call| A([answer])
 ```
 
-這裡模型只負責部分推理。真正的產品價值來自：
+The counterintuitive part: **the model cannot do anything.** It can't read
+files, browse, or run commands. It only emits text. A "tool call" is
+structured text asking *your program* to do the work.
 
-```text
-資料契約        事件時間對齊      可靠的工具
-領域上下文      權限邊界          評估資料集
-回放驗證        人工審批          可觀測性
+That loop is about 50 lines. Everything else — permissions, sessions,
+compaction, sandboxes, proof that the work happened — is engineering around
+it. **This series is about rebuilding that engineering, one failure at a time.**
+
+## Why bother, when Claude Code already exists
+
+> Using Claude Code and building agent systems are different skills.
+
+The vendors shipped a general-purpose executor. It does not know your domain,
+your risk rules, when to stop, or what "correct" means for you.
+
+| Layer | Covered by |
+|---|---|
+| **1. Agent mechanics** — model → tool → result → stop | Lessons 1-5 |
+| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12 and 30 written; 28-29, 31-37 planned |
+| **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-17 written; 18-19 planned |
+| **4. Domain tools** — the ceiling is what it can operate, not prompt wording | Lesson 6; Lessons 20-27 at full scale |
+| **5. Evaluation** — otherwise you can't tell whether a change helped | Lessons 7, 22, 25 |
+
+Layers 4 and 5 are the moat, so this series doesn't tell you to figure them
+out yourself — Lesson 6 builds a domain toolset from scratch, Lesson 7 runs
+the full measure → find → fix → confirm loop.
+
+**If you already understand the agent loop, start at Lesson 6.**
+
+## The completed path: 23 runnable steps
+
+The thesis of the series in one sentence:
+
+> **Learn how AI agents work by reading real open-source projects, one at a
+> time, and rebuilding the smallest version of each mechanism yourself.**
+
+**The 23 steps below are written and runnable, and they are ordered as one
+path, not a list of independent topics.** Steps 1-15 are the core; steps 16-23
+form an optional branch that can be skipped *as a whole*. The planned lessons
+continue the same path after step 23. Every step names the source you are
+reading at that point.
+
+```mermaid
+flowchart LR
+    P1["Steps 1-5<br/><b>The engine</b><br/>Pi"] --> P2["Steps 6-7<br/><b>Your domain</b><br/>you"]
+    P2 --> P3["Steps 8-12<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
+    P3 --> P4["Steps 13-15<br/><b>Running for months</b><br/>Hermes"]
+    P4 --> P5["Steps 16-23<br/><b>A whole domain</b><br/>4 search projects"]
 ```
 
-這就是 Agent Engineering。
-
-### 該學的四層，以及這個系列涵蓋哪些
-
-| 層 | 內容 | 這系列 |
-|---|---|---|
-| **1. 單 agent 機制** | model → tool call → tool result → 下一步 → stop。context、tool schema、structured output、memory、retry 的基本原理 | ✅ Lesson 1-5 |
-| **2. Harness Engineering** | Guides（`AGENTS.md`、架構文件、Skills、任務規格）+ Sensors（typecheck、lint、tests、simulation、AI review、production telemetry） | ✅ Lesson 2、5、7 |
-| **3. Domain tools** | agent 的能力上限取決於它能操作什麼，而不是 prompt 多漂亮 | ✅ Lesson 6 |
-| **4. Evaluation** | 固定測試案例 + 評分標準。不會 evaluation，就不知道換模型、改 prompt 之後到底有沒有變好 | ✅ Lesson 7 |
-
-第 1 層你**理解即可，不必重造**，但出錯時你要知道問題在哪。
-
-第 3、4 層才是護城河，所以這系列**不會只叫你「自己想辦法」**，
-而是帶你完整做一遍：Lesson 6 從零設計一組領域工具，
-Lesson 7 建立評估集並跑完「量測 → 發現問題 → 修 → 確認沒退步」的閉環。
-
-領域工具長這樣，不是 `read_file` / `write_file`：
-
-```text
-get_session()         query_telemetry()      find_anomalies()
-compare_sessions()    get_video_frame()      create_incident_report()
-```
-
-工具如果輸出混亂、錯誤不可理解、沒有 deterministic ID，
-再好的模型也會很不穩定。**Lesson 6 會讓你親手把好工具改成爛工具，
-看差別有多大。**
-
-第 4 層最容易被忽略，也最能區分 demo 和產品。Lesson 7 的五個案例：
-
-```text
-Case 1：真正跌倒                    測「抓得到嗎」
-Case 2：快速蹲下但沒有跌倒          測「會不會假警報」
-Case 3：外力碰撞                    測「分得出成因嗎」
-Case 4：telemetry 缺失              測「知不知道自己不知道」
-Case 5：影片和 telemetry 時鐘偏移   測「有沒有察覺陷阱」
-Case 6：同一段紀錄裡有兩次事件      測「會不會只報最嚴重的那個」
-Case 7：極慢傾倒，候選視窗來得晚    測「會不會照抄工具給的候選」
-```
-
-評分是**確定性的**（不是用 LLM 當裁判）：是否找到正確時間段？
-分類正確嗎？引用的數字在真實資料裡存在嗎？有沒有做出危險的誤判？
-
-> Lesson 7 有一段實測記錄：第一次跑是 3/5 通過（91%），評估抓到
-> 「agent 沒有回報影片時鐘偏移」這個我自己沒注意到的漏洞。
-> 修完 prompt 之後 5/5（98%），而且 `--compare` 確認其他案例沒被改壞。
-
-### 所以結論是
-
-不是「大廠都做好了所以不用學」，而是：
-
-> **大廠已經做好通用 agent，所以你更不需要學著重造底層；
-> 但你仍然需要學如何設計領域工具、Harness、評估和安全邊界。**
-
-未來稀缺的能力，很可能不是「誰能寫出一個 tool-calling loop」，
-而是「誰能把不可靠的通用 agent，放進一個可靠的真實系統」。
-
-### 建議的實際做法
-
-你可以繼續把 Claude Code / Codex 當成現成的 agent runtime，
-不需要急著選 Mastra、LangGraph、Hermes 或 OpenWorker。
-
-先在自己的 repo 建立這些：
-
-```text
-AGENTS.md
-docs/architecture/
-docs/runbooks/
-scripts/verify
-scripts/replay-session
-tests/fixtures/incidents/
-```
-
-然後要求 coding agent 完成任務時，必須自己走完：
-
-```text
-讀規格 → 寫 plan → 修改 → 跑 verify → 根據錯誤修正 → 輸出證據
-```
-
-**這一層現在就能練，不需要先做一個獨立的 agent app。**
-
-等你開始遇到現有 coding agent 處理不了的需求（定時執行、事件觸發、
-多使用者隔離、長期任務狀態、人工審批、跨系統工具編排），
-再去學 framework。那時你會非常清楚自己為什麼需要它，
-而不是為了「做 Agent」而做 Agent。
-
-### 那這個系列的定位是什麼
-
-Lesson 1-5 讓你**看懂第 1 層**，Lesson 6-7 讓你**真的做過第 3、4 層**。
-
-理解 loop 的內部之後，你在用 Claude Code 時就不再是在拜託一個黑盒子。
-你會知道：為什麼它突然忘記前面講過的事（context 被壓縮了）、
-為什麼它一直重試同一個失敗的操作（錯誤訊息沒寫清楚）、
-為什麼它讀了一半的檔案就開始亂猜（輸出被截斷了）。
-
-**這些都是這個系列會親手做過一次的東西。**
-
-## 為什麼是跟 Pi 學
-
-[Pi](https://github.com/earendil-works/pi)（by [badlogic](https://github.com/badlogic)）
-是一個把 agent runtime 拆得特別乾淨的開源專案。它刻意分成幾個獨立的層：
-
-```
-packages/ai            provider 抽象（統一 OpenAI / Anthropic / Google）
-packages/agent         agent loop + harness（session、壓縮、工具）
-packages/coding-agent  真正可用的 coding agent CLI
-packages/tui           終端 UI
-```
-
-這種拆法對學習非常好，你可以清楚看到「agent 本身」跟「周圍的工程」
-在哪裡分界。整個核心迴圈就在 `packages/agent/src/agent-loop.ts` 的
-第 170–272 行，大約 100 行。
-
-**每一課的結尾都有一張「對照 Pi 原始碼」表**，標出這一課的概念對應到
-Pi 的哪個檔案、哪一行。讀完之後，你有能力直接去讀那份 production code，
-那才是這系列真正的目標。
-
-## 先講結論：agent 到底是什麼
-
-一句話：
-
-> **Agent = 一個 while 迴圈。裡面反覆做「問模型 → 模型說它想用某個工具 → 你執行那個工具 → 把結果餵回去」，直到模型不再要求用工具為止。**
-
-就這樣。沒有魔法。
-
-畫成圖：
-
-```
-使用者：「這個專案為什麼會有 bug？」
-        ↓
-   ┌──────────────────────────────────┐
-   │  呼叫 LLM（附上可用工具清單）      │
-   └──────────────────────────────────┘
-        ↓
-   模型回：「我想呼叫 read_file('README.md')」
-        ↓
-   ┌──────────────────────────────────┐
-   │  你的程式碼真的去讀那個檔案        │  ← 模型不能碰檔案，只能「請你幫忙」
-   └──────────────────────────────────┘
-        ↓
-   把檔案內容當成「工具結果」加進對話
-        ↓
-   ┌──────────────────────────────────┐
-   │  再次呼叫 LLM（帶著完整對話歷史）  │
-   └──────────────────────────────────┘
-        ↓
-   模型回：「我想呼叫 read_file('src/store.ts')」
-        ↓
-        ... 重複 ...
-        ↓
-   模型回：「找到了，bug 在 store.ts 第 24 行，因為……」← 沒有工具呼叫了
-        ↓
-      迴圈結束
-```
-
-最違反直覺、也最關鍵的一點：
-
-**模型本身什麼都不能做。** 它不能讀檔、不能上網、不能執行指令。
-它唯一能做的事情是「輸出文字」。所謂的「呼叫工具」，只是模型輸出一段
-結構化的文字說「我想要呼叫 read_file，參數是這個」，然後**你的程式**
-去執行它，再把結果當成新的對話內容送回去。
-
-Agent 之所以看起來很強，是因為這個迴圈可以跑很多輪，而模型每一輪都能
-根據新拿到的資訊決定下一步。
-
-## 課程規劃
-
-整張地圖一次看完。每一課回答一個問題，答案是能跑的程式碼。
-
-| 課 | 主題 | 這課回答的問題 | 你會學到 |
-|---|------|---------------|---------|
-|    | **Pi 篇 · 引擎本體**（第 1、3、4 層） | | |
-| **[01](lesson-01-agent-loop/)** | 最小的 agent loop | agent 為什麼能自己一直做下去？ | tool calling、對話歷史、provider 抽象 |
-| **[02](lesson-02-tools/)** | 更多工具 | 能改東西之後，怎麼不弄壞東西？ | write / edit / bash、輸出截斷、危險操作的批准機制 |
-| **[03](lesson-03-streaming/)** | Streaming 與中斷 | 執行到一半怎麼喊停？ | 逐字輸出、Ctrl+C 中斷、中斷後的狀態修復 |
-| **[04](lesson-04-sessions/)** | Session 持久化 | 關掉之後怎麼接著上次繼續？ | 存檔、續跑、為什麼 session 是「樹」不是陣列 |
-| **[05](lesson-05-compaction/)** | Context 壓縮 | 對話塞不進 context window 怎麼辦？ | 太長怎麼辦、compaction 的取捨 |
-| **[06](lesson-06-domain-tools/)** | 領域工具 | 通用 agent 怎麼變成你領域的專家？ | 第 3 層。把通用 agent 變成你領域的專用系統 |
-| **[07](lesson-07-evaluation/)** | Evaluation | 改了 prompt，到底有沒有變好？ | 第 4 層。量測 → 發現問題 → 修 → 確認沒退步 |
-|    | **OpenWorker 篇 · 產品化**（第 2 層） | | |
-| **[08](lesson-08-permissions/)** | 風險分級與權限引擎 | 「危險」怎麼分級？誰決定要不要問？ | 從 boolean 到四級風險、模式、為什麼 AUTO 也擋不住路徑逃逸 |
-| **[09](lesson-09-unattended/)** | 沒人在場的時候 | 半夜需要批准，但你在睡覺，怎麼辦？ | 無人值守批准、inbox 佇列、agent 暫停與喚醒 |
-| **[10](lesson-10-agent-server/)** | Agent server 與 UI 通訊 | agent 在 server 上跑，UI 怎麼知道它在幹嘛？ | 事件廣播、跨進程中斷、**重連要重送狀態而不是重播事件** |
-|    | **Hermes 篇 · 長期運行** | | |
-| **[15](lesson-15-memory/)** | 長期記憶 | 這次學到的，下次怎麼還記得？ | 三個掛勾點、MEMORY.md/USER.md、**記憶是持續性的注入面** |
-| **[16](lesson-16-skills/)** | Skills 與自我改進 | 能力怎麼累積，又不弄髒 context？ | progressive disclosure、審核閘門、工具白名單 |
-| **[17](lesson-17-search/)** | 跨 session 搜尋 | 上個月那個 session 怎麼找回來？ | 排序衛生、recall blindness、為什麼不用 LLM |
-|    | **AI Search 篇**（Lesson 20-27） | | |
-| **[20](lesson-20-search-agent/)** | 最小的 search agent | 模型怎麼看到訓練資料以外的東西？ | snippet 不等於網頁、query 決定你看到頁面的哪一面、BM25 排序 |
-| **[21](lesson-21-crawl/)** | Crawl 與內容抽取 | 搜尋結果點進去之後呢？ | 正文只佔一半、robots/403/JS 空殼、切塊、**靜默的抽取失敗** |
-| **[22](lesson-22-retrieval/)** | 檢索與排序 | 找到一堆結果，哪些真的相關？ | BM25 + dense + RRF、去重、品質訊號、**平均分數會騙人** |
-| **[23](lesson-23-real-world/)** | 對照真實原始碼 | 真實產品跟我們的玩具差在哪？ | 讀 GPT Researcher / deep-research / Firecrawl / Crawl4AI，把做法抄回來實測 |
-| **[24](lesson-24-research-loop/)** | Deep Research loop | 研究幾十個網頁，控制流誰說了算？ | 控制流從模型手上拿回來、結構性預算、learnings 而不是網頁在流動 |
-| **[25](lesson-25-citations/)** | 引用與評估 | 報告裡的引用是真的嗎？ | 引用嫁接、數字漂移、裸露斷言的確定性檢查。**評估自己也會錯** |
-| **[26](lesson-26-cost/)** | 成本與預算 | 錢到底花在哪一步？ | `total ≠ input + output`、thinking token 吃掉 maxTokens、錢花在哪一步 |
-| **[27](lesson-27-local-docs/)** | 本地文件 + web 混合 | 自己的文件跟 web 怎麼混在一起搜？ | 增量索引、來源識別、**門檻是模型的性質不是通則** |
-
-每一課的 `agent.ts` 都是完整、可獨立閱讀的。共用的基礎設施放在 `shared/`：
-
-```
-shared/
-  providers/     LLM provider 抽象（Lesson 1-2）
-  streaming/     加上串流的版本（Lesson 3-5）
-  tools/         工具：read/write/edit/bash/list + 截斷 + 註冊表
-  session/       JSONL 持久化與 session 樹
-  compaction.ts  context 壓縮
-  repl.ts        能正確處理管線輸入的行讀取器
-
-lesson-06-domain-tools/
-  data/          合成的機器人 telemetry（7 個 session，固定 seed，可重現）
-  tools/         領域工具：telemetry 查詢、異常掃描、事故報告
-
-lesson-07-evaluation/
-  cases.ts       七個評估案例與各自的期望
-  rubric.ts      確定性的評分標準
-  eval.ts        執行器（支援 --save / --compare 做回歸測試）
-
-lesson-20-search-agent/
-  corpus/        14 頁的假 web（純文字索引 + 有雜訊的原始 HTML）
-  search/        BM25 檢索，可以單獨當 CLI 跑，不需要模型
-  tools/         web_search 工具
-
-lesson-21-crawl/
-  fetcher.ts     模擬真實 web：robots / 403 / JS 空殼 / 超長頁面
-  extract/       HTML → 正文、切塊、以及對照答案量抽取品質
-  tools/         fetch_page 工具
-
-lesson-22-retrieval/
-  embed/         embedding provider + 進版控的向量快取（離線可跑）
-  retrieve/      dense、RRF 融合、去重、品質訊號、rerank
-  eval/          八個查詢的分級標註 + nDCG / recall / novelty
-
-lesson-23-real-world/
-  citations.ts   23 條引用（檔案 + 行號 + 必須出現的字串）
-  check.ts       驗證這些行號還對不對，上游改版會告訴你哪幾條漂了
-
-lesson-24-research-loop/
-  state.ts       研究狀態：learnings（帶來源）、visited、預算
-  research.ts    遞迴主體，breadth/2、depth-1，沒有 while(true)
-  steps.ts       四個獨立的 LLM 步驟 + 防禦性 JSON 解析
-
-lesson-25-citations/
-  verify.ts      原子抽取 + 逐來源比對，不用 LLM 當裁判
-  fixtures.ts    Lesson 24 的真實輸出 + 三份故意改壞的
-  eval.ts        指標 + --save / --compare 回歸
-
-lesson-26-cost/
-  meter.ts       包一層 provider 就開始記帳，不改任何一課
-  prices.ts      價目表（刻意留空，要自己填並記下確認日期）
-  probe.ts       token 會計實驗：證明 total 遠大於 input + output
-
-lesson-27-local-docs/
-  ingest.ts      掃 repo 的 markdown → 切塊 → 增量索引（內容雜湊）
-  bm25.ts        通用版 BM25（Lesson 20 那支是寫死在語料上的）
-  hybrid.ts      本地 + 網頁用 RRF 融合，含相關性門檻
-
-shared/permissions/  風險分級與權限引擎（Lesson 8）
-shared/inbox/        無人值守批准佇列（Lesson 9）
-shared/memory/       長期記憶與圍欄防禦（Lesson 15）
-shared/skills/       skill 格式、索引、審核閘門（Lesson 16）
-shared/search/       跨 session 搜尋與排序衛生（Lesson 17）
-```
-
-Lesson 1-5 是「怎麼造引擎」，Lesson 6-7 是「怎麼讓引擎在你的領域裡真的有用」。
-**如果你已經懂 agent loop，可以直接跳到 Lesson 6**，那才是大部分人真正缺的部分。
-
-**其他情況建議照順序讀**，因為每一課都建立在前一課上。
-每一課的 README 都會標出前置。
-
-### 目前的驗證狀態
-
-先講一件容易誤會的事。有一半的課**跑起來完全不會呼叫模型**，
-這不是「還沒做完」，而是因為它們教的東西不在模型裡。
-
-> **模型是這個系列裡唯一一個你不用蓋的零件。**
-> 那些沒有模型的課，教的就是「大的那一半」。
-
-| 課 | 它教什麼 | 怎麼驗證 |
-|---|---|---|
-| 1-7 | agent loop 本身：工具呼叫、串流、中斷、壓縮、領域工具、評估 | ✅ 真的 Gemini 3.6 Flash 端到端跑過 |
-| **10** | agent server：事件廣播、跨進程中斷、重連重送狀態 | ✅ 真 Gemini 跑過，含「server 重開後載回歷史繼續對話」 |
-| 20-24、26 | 搜尋、抓頁、檢索排序、research loop、成本 | ✅ 真模型跑過，軌跡在 [docs/TODO.md](docs/TODO.md) |
-| **8** | 風險分級 + **引擎接進真的 loop**：拒絕之後模型做什麼 | 引擎本身是確定性測試；⚠️ 拒絕之後的行為用真 Gemini 實測過，**結果不好看**（Step 7） |
-| **9** | 無人值守批准 + **批准回來之後模型怎麼收尾** | inbox 是確定性測試；被拒之後的行為用真 Gemini 實測過，**結果跟 Lesson 8 相反**（Step 9） |
-| **15** | 記憶的三個掛勾點 + **記憶注入真的打一次** | 機制是確定性測試；⚠️ 攻擊成功與否用真 Gemini 各跑 3 次（Step 4.5）：**沒防禦 3/3 成功，有防禦 3/3 失敗** |
-| **16** | skill 審核閘門 + **description 被切掉還路由得到嗎** | 閘門是確定性測試；⚠️ 路由用真 Gemini 跑了 30 次矩陣（Step 2.5），**發現 Hermes 原文的斷言講得太滿** |
-| **17** | 排序衛生（**排序器裡永遠沒有 LLM**）+ 排序壞掉時下游 agent 會怎樣 | 排序是確定性測試；下游用真 Gemini 跑了 17 次（Step 3.5），模型接在排序器**外面** |
-| 25 | 確定性引用檢查 | 確定性測試。**刻意不用 LLM 當裁判**，那是這一課的主張。被檢查的報告本身是 Lesson 24 真模型跑出來、一字未改的輸出 |
-| **27** | 增量索引、來源識別、相關性門檻 + **門檻擋掉的東西下游會怎樣** | 檢索是確定性測試；下游用真 Gemini 各跑 5 次，**結果跟我預期的相反**（Step 3） |
-
-下半部那些課的驗證不是比較弱，是**比較強**：
-`bun test` 的 101 個測試每次結果都一樣，真模型跑一次只能證明那一次。
-
-> 如果一個機制的正確性要靠模型才能驗證，那它就不是機制，是祈禱。
-> ，這是 Lesson 6 的主張，Lesson 21 Step 5 有一次乾淨的實證。
-
-Lesson 10 兩種都可以：`bun run lesson-10` 是離線示範（`PROVIDER=fake`），
-`PROVIDER=gemini bun run lesson-10:server` 是真模型。
-
-**還沒驗證的**：Anthropic 與 OpenAI 的 provider 實作沒跑過真模型
-（介面共用，但值得實測）。
-
-### 一件值得注意的事
-
-從 Lesson 1 到 Lesson 9，那個核心 while 迴圈**基本上沒有變過**。
-Lesson 6 換了一整組領域工具，`runTurn` 依然一行都沒改。
-變的都是它周圍的東西。這是整個系列最想讓你記住的：
-
-> **Agent 的本質很小。周圍的工程很大。**
-
-## 環境需求
-
-擇一即可：
-
-- **[Bun](https://bun.sh) 1.3 以上**（推薦，可以直接跑 `.ts`，也會自動讀 `.env`）
-- 或 **Node.js 22 以上**
-
-再加上一把 API key，或者**完全不用 key**（見下面的 fake provider）。
-
-## 安裝
-
-```bash
-git clone <這個 repo>
-cd agent-lessons
-
-bun install      # 或 npm install
-```
-
-## API key 放哪裡
-
-**建議放 `.env`**（已在 `.gitignore` 裡，不會被 commit）：
-
-```bash
-cp .env.example .env
-```
-
-然後編輯 `.env`，填入你有的那一把：
-
-```bash
-GEMINI_API_KEY=AIza...
-# ANTHROPIC_API_KEY=sk-ant-...
-# OPENAI_API_KEY=sk-...
-```
-
-三家只需要填**一家**。都填的話會照 `anthropic → openai → gemini` 的順序
-自動選，或用 `PROVIDER` 明確指定。
-
-> 讀取原理：Bun 會自己讀 `.env`；Node 走 `process.loadEnvFile()`（Node 20.12+
-> 內建，不需要 `dotenv` 套件）。程式碼在 `lesson-01-agent-loop/providers/index.ts` 開頭。
-
-也可以不用 `.env`，直接 export 環境變數，已經設在環境裡的值優先，
-`.env` 不會覆蓋它：
-
-```bash
-export GEMINI_API_KEY=AIza...
-```
-
-### 去哪裡申請
-
-| Provider | 申請網址 | 備註 |
-|---|---|---|
-| **Gemini** | <https://aistudio.google.com/apikey> | 有免費額度，最好上手 |
-| **Anthropic (Claude)** | <https://console.anthropic.com/> | |
-| **OpenAI** | <https://platform.openai.com/> | |
-
-### 完全不用 key：fake provider
-
-還沒申請 key，或者不想花錢，也能跑：
-
-```bash
-PROVIDER=fake bun run lesson-01
-```
-
-`fake` 是一個照腳本回應的假模型。它不會真的思考，但**整個 agent loop
-是完全真實的**，真的呼叫工具、真的讀檔案、真的處理錯誤。用它配 debugger
-單步走一遍，是理解 loop 最快的方法。
-
-（順帶一提：真正的 agent 專案都需要這種假 provider 來寫測試，否則每跑一次
-測試就要付錢，而且結果不可重現。）
-
-### 換 model
-
-預設的 model id 如果你的帳號沒權限（會看到 404 / model not found），
-用 `MODEL` 覆寫：
-
-```bash
-MODEL=gemini-3.5-flash-lite bun run lesson-01   # 最便宜最快
-MODEL=claude-sonnet-5 bun run lesson-01
-MODEL=gpt-5-mini bun run lesson-01
-```
-
-也可以強制指定 provider：
-
-```bash
-PROVIDER=gemini bun run lesson-01
-```
-
-## 開始
-
-```bash
-bun run lesson-01     # 或 lesson-02 … lesson-10
-```
-
-用 Node 的話：`npm run lesson-01-agent-loop:node`（走 tsx）。
-
-然後讀 [lesson-01-agent-loop/README.md](lesson-01-agent-loop/)。
-
-### playground 被改壞了？
-
-Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案。恢復成原本的
-（有 bug 的）狀態：
-
-```bash
-bun run reset
-```
-
-## 花費提醒
-
-Lesson 1 的每次對話大概讀 3-5 個小檔案，成本很低（通常不到 US$0.05）。
-但要注意：**agent 的 token 用量會隨對話變長而快速增加**，因為每一輪都要
-把完整的對話歷史重新送給模型。這一課的 Lesson 5 會處理這個問題。
-
-想省錢就用便宜的 model，或直接用 `PROVIDER=fake`。
-
-## 後續系列（規劃中）
-
-這七課學的是 **怎麼造一顆 agent engine，並且讓它在你自己的領域裡可靠**。
-但還有兩個方向沒碰到。這三個專案不在同一個抽象層級：
-
-> **Pi 是 agent runtime／harness；OpenWorker 是桌面 AI coworker 產品；
-> Hermes 是長期運行的 personal agent platform。**
-
-| 系列 | 專案 | 學什麼 | 狀態 |
+> **Lesson numbers have gaps; step numbers don't.** 11, 13 and 14 were merged
+> into other lessons, 18-19 are deferred. Follow the **Step** column and you
+> will never wonder where you are.
+
+| Step | Lesson | The question it answers | Source you read |
 |---|---|---|---|
-| **Lesson 1-7** | [earendil-works/pi](https://github.com/earendil-works/pi) | 怎麼造一顆 agent engine，並用在你自己的領域 | ✅ 完成 |
-| **Lesson 8-10** | [andrewyng/openworker](https://github.com/andrewyng/openworker) | 權限引擎、無人值守批准、agent server | ✅ 完成 |
-| Lesson 12 | 同上 | MCP client（11 的 OAuth 併入，13→18，14 已刪） | 待寫 |
-| **Lesson 15-17** | [nousresearch/hermes-agent](https://github.com/nousresearch/hermes-agent) | 長期記憶、skills、跨 session 搜尋 | ✅ 完成 |
-| Lesson 18-19 | 同上 | 排程、subagent 委派 | 需要時再寫 |
+| | | **① The engine · Lessons 01-05 · Pi**<br/>These mechanisms are extracted from Pi, not invented as teaching abstractions. | |
+| 1 | [01 Minimal agent loop](lesson-01-agent-loop/) | Why can it keep going on its own? | Pi `agent-loop.ts:170-272` |
+| 2 | [02 More tools](lesson-02-tools/) | Once it can change things, how do you not break things? | Pi tools + approval |
+| 3 | [03 Streaming and interruption](lesson-03-streaming/) | How do you stop it mid-run? | Pi `agent.ts` events |
+| 4 | [04 Session persistence](lesson-04-sessions/) | How do you pick up where you left off? | Pi session tree |
+| 5 | [05 Context compaction](lesson-05-compaction/) | What if the conversation no longer fits? | Pi `compaction/` |
+| | | **② Your domain · Lessons 06-07 · you**<br/>The part nobody can hand you. | |
+| 6 | [06 Domain tools](lesson-06-domain-tools/) | How does a general agent become an expert in your domain? | you (Pi shows the shape) |
+| 7 | [07 Evaluation](lesson-07-evaluation/) | You changed the prompt — did it actually get better? | you |
+| | | **③ From a loop to a usable system · Lessons 08-12 + 30 · OpenWorker, Mastra** | |
+| 8 | [08 Risk classes](lesson-08-permissions/) | What counts as dangerous, and who decides to ask? | OpenWorker `risk.py` |
+| 9 | [09 When nobody is there](lesson-09-unattended/) | Approval needed at 3am and you're asleep — now what? | OpenWorker `inbox.py` |
+| 10 | [10 Agent server](lesson-10-agent-server/) | It runs on a server; how does the UI know what it's doing? | OpenWorker `server/app.py` |
+| 11 | [12 MCP client](lesson-12-mcp/) | How do you use someone else's tools without being dragged down? | OpenWorker `mcp/` (647 lines) |
+| 12 | [30 Schema compatibility](lesson-30-schema-compat/) | Their schema is not yours to fix — so what breaks? | Mastra `schema-compat/` |
+| | | *Lesson 30 sits here, despite its higher number, because MCP is what makes schema compatibility unavoidable — it continues step 11's experiment directly.* | |
+| | | **④ Running for months, not minutes · Lessons 15-17 · Hermes** | |
+| 13 | [15 Long-term memory](lesson-15-memory/) | How does it still know this next time? | Hermes `memory_manager.py` |
+| 14 | [16 Skills](lesson-16-skills/) | How do capabilities accumulate without polluting context? | Hermes `skill_utils.py` |
+| 15 | [17 Cross-session search](lesson-17-search/) | How do you find that session from last month? | Hermes `session_search_tool.py` |
+| | | **⑤ One whole domain · Lessons 20-27 · four search projects**<br/>Optional — but it is the real thing. | |
+| 16 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
+| 17 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
+| 18 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
+| 19 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
+| 20 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
+| 21 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
+| 22 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
+| 23 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
 
-完整規劃（含每一課要讀哪些檔案、以及明確**不寫**哪些部分）在
-[docs/TODO.md](docs/TODO.md)。
+Steps 16-23 can be skipped — they are a full-scale demonstration of the method
+from step 6, not a prerequisite for anything. Everything else builds forward,
+and each lesson README repeats its own prerequisites at the top.
 
-對照上面「該學的四層」：本系列涵蓋第 1 層（Lesson 1-5）到第 3、4 層
-（Lesson 6-7）。OpenWorker 篇偏第 2 層加產品工程，
-Hermes 篇則是第 2 層的長期運行版本。
+### The planned continuation · Lessons 18-19 and 28-37 — not written yet
 
-### OpenWorker 篇會學
+These extend the same path after step 23, and **none of them are runnable
+today**. Primary sources have been cloned and scoped; which paths and line
+counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
+still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
-把 agent 接進真實世界的產品工程：
+| Lesson | The question it answers | Source |
+|---|---|---|
+| 18 | It should run at 3am every day — who starts it, and what if it fails? | Hermes `cron/` |
+| 19 | Handing a task to a subagent — what does it get to see? | Hermes, CrewAI |
+| 28 | Interrupted mid-stream — can the session still be trusted? | OpenCode |
+| **29** | **The model says "done" — why would you believe it?** | OpenCode |
+| 31 | How do guardrails stay *out* of the loop? | Mastra |
+| 32 | 200 tools don't fit in the context window | Mastra |
+| 33 | The process died — how do you resume elsewhere? | Mastra, LangGraph |
+| 34 | The process crashed after the email was sent — should resume send it again? | Restate |
+| 35 | Once a command is allowed, what can that process touch? | Anthropic SRT |
+| 36 | Where does the command run, and is that world still there after? | OpenHands |
+| | *35 is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
+| 37 | The agent acted — how do action and observation become history? | OpenHands |
 
-- OAuth 與 connector token 管理（Gmail、Calendar、Slack、Notion…）
-- MCP client 怎麼進產品
-- GUI 與 agent server 之間怎麼通訊
-- approval gate 的產品化（本系列 Lesson 2 是它的最小版本）
-- 無人值守的自動化遇到「需要批准」時怎麼暫停
-- 產出使用者能直接打開的 artifact（文件、試算表、報告）
-- macOS / Windows 打包、自動更新
+This list is short on purpose. A project earns a **main-line** lesson only if
+it has a real agent loop or workflow, touches tools / context / memory /
+permission / session, and has a mechanism you can **switch off** and watch
+fail. A filter that only rejects bad projects is useless — this one says no to
+good ones.
 
-### Hermes 篇會學
+**Lesson 29 is the one to want most.** It answers a question step 8 leaves
+open: the permission engine blocked every attempt and the file was never
+touched, and then the model told the user *"I have refactored and simplified
+src/app.ts for you."*
 
-把 agent 從「單次回答問題」變成常駐系統：
+### Prod part · Lessons 50-59 — *not* part of the 23 steps
 
-- long-term memory 與 user modeling
-- procedural skills（agent 自己累積能力）
-- cross-session 搜尋
-- cron 排程
-- messaging gateway（Telegram / Slack / Discord…）
-- isolated subagents
-- 遠端執行 backend（Docker / SSH / Modal…）
+Different entry rule, different stage:
 
-> ⚠️ Hermes 那套「自我改進」（agent 自動建立或修改 skill）要特別小心：
-> 錯誤經驗會被永久保存、skill 會污染、prompt injection 會持久化、
-> 行為會逐漸漂移，而且很難重現與測試。比較穩妥的起點是
-> 「agent 提議 → 人類審核 → 版本化保存 → 測試通過才啟用」。
+> The main line asks **"is this mechanism part of the agent?"**
+> Prod asks **"the agent already works and you're shipping it — what shows up now?"**
 
-### 為什麼是這個順序
+You cannot hit any of these until you have a working agent, so reading them
+earlier gives the knowledge nothing to attach to.
 
-先 Pi，因為你需要先掌握最小核心：`Message` / `Tool` / `ToolCall` /
-`ToolResult` / `AgentLoop` / `Session` / `Context` / `Approval` /
-`ExecutionEnvironment`。
+| Lesson | The question it answers | Source |
+|---|---|---|
+| 50 | Swapped the API for a local Qwen — why did tool calling break? | vLLM (83 parsers, 14,307 lines) |
+| 51 | *Optional infrastructure*: batching, KV cache, prefix caching | vLLM — **needs a GPU** |
+| 52 | Streaming voice out: cancellation, stale audio, turn-taking | Fish Speech (as a tool) |
+| 53 | Tracing: spans and cost attribution | Mastra, Phoenix |
+| 54 | Swapping providers mid-session without breaking history | — |
+| 55 | OAuth, token rotation, per-user credential isolation | connectors |
+| 56 | The tool costs money — may the agent decide to pay? | x402 |
+| 57 | What may cross into a trace, a memory, or a subagent? | Mastra + production systems TBD |
+| 58-59 | reserved — packaging, auto-update, monitoring | — |
 
-Hermes 放最後，不是因為它比較難，而是因為它**太完整**，一打開就同時看到
-memory、skills、gateway、cron、TUI、voice、subagents、sandbox backends。
-很容易學成「怎麼配置 Hermes」，而沒真正理解為什麼需要 agent loop、
-tool result 怎麼重新進入 context、狀態機怎麼設計。
+vLLM and Fish Speech were both cloned and inventoried before being placed
+here; the notes, line counts and one licensing catch are in
+[docs/TODO.md](docs/TODO.md).
 
-**它適合當第二或第三個 agent codebase，不適合當第一個。**
+## Quick start
 
-## 還沒寫完的部分
+Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 
-規劃中的課程、現有課程的缺口、以及開源前的檢查清單，
-都在 **[docs/TODO.md](docs/TODO.md)**。
+```bash
+bun install
+PROVIDER=fake bun run lesson-01     # no API key needed
+bun run test                        # 112 pass, 1 skipped; no API key needed
+```
 
-想貢獻的話那份文件是最好的起點，它也記錄了寫新課程時該遵守的設計原則。
+`fake` is a scripted model. It doesn't think, but **the loop is entirely
+real** — real tool calls, real file reads, real error handling. Stepping
+through it in a debugger is the fastest way to understand the loop.
 
-## 致謝
+For a real model, put one key in `.env` (`cp .env.example .env`):
 
-架構、命名和很多設計取捨都是從 [Pi](https://github.com/earendil-works/pi)
-（by [badlogic](https://github.com/badlogic)）學來的。
+```bash
+GEMINI_API_KEY=AIza...          # https://aistudio.google.com/apikey — free tier
+# ANTHROPIC_API_KEY=sk-ant-...  # https://console.anthropic.com/
+# OPENAI_API_KEY=sk-...         # https://platform.openai.com/
+```
 
-授權：MIT
+One is enough. With several set the order is `anthropic → openai → gemini`;
+override with `PROVIDER=gemini` or `MODEL=gemini-3.5-flash-lite`.
+
+From Lesson 2 on the agent really edits files in `playground/` — `bun run
+reset` puts them back.
+
+> Use `bun run test`, not bare `bun test`. From Lesson 23 on there are cloned
+> reference projects on disk and a bare `bun test` would run their suites too.
+
+## How this is verified
+
+Half the lessons never call a model when you run them. That isn't unfinished
+work — what they teach doesn't live in the model.
+
+> **The model is the one part of this series you don't have to build.**
+
+- **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
+  covered by **113 deterministic checks: 112 passing, 1 intentionally skipped**
+  (a live-provider contract test that only runs when `PROVIDER` is set, because
+  it spends money).
+- **Model behaviour** is measured separately against live Gemini 3.6 Flash,
+  repeatedly, and the runs are written down in [docs/TODO.md](docs/TODO.md) —
+  including the ones where **the result contradicted what I expected**
+  (Lessons 17, 27) or **looked bad** (Lesson 8).
+
+> If a mechanism needs a model to prove it correct, it is not a mechanism.
+> It is a prayer.
+
+Not yet verified: the Anthropic provider has never run against a live model
+(no key). OpenAI has, and that run measured a real cross-provider difference —
+for `total - input - output`, Gemini leaves a 93-1353 token gap (thinking
+isn't in `output`) while OpenAI is always 0 (reasoning already is). Same field
+name, different meaning.
+
+## Findings that changed the lessons
+
+The parts worth reading even if you never run the code:
+
+- **Lesson 8** — the permission engine blocked every attempt and the file was
+  never touched, and then the model told the user *"I have refactored and
+  simplified src/app.ts for you."* The engine worked 100%; the user was
+  deceived 100%. **Lesson 29 exists to answer this.**
+- **Lesson 21** — an extractor that silently dropped `<table>` burned two
+  entire step budgets. No error, no warning, the answer simply wasn't findable.
+- **Lesson 22** — average nDCG went *up* while one query collapsed from 1.000
+  to 0.131. Averages hide regressions.
+- **Lesson 26** — `total ≠ input + output`. Thinking tokens are invisible,
+  billed, and eat your `maxTokens` budget.
+- **Lesson 27** — a similarity threshold copied verbatim from a respected
+  project blocked nothing, because a threshold is a property of the embedding
+  model, not a universal constant.
+
+The pattern behind several of these: **models are very good at papering over
+bad infrastructure**, which makes bad infrastructure look fine until the once
+it doesn't.
+
+## Where these lessons come from
+
+Source read first, minimal runnable version second — never a topic invented
+and then illustrated. Full attribution, per-project, is in
+[Credits](#credits); what matters here is *why* this particular set:
+
+- **They sit at deliberately different levels.** Pi is a runtime, OpenWorker a
+  desktop product, Hermes a long-running platform, Mastra a framework,
+  OpenCode a heavily-used coding agent.
+- **Two of them are not agent projects at all.** Restate is a durable
+  execution runtime; Anthropic's Sandbox Runtime is an OS-level sandbox. Every
+  agent framework has those problems and none treats them as its subject —
+  which is exactly why the versions you find inside a framework are the
+  "handled in passing" versions.
+- **Some are cited only at the concept level**, and the lessons say so rather
+  than implying a debt they didn't incur (Lesson 22, on txtai and Qdrant).
+
+Every lesson ends with a table mapping its concepts to specific files and line
+numbers, and Lesson 23 ships a [checker](lesson-23-real-world/check.ts) that
+verifies those line numbers haven't drifted upstream.
+
+## What's not written yet
+
+Planned lessons, gaps in existing ones, and the design principles for writing
+new ones: **[docs/TODO.md](docs/TODO.md)**. Best starting point for contributing.
+
+## Credits
+
+This project began with the architecture, naming, and design clarity of
+[Pi](https://github.com/earendil-works/pi), created by
+[badlogic](https://github.com/badlogic). Pi gave the clearest view of the seam
+between the minimal agent loop and the engineering built around it, and
+Lessons 1-5 follow it closely.
+
+### Read line by line, then rebuilt
+
+Each of these was cloned, inventoried, and cited down to file and line number:
+
+| Project | What it taught | Lessons |
+|---|---|---|
+| [OpenWorker](https://github.com/andrewyng/openworker) | Risk classes, unattended approval, the agent-server protocol, MCP | 8-10, 12 |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Long-term memory, skills, cross-session retrieval, scheduling, delegation | 15-17; 18-19 planned |
+| [deep-research](https://github.com/dzhng/deep-research) | The research loop, structural budgets | 20, 24 |
+| [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | Context compression, cost accounting, local documents | 23-27 |
+| [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | Content extraction and its silent failures | 21, 23 |
+| [Mastra](https://github.com/mastra-ai/mastra) | Provider schema compatibility, processors, tool search, durable workflows | 30-33 |
+| [OpenCode](https://github.com/anomalyco/opencode) | Streaming session state, tool lifecycle, interruption, filesystem evidence | 28-29 (planned) |
+| [OpenHands](https://github.com/OpenHands/software-agent-sdk) | Sandboxed execution, action–observation histories | 36-37 (planned) |
+| [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
+| [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 (planned) |
+
+### Referenced at the concept level only
+
+Named for positioning, **not** read line by line — Lesson 22 says so in the
+lesson itself rather than implying a debt it didn't incur:
+[txtai](https://github.com/neuml/txtai),
+[Qdrant](https://github.com/qdrant/qdrant),
+[SearXNG](https://github.com/searxng/searxng).
+
+### Production track (Lessons 50-59)
+
+[vLLM](https://github.com/vllm-project/vllm) and
+[Fish Speech](https://github.com/fishaudio/fish-speech) have been cloned and
+inventoried; [Phoenix](https://github.com/Arize-ai/phoenix) and
+[x402](https://github.com/coinbase/x402) have not been read yet and are
+recorded as such in [docs/TODO.md](docs/TODO.md).
+
+### On reuse
+
+This repository does not vendor any of these projects. Each lesson isolates
+one mechanism, rebuilds a minimal runnable version, and links back to the
+upstream file that motivated it.
+
+**Every upstream project keeps its own license, and they are not all
+permissive.** Fish Speech ships under the Fish Audio Research License, not
+MIT or Apache — a fact that only surfaced after cloning it. Check the upstream
+license before reusing any code or model weights.
+
+License for this repository: MIT

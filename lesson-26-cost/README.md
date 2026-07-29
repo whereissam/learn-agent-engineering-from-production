@@ -318,7 +318,7 @@ export interface Price {
 
 ## 下一課
 
-**Lesson 27: 本地文件 + web 混合檢索**（還沒寫）：把 Lesson 22 的檢索
+**[Lesson 27: 本地文件 + web 混合檢索](../lesson-27-local-docs/)**：把 Lesson 22 的檢索
 接到自己的檔案上。
 
 ```text

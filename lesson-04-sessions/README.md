@@ -335,4 +335,4 @@ Pi 的 `SessionTreeEntryBase` 跟我們的 `SessionEntry` 幾乎一樣，
 
 **[Lesson 5 - Context 壓縮](../lesson-05-compaction/)**：對話變長之後，每一輪都要把
 完整歷史重送給模型，又慢又貴，最後還會撞到 context window 上限。
-最後一課處理這個，並且回答練習 6 的問題。
+下一課處理這個，並且回答練習 6 的問題。

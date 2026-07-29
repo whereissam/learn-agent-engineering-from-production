@@ -47,7 +47,7 @@ const INDEX_PATH = resolve(import.meta.dirname, "index.json");
  * 真的要索引程式碼，該用不同的 chunk 策略（按函式切，而不是按段落切）。
  */
 const INCLUDE_DIRS = ["docs"];
-const INCLUDE_FILES = ["README.md", "README.en.md"];
+const INCLUDE_FILES = ["README.md", "README.zh-TW.md"];
 const LESSON_README = /^lesson-\d+[a-z-]*\/README\.md$/;
 
 /** 跳過 clone 下來的參考專案和 node_modules，不然會掃到幾萬個檔案。 */

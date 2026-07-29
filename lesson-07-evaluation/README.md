@@ -2,7 +2,7 @@
 
 > 前置：[Lesson 6](../lesson-06-domain-tools/)。這一課直接評估那個 agent。
 >
-> 這是**第 4 層**，也是最後一課。它最容易被忽略，卻最能區分 demo 和產品。
+> 這是**第 4 層**，也是 Pi 篇的最後一課。它最容易被忽略，卻最能區分 demo 和產品。
 
 ## 這課要回答的問題
 
@@ -468,3 +468,13 @@ MODEL=gemini-3.5-flash-lite bun run lesson-07-evaluation/eval.ts --compare gemin
 3. **在你現在的專案裡練第 2 層。** 不需要做新的 agent app：
    寫 `AGENTS.md`、加 `scripts/verify`、建 `tests/fixtures/`，
    然後要求 coding agent 每次都跑完整個閉環。
+
+---
+
+## 下一課
+
+**[Lesson 8: 從 boolean 到風險分級](../lesson-08-permissions/)**：
+Pi 篇到這裡結束，引擎會跑、有領域工具、也量得出好壞。
+
+接下來換一組問題：**這個 agent 可以被信任到什麼程度？**
+Lesson 2 那個 `mutating: boolean` 撐不住真實產品，下一課看為什麼。

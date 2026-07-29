@@ -514,15 +514,16 @@ Step 7 說 rerank 只加了 0.013。想辦法讓它有意義：
 
 ## 下一課
 
-**Lesson 23: 自己做一個 Tavily-lite**（還沒寫）：Lesson 20-22 已經有了
-搜尋、抓取、抽取、排序。把它們包成一個 HTTP 服務，就是 Tavily 那類產品
-在賣的東西。
+**[Lesson 23: 對照真實原始碼](../lesson-23-real-world/)**：Step 8 那個
+「檢索變好、agent 沒有變好」的結果，不是排序能解決的。
+排序決定「回來的東西好不好」，不決定「要搜幾次、什麼時候停」。
 
-```http
-POST /search
-{ "query": "...", "max_results": 10, "search_depth": "advanced" }
-```
+所以下一課不寫新東西，先去讀四個真實專案的原始碼
+（deep-research、gpt-researcher、Firecrawl、Crawl4AI），
+把它們的 query 規則抄回來，**只改 system prompt**，再跑一次同一個問題。
 
-那一課會處理「包成服務」才會遇到的問題：快取、逾時預算、
-一次要不要抓十個頁面、失敗了要回什麼、
-以及**怎麼在延遲和品質之間給使用者一個旋鈕**。
+> 📌 **這一課原本的規劃是「自己做一個 Tavily-lite」**，把 Lesson 20-22
+> 包成一個 HTTP 服務。**那個規劃後來被否決了**，理由記在
+> [docs/TODO.md](../docs/TODO.md)：拆開來看，「包成服務」裡真正在學
+> AI Search 的部分很少，`POST /search` 和部署是 web 開發；
+> 而「一次抓幾頁、延遲預算怎麼分」其實是**呼叫端**的決定，屬於 Lesson 24。

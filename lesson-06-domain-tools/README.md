@@ -463,4 +463,4 @@ export interface AgentToolResult<T> {
 **[Lesson 7: Evaluation](../lesson-07-evaluation/)**：你現在有一個會分析事故的 agent。
 但它**準不準**？換個 model 會變好還變壞？改了 prompt 有沒有退步？
 
-沒有評估，你只是在憑感覺調 prompt。最後一課處理這個。
+沒有評估，你只是在憑感覺調 prompt。下一課處理這個。

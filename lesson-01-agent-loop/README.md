@@ -1,5 +1,7 @@
 # Lesson 1: 最小的 Agent Loop
 
+> 前置：沒有。這是第一課。
+>
 > 目標：把「AI agent」從一個模糊的概念，變成你能一行一行指著看的程式碼。
 > 讀完這課，你會知道 Claude Code / Cursor 那類工具的核心到底在做什麼。
 
@@ -51,7 +53,7 @@ provider: fake  model: scripted
 
 ### 換成真的模型
 
-把 API key 放進 `.env`（見[上層 README](../README.md#api-key-放哪裡)），然後：
+把 API key 放進 `.env`（見[上層 README](../README.zh-TW.md#開始跑)），然後：
 
 ```bash
 bun run lesson-01
@@ -472,6 +474,6 @@ Pi 的 `agent-loop.ts` 全檔 792 行，但核心迴圈就是第 170-272 行那 
 
 ## 下一課
 
-**Lesson 2 - 更多工具**：加上 `write_file`、`edit_file`、`run_command`，
+**[Lesson 2 - 更多工具](../lesson-02-tools/)**：加上 `write_file`、`edit_file`、`run_command`，
 然後撞上第一個真實問題：**工具輸出太長，context 爆掉**。
 （`ls -R` 一個大專案，或 `cat` 一個 10MB 的 log，會發生什麼事？）

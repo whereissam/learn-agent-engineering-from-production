@@ -19,11 +19,20 @@
 
 ## Step 0：先跑起來
 
-不需要 API key：
+五個情境示範 progressive disclosure、審核閘門、工具白名單，不需要 API key：
 
 ```bash
-bun run lesson-16-skills/demo.ts
+bun run lesson-16
 ```
+
+這一課有一個斷言是字串比對驗證不了的，它需要真的模型：
+
+```bash
+PROVIDER=gemini bun run lesson-16:route
+```
+
+那支程式量測「description 被切掉之後，模型還找不找得到這個 skill」。
+結果在 Step 2.5，**跟 Hermes 原文講的不完全一樣**。
 
 ---
 
@@ -102,6 +111,103 @@ Hermes 的 authoring standard 對這條特別兇，原文：
 > 不准從環境變數、git config 或登入帳號填。
 > 理由是 skill 會被分享出去，從環境推導出來的名字是
 > 「使用者沒同意過的隱私外洩」。
+
+---
+
+## Step 2.5：那個「never routes」是真的嗎（實測）
+
+Step 2 引的那句話是一個關於**模型行為**的斷言：
+
+> anything past char 60 is silently cut and **never routes**
+
+`demo.ts` 只能證明字串被 `truncate()` 切掉了，證明不了「模型因此找不到它」。
+所以有第二支程式，它需要真的模型：
+
+```bash
+PROVIDER=gemini bun run lesson-16:route
+```
+
+判定是確定性的：模型有沒有呼叫 `load_skill("replay-fall-window")`。
+問題刻意不含 skill 名字裡的字：
+
+> 機器人 R-204 昨天在倉庫跌倒了，我想看看牠倒下去前後那段時間的感測器數值。
+
+### 第一輪：斷言沒有重現
+
+真 Gemini 3.6 Flash，三種描述各跑三次：
+
+| 描述 | 字數 | 結果 |
+|---|---|---|
+| 合格 | 46 | ✓✓✓ |
+| 行銷詞（切到 60 字剩半句廢話） | 129 | ✓✓✓ |
+| 切到 60 字連主題都看不出來 | 201 | ✓✓✓ |
+
+**9/9 全中。** 描述被切爛了照樣路由成功。
+
+原因不難猜：`replay-fall-window` 這個**名字自己就把話講完了**。
+模型根本不需要讀描述。
+
+### 但第一輪的實驗設計是錯的
+
+我原本的四個干擾項是「比對 session」「輸出 PDF」「調步態」「查電池」，
+跟問題**明顯無關**。所以模型可以用**排除法**選出唯一不明顯錯誤的那個，
+一樣不需要讀描述。
+
+> 這是一個混淆變因：**通過測試不代表機制有效，可能只是題目太簡單。**
+
+所以要改兩件事：
+
+1. 把名字換成沒有語意的 `sk-0472`（`NAME=opaque`）
+2. 干擾項全部換成「也跟跌倒感測器沾邊」的（`DISTRACTORS=hard`）：
+   `session-timeline` / `sensor-dump` / `fall-detector` / `incident-summary`
+
+### 第二輪：斷言是真的，但有條件
+
+```bash
+NAME=opaque DISTRACTORS=hard DESC=bloated PROVIDER=gemini bun run lesson-16:route
+```
+
+完整矩陣，每格三次，共 30 次真模型執行：
+
+| 名字 | 干擾項 | 描述合格 | 描述 129 字 | 描述 201 字 |
+|---|---|---|---|---|
+| `replay-fall-window` | 好認 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| `replay-fall-window` | 都很像 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| `sk-0472` | 好認 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| **`sk-0472`** | **都很像** | ✓✓✓ | **✗✗✗** | **✗✗✗** |
+
+只有最後一格會壞，而且是穩定地壞：三次都去載了 `fall-detector` 和
+`sensor-dump`，一次都沒碰對的那個。
+
+### 所以正確的規則是
+
+Hermes 的擔憂是對的，但那句話講得太滿。精確版本是：
+
+> **路由訊號 = skill 名字 + description 的前 60 字。
+> 兩者只要有一個把話講清楚就夠。**
+
+描述超過 60 字會不會出事，取決於名字有沒有補上，
+以及**其他 skill 像不像**。三個條件同時成立才會壞：
+
+```
+名字沒有語意  +  描述前 60 字沒有資訊  +  有長得像的替代品
+```
+
+實務上的建議因此比原文更好操作：
+
+- 名字取好一點，它是免費的路由訊號，而且**不受 60 字截斷影響**
+- 但**不要依賴名字**，因為你不知道未來會不會加進一個很像的 skill。
+  最後一格就是「加了四個相似 skill」之後才炸的
+- 60 字檢查照做，它是成本最低的保險
+
+### 失敗的樣子跟 Hermes 說的一模一樣
+
+那三次失敗**沒有任何錯誤訊息**。模型載入了兩個看起來合理的
+skill，然後產出一份看起來合理的計畫。你不會知道有一個
+專門為這件事寫的 skill 從頭到尾沒被用到。
+
+> 又是設計原則 7：**安靜的失敗。**
+> 而且這次連 log 都不會有,因為從系統的角度看，什麼都沒出錯。
 
 ---
 
@@ -266,6 +372,24 @@ proposedFrom: {
 
 **這題會讓你理解為什麼 progressive disclosure 是必要的，不是優化。**
 
+### 練習 1.5：把 Step 2.5 的矩陣跑完 ⭐⭐
+
+Step 2.5 只測了 Gemini 3.6 Flash。換一個模型跑同一個矩陣：
+
+```bash
+NAME=opaque DISTRACTORS=hard DESC=bloated PROVIDER=anthropic bun run lesson-16:route
+```
+
+會不會有模型在「名字好認 + 干擾項都很像」那格就開始失手？
+如果有，那條建議就要再收緊。
+
+做這題的時候注意兩個陷阱，兩個我都踩過：
+
+1. **題目太簡單會讓爛機制看起來沒問題。** 第一輪的干擾項明顯無關，
+   模型用排除法就過關了，什麼也沒測到
+2. **「沒發生」不能直接當結論。** 先確認 `stopReason` 是正常結束
+   （Lesson 15 Step 4.5 的教訓）
+
 ### 練習 2：把閘門拿掉 ⭐
 
 讓 `propose()` 直接寫進 active 目錄，然後跑情境 5。
@@ -334,7 +458,7 @@ proposed → approved → (跑測試) → active
 
 ## 下一課
 
-**Lesson 17: 跨 session 搜尋**（規劃中，見 [docs/TODO.md](../docs/TODO.md)）
+**[Lesson 17: 跨 session 搜尋](../lesson-17-search/)**
 
 現在 agent 有記憶（事實）跟 skill（做法）。還缺一個：
 **「上次我是怎麼做的？」**，從過去的對話裡找答案。

@@ -495,7 +495,7 @@ SearXNG 是把多個搜尋引擎的結果聚合起來，Tavily 是聚合完之�
 
 ## 下一課
 
-**Lesson 21: Crawl 與內容抽取**（還沒寫）：這一課的 agent 看不到整頁。
+**[Lesson 21: Crawl 與內容抽取](../lesson-21-crawl/)**：這一課的 agent 看不到整頁。
 下一課給它 `fetch_page`，然後你會發現真正的問題才開始：
 
 ```text

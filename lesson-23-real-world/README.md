@@ -647,7 +647,7 @@ Lesson 22 Step 5（訊號有偏誤）是一次，這是第三次。
 
 ## 下一課
 
-**Lesson 24: Deep Research loop**（還沒寫）：Step 4 讀到的四個機制，
+**[Lesson 24: Deep Research loop](../lesson-24-research-loop/)**：Step 4 讀到的四個機制，
 自己實作一次。
 
 ```text

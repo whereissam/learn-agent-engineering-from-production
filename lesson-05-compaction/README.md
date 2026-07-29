@@ -1,6 +1,6 @@
 # Lesson 5: Context 壓縮
 
-> 前置：[Lesson 4](../lesson-04-sessions/)。最後一課。
+> 前置：[Lesson 4](../lesson-04-sessions/)。引擎本體（Lesson 1-5）的最後一課。
 >
 > 目標：讓 agent 能一直聊下去，不會因為對話太長而爆掉。
 
@@ -410,3 +410,13 @@ git clone https://github.com/earendil-works/pi
 
 **或者，把它接到你自己的東西上。** 這五課的 `shared/` 是可以直接拿去用的：
 換掉工具、換掉 system prompt，你就有一個屬於你自己領域的 agent。
+
+---
+
+## 下一課
+
+**[Lesson 6: 領域工具](../lesson-06-domain-tools/)**：引擎到這裡就完整了。
+但 `read_file` / `write_file` 只能做「通用的事」，而你的價值不在那裡。
+
+下一課換掉一整組工具——telemetry 查詢、異常掃描、事故報告——
+而 `runTurn` **一行都不會改**。那才是這五課真正想證明的事。
