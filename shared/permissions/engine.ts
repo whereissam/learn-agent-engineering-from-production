@@ -230,7 +230,33 @@ export class PermissionEngine {
 		}
 
 		// ── 9. 都不符合 → 問人 ─────────────────────────────
-		return { allowed: false, reason: "需要批准", needsUser: true };
+		//
+		// reason 要講清楚**為什麼**，不能只說「需要批准」。
+		//
+		// 這一條是接進真的 agent loop 之後才發現的（Lesson 8 的 agent.ts）：
+		// 拒絕訊息是模型**唯一**知道發生什麼事的管道，它看不到你的設定檔，
+		// 也看不到終端機上那個紅色的 ✗。只講「需要批准」，模型就無從判斷
+		// 「換什麼做法才會被接受」，只能亂猜，而亂猜看起來就很像在繞道。
+		//
+		// 對使用者也一樣：批准框上寫「需要批准」等於沒寫。
+		return { allowed: false, reason: this.whyAsk(toolName, args, risk), needsUser: true };
+	}
+
+	/** 為什麼這個呼叫需要人來決定。給模型看，也給批准框看。 */
+	private whyAsk(toolName: string, args: Record<string, unknown>, risk: RiskClass): string {
+		if (risk === RiskClass.EXEC) {
+			const command = String(args.command ?? "");
+			// 前綴騙過了清單，但含元字元，這是最值得講清楚的一種，
+			// 因為模型很可能就是在試著繞過清單（見 Lesson 8 Step 4）。
+			if (hasShellOperators(command) && this.prefixAllowed(command)) {
+				return "指令開頭雖然在允許清單上，但含有 shell 元字元，等於可以跑第二個指令";
+			}
+			return `指令不在允許清單上：${this.allowedCommands.join(" / ") || "（清單是空的）"}`;
+		}
+		if (risk === RiskClass.EXTERNAL) {
+			return "這個操作的副作用會跑到這台機器外面，收不回來";
+		}
+		return `風險等級 ${risk}，${this.mode} 模式下需要使用者批准`;
 	}
 
 	// ── session / task 記憶 ──────────────────────────────
@@ -263,6 +289,18 @@ export class PermissionEngine {
 		// 有元字元就不能自動放行，不管前綴多乾淨
 		if (hasShellOperators(trimmed)) return false;
 
+		return this.prefixAllowed(trimmed);
+	}
+
+	/**
+	 * 只看前綴，**不看元字元**。
+	 *
+	 * 單獨拆出來是為了讓 `whyAsk` 能分辨兩種不同的拒絕：
+	 * 「這個指令根本不在清單上」跟「前綴在清單上但被元字元破功」。
+	 * 對模型來說這是兩個完全不同的訊息。
+	 */
+	private prefixAllowed(command: string): boolean {
+		const trimmed = command.trim();
 		return this.allowedCommands.some(
 			(prefix) => trimmed === prefix || trimmed.startsWith(`${prefix} `),
 		);
