@@ -48,6 +48,8 @@
 		"lesson-27": "bun run lesson-27-local-docs/demo.ts",
 		"lesson-27:agent": "bun run lesson-27-local-docs/agent.ts",
 		"lesson-27:ingest": "bun run lesson-27-local-docs/ingest.ts",
+		"lesson-28": "bun run lesson-28-consistency/demo.ts",
+		"lesson-28:agent": "bun run lesson-28-consistency/agent.ts",
 		"lesson-29": "bun run lesson-29-evidence/demo.ts",
 		"lesson-29:agent": "bun run lesson-29-evidence/agent.ts",
 		"lesson-30:probe": "bun run lesson-30-schema-compat/probe.ts",
