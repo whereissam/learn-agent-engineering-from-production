@@ -1,29 +1,29 @@
 /**
- * 這一篇的「網際網路」。
+ * This part's "internet".
  *
- * 為什麼要自己造一個假的 web？跟 Lesson 6 自己產 telemetry 是同一個理由：
+ * Why build a fake web? The same reason Lesson 6 generates its own telemetry:
  *
- *   1. **你知道正確答案。** 真實網頁你永遠不確定哪一句才是對的，
- *      也就沒辦法拿來當評估基準（Lesson 25 會用到）。
- *   2. **可重現。** 真的 Google 明天就換排序了，昨天跑出來的軌跡
- *      今天重跑不一樣，讀者會以為是自己弄錯。
- *   3. **不用金鑰、不用網路、不會被封鎖。** 設計原則 1：
- *      每一課都要能用 `PROVIDER=fake` 跑完。
+ *   1. **You know the right answer.** With real pages you are never sure which sentence is right,
+ *      so they cannot serve as an evaluation baseline (needed in Lesson 25).
+ *   2. **Reproducibility.** Real Google changes its ranking tomorrow, and yesterday's trajectory
+ *      reruns differently today, leaving readers thinking they made a mistake.
+ *   3. **No key, no network, nothing to block you.** Design principle 1:
+ *      every lesson must run through with `PROVIDER=fake`.
  *
- * 這份語料是刻意「有病」的。真實的 web 有的毛病它都有：
+ * This corpus is deliberately diseased. It has every ailment the real web has:
  *
- *   - snippet 講的跟正文不一樣（而且兩個方向都有）
- *   - 同一份內容有兩個網址（GitHub README 和 docs 站）
- *   - 關鍵字塞好塞滿但沒有內容的 SEO 農場
- *   - 兩年前的懶人包還在到處被引用
- *   - 已經封存的 repo，但頁面上看不太出來
- *   - 提到關鍵字很多次但其實無關的新聞
+ *   - the snippet says something different from the body (in both directions)
+ *   - the same content at two URLs (a GitHub README and a docs site)
+ *   - a keyword-stuffed SEO farm with no content
+ *   - a two-year-old listicle still cited everywhere
+ *   - an archived repo that does not look archived on the page
+ *   - news that mentions the keywords often and is irrelevant
  *
- * **這些不是為了刁難模型，是為了讓你在 Lesson 22 有東西可以排序。**
- * 一份乾淨的語料學不到 ranking。
+ * **None of this exists to trip the model up; it exists so Lesson 22 has something to rank.**
+ * A clean corpus teaches nothing about ranking.
  *
- * 語言：全部是英文。這是刻意的，見 README 的 Step 3
- * （中文 query 在關鍵字檢索下會查不到任何東西）。
+ * Language: all English. That is deliberate, see README Step 3
+ * (a Chinese query finds nothing under keyword retrieval).
  */
 
 export type PageKind = "repo" | "docs" | "blog" | "paper" | "forum" | "dataset" | "news" | "spam";
@@ -32,29 +32,29 @@ export interface Page {
 	url: string;
 	site: string;
 	title: string;
-	/** 發佈日期。Lesson 22 的新鮮度排序會用到。 */
+	/** The publication date. Lesson 22's freshness ranking uses it. */
 	published: string;
 	kind: PageKind;
 	/**
-	 * 正文段落。
+	 * The body paragraphs.
 	 *
-	 * 重點：**搜尋只會看到其中一小段**（snippet），完整內容要到
-	 * Lesson 21 真的把網頁抓下來才拿得到。這個落差就是 Lesson 20 的主題。
+	 * The point: **search sees only a small part of this** (the snippet), and the complete content
+	 * only arrives when Lesson 21 really fetches the page. That gap is Lesson 20's subject.
 	 */
 	paragraphs: string[];
 	/**
-	 * 這一頁「真正的事實」是什麼。
+	 * What this page's "actual fact" is.
 	 *
-	 * 跟 Lesson 6 的 groundTruth 一樣：**不會給 agent 看**，
-	 * 也不會寫進產生出來的 HTML。它只存在原始碼裡，給寫課的人和
-	 * 未來的評估案例（Lesson 25）用。
+	 * As with Lesson 6's groundTruth: **never shown to the agent**,
+	 * and never written into the generated HTML. It exists only in the source, for the lesson's
+	 * author and for future evaluation cases (Lesson 25).
 	 */
 	groundTruth?: string;
 }
 
 export const PAGES: Page[] = [
 	// ───────────────────────────────────────────────────────────
-	// 陷阱 1：snippet 說支援，正文說已經棄用
+		// Trap 1: the snippet says supported, the body says deprecated
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://github.com/openmotion/retarget-anything",
@@ -87,7 +87,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 陷阱 2：同一份內容的第二個網址（近似重複）
+		// Trap 2: a second URL for the same content (a near-duplicate)
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://openmotion.dev/docs/retarget-anything/getting-started",
@@ -113,8 +113,8 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 陷阱 3：snippet 說只支援 H1，正文說 G1 後來加上了
-	// （跟陷阱 1 剛好相反，所以「只讀 snippet」兩個方向都會錯）
+		// Trap 3: the snippet says H1 only, the body says the G1 was added later
+		// (the exact reverse of trap 1, so "read only the snippet" is wrong in both directions)
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://github.com/kinelabs/humanoid-mimic",
@@ -141,7 +141,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 論文：答案在正文裡（code 連結不在 snippet）
+		// A paper: the answer is in the body (the code link is not in the snippet)
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://arxiv.org/abs/2603.04417",
@@ -168,7 +168,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 兩年前的懶人包：內容過時但關鍵字密度很高
+		// A two-year-old listicle: stale content with high keyword density
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://robotblog.example.com/best-retargeting-tools",
@@ -192,7 +192,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// SEO 農場：關鍵字塞滿，沒有任何內容
+		// An SEO farm: keyword-stuffed with no content at all
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://top-robotics-tools.example.net/unitree-g1-retargeting-best-2026",
@@ -215,7 +215,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 論壇：實務上的坑，只有這裡講得出來
+		// A forum: practical traps that only this page states
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211",
@@ -238,7 +238,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 已封存的 repo：頁面上看不太出來
+		// An archived repo: not obviously archived on the page
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://github.com/legacy-robotics/mocap2robot",
@@ -258,7 +258,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 官方文件：權威來源
+		// Official documentation: an authoritative source
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://www.unitree.com/g1/developer",
@@ -282,7 +282,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 發佈公告：明確的日期與授權
+		// A release announcement: explicit dates and licensing
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://blog.kinelabs.dev/humanoid-mimic-0-7",
@@ -304,7 +304,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 資料集
+		// A dataset
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://huggingface.co/datasets/openmotion/human-motion-video",
@@ -321,7 +321,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 無關但關鍵字很多的新聞
+		// Irrelevant news with plenty of keywords
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://technews.example.com/2026/07/humanoid-robot-funding-round",
@@ -342,7 +342,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 授權檔：極短的頁面
+		// A licence file: an extremely short page
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://github.com/openmotion/retarget-anything/blob/main/LICENSE",
@@ -359,7 +359,7 @@ export const PAGES: Page[] = [
 	},
 
 	// ───────────────────────────────────────────────────────────
-	// 完全無關的頁面（讓檢索有東西可以排除）
+		// A wholly unrelated page (so retrieval has something to exclude)
 	// ───────────────────────────────────────────────────────────
 	{
 		url: "https://cookingwith.example.com/sous-vide-guide",

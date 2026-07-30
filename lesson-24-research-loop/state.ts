@@ -1,59 +1,58 @@
 /**
- * Research state：這一課真正的主角。
+ * Research state: this lesson's real protagonist.
  *
- * Lesson 22 Step 8 的失敗長這樣：模型搜了 14 次、撞上步數上限、沒有答案。
- * 當時的結論是「排序解決不了這個，因為問題在 agent 那一側」。
+ * Lesson 22 Step 8's failure looked like this: the model searched 14 times, hit the step ceiling, no answer.
+ * The conclusion then was "ranking cannot fix this, because the problem is on the agent's side".
  *
- * 這一課要說的是：問題其實**不在 agent 那一側，而是在 agent 這個形狀本身**。
+ * What this lesson says is that the problem is **not on the agent's side but in the agent shape itself**:
  *
  * ```text
- * Agent loop（Lesson 1-23）   模型決定下一步 → 直到它自己說停
- * Research loop（這一課）      程式決定下一步 → 預算用完就停，模型只做小任務
- * ```
+ * Agent loop (Lessons 1-23)   the model decides the next step → until it says stop
+ * Research loop (this lesson) the program decides the next step → it stops when the budget runs out,
+ *                             and the model only does small tasks
  *
- * 差別不是「哪個比較聰明」，是**誰握著控制流**。
- * 一個沒有停止條件的 while 迴圈，配上一個永遠覺得「再搜一次說不定會更好」
- * 的模型，結果就是燒光步數上限。
+ * The difference is not "which is smarter" but **who holds the control flow**.
+ * A while loop with no stopping condition, paired with a model that always feels "one more search
+ * might help", burns the step ceiling.
  *
- * 這個檔案裡沒有任何 LLM 呼叫。它只是一個**狀態機的狀態**——
- * 但整課的價值幾乎都在這裡。
+ * There is no LLM call in this file. It is merely **a state machine's state** —
+ * and almost all of this lesson's value is here.
  */
 
 /**
- * 一條「學到的事」。
+ * One learned thing.
  *
- * ⚠️ 這裡跟 deep-research 不一樣，而且是刻意的。
+ * ⚠️ This differs from deep-research, deliberately.
  *
- * `deep-research/src/deep-research.ts:107` 的 learnings 是 `string[]`，
- * 純文字，**沒有來源**。所以到了寫報告那一步（`:129`），
- * 它只能把所有 learning 倒進 prompt，然後在報告最後貼一份
- * 「所有造訪過的網址」清單。
+ * The learnings at `deep-research/src/deep-research.ts:107` are `string[]`, plain text with
+ * **no sources**. So at the report-writing step (`:129`) all it can do is dump every learning
+ * into the prompt and append a list of "all URLs visited" at the end of the report.
  *
- * 那份清單沒辦法告訴你**哪一句話來自哪一個網址**。
- * Lesson 21 Step 6 我們親眼看過「引用嫁接」：一句沒有來源支持的話
- * 掛上了一個真實的 URL。要抓那種錯，證據和來源必須綁在一起。
+ * That list cannot tell you **which sentence came from which URL**.
+ * Lesson 21 Step 6 showed "citation grafting" first-hand: an unsupported sentence carrying a
+ * real URL. Catching that requires evidence and source to be bound together.
  *
- * 所以我們多存 `sources`。這是 Lesson 25 能做引用驗證的前提。
+ * So `sources` is stored as well. That is the precondition for Lesson 25's citation verification.
  */
 export interface Learning {
-	/** 一句話的結論。要具體、要帶數字或日期。 */
+	/** A one-sentence conclusion. Specific, carrying a number or a date. */
 	text: string;
-	/** 這句話是從哪些網址讀來的。**不能是空的。** */
+	/** Which URLs this sentence was read from. **Must not be empty.** */
 	sources: string[];
-	/** 這條是在第幾層學到的。用來理解研究的形狀，也方便 debug。 */
+	/** Which level this was learned at. Useful for understanding the research's shape, and for debugging. */
 	depth: number;
 }
 
-/** 用掉的資源。這是「深度」旋鈕的另一面：深度就是錢。 */
+/** Resources spent. The other face of the depth knob: depth is money. */
 export interface Budget {
 	llmCalls: number;
 	searches: number;
 	fetches: number;
-	/** 因為 URL 已經讀過而跳過的次數。這個數字越大，去重越值得。 */
+	/** How many times a URL was skipped for having been read. The larger this is, the more dedup is worth. */
 	skippedDuplicates: number;
-	/** 因為這條 query 已經下過而跳過的次數。 */
+	/** How many times a query was skipped for having been run. */
 	skippedQueries: number;
-	/** 有幾次模型輸出撞到 token 上限被截斷。**不是零就要處理。** */
+	/** How many model outputs hit the token limit and were truncated. **Anything other than zero needs handling.** */
 	truncatedOutputs: number;
 }
 
@@ -61,24 +60,24 @@ export interface ResearchState {
 	question: string;
 	learnings: Learning[];
 	/**
-	 * 讀過的網址。
+		 * URLs already read.
 	 *
-	 * 對照 `gpt-researcher/gpt_researcher/skills/researcher.py:801` 的 `_get_new_urls`，
-	 * 以及 `:108` 那句註解：
+		 * Against `_get_new_urls` at `gpt-researcher/gpt_researcher/skills/researcher.py:801`,
+		 * and the comment at `:108`:
 	 *
 	 *   > visited_urls is deliberately NOT cleared here. It may be shared with a
 	 *   > parent researcher ... so that already scraped URLs are not fetched again.
 	 *
-	 * 注意這個 Set 是**整棵研究樹共用**的，不是每一層各有一份。
-	 * deep-research 有收集 visitedUrls，但**只用來在報告末尾列 Sources**
-	 * （`deep-research.ts:229`、`:292`），從來沒拿來避免重複抓取。
-	 * 這是兩個專案很明顯的差別，我們照 gpt-researcher 的做。
+		 * Note this Set is **shared across the whole research tree**, not one per level.
+		 * deep-research does collect visitedUrls but **only uses them to list Sources at the end
+		 * of the report** (`deep-research.ts:229`, `:292`), never to avoid re-fetching.
+		 * A clear difference between the two projects; this follows gpt-researcher.
 	 */
 	visited: Set<string>;
-	/** 已經下過的 query，避免同一層問出幾乎一樣的東西。 */
+	/** Queries already run, so one level does not ask nearly the same thing twice. */
 	queriesRun: string[];
 	budget: Budget;
-	/** 每一步發生了什麼，給 demo 印出來看的。 */
+	/** What happened at each step, for the demo to print. */
 	trace: string[];
 }
 
@@ -94,36 +93,36 @@ export function createState(question: string): ResearchState {
 }
 
 /**
- * 研究的形狀：廣度與深度。
+ * The research's shape: breadth and depth.
  *
- * 直接抄 `deep-research/src/deep-research.ts:230-231`：
+ * Copied straight from `deep-research/src/deep-research.ts:230-231`:
  *
  * ```ts
  * const newBreadth = Math.ceil(breadth / 2);
  * const newDepth = depth - 1;
  * ```
  *
- * 為什麼廣度要砍半？因為第一層是「這個題目有哪些面向」，
- * 越往下越具體，需要的查詢也越少。如果每層都保持一樣的廣度，
- * 成本會是 breadth^depth——breadth=4、depth=3 就是 64 次搜尋。
+ * Why halve the breadth? Because the first level asks "what facets does this topic have", and
+ * further down it gets more specific and needs fewer queries. Hold the breadth constant and
+ * the cost is breadth^depth — breadth=4 with depth=3 is 64 searches.
  *
- * 砍半之後：4 → 2 → 1，總共 4 + 8 + 8 = 幾十次，而且**上界算得出來**。
+ * Halved: 4 → 2 → 1, totalling 4 + 8 + 8, a few dozen, and **the bound is computable**.
  *
- * **算得出上界**這件事本身就是重點。Lesson 22 那個 agent 的上界是
- * 「步數上限」，那不是預算，那是熔斷器。
+ * **Being able to compute the bound** is itself the point. Lesson 22's agent's bound was the
+ * step ceiling, which is not a budget but a circuit breaker.
  */
 export function nextBreadth(breadth: number): number {
 	return Math.ceil(breadth / 2);
 }
 
 /**
- * 把 query 正規化成可以比對的形式。
+ * Normalise a query into a comparable form.
  *
- * prompt 裡已經寫了「不要重複已經下過的 query」，但**那只是拜託**。
- * 假 provider 第一次跑就照樣重複了兩條——真模型也會，只是頻率低一點。
+ * The prompt already says "do not repeat queries you have run", and **that is only a plea**.
+ * The fake provider repeated two on its first run — a real model does too, just less often.
  *
- * 這一課的主題就是「能用程式保證的事不要用 prompt 拜託」，
- * 所以重複這件事要在程式裡擋掉，不能只寫在 prompt 裡。
+ * This lesson's subject is "do not ask a prompt for what a program can guarantee", so
+ * duplication is blocked in code rather than merely mentioned in the prompt.
  */
 export function normalizeQuery(query: string): string {
 	return query
@@ -134,24 +133,24 @@ export function normalizeQuery(query: string): string {
 		.join(" ");
 }
 
-/** 這一層是不是最後一層。 */
+/** Whether this is the last level. */
 export function isLastLayer(depth: number): boolean {
 	return depth - 1 <= 0;
 }
 
 /**
- * 把研究狀態壓成一段文字，給下一輪的 query 生成當 context。
+ * Compress the research state into a passage, as context for the next round's query generation.
  *
- * **loop 裡流動的是 learnings，不是網頁。**
- * 對照 `deep-research.ts:102`：五頁內容被壓成最多 3 條 learning，
- * 原始文字完全不進下一輪。
+ * **What flows through the loop is learnings, not pages.**
+ * Against `deep-research.ts:102`: five pages of content compress into at most 3 learnings, and
+ * the original text never enters the next round.
  *
- * 這就是 Lesson 5 的 context 壓縮長在 research loop 裡的樣子。
- * 沒有這一步，研究到第三層 context 就爆了。
+ * This is Lesson 5's context compaction growing inside a research loop.
+ * Without it, context explodes by the third level.
  */
 export function summarizeLearnings(state: ResearchState, max = 12): string {
 	if (state.learnings.length === 0) return "(nothing learned yet)";
-	// 取最近的幾條。最近的通常最具體，因為研究是由粗到細。
+		// Take the most recent few. The most recent are usually the most specific, because research goes coarse to fine.
 	return state.learnings
 		.slice(-max)
 		.map((l) => `- ${l.text}`)

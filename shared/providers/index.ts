@@ -1,14 +1,14 @@
 /**
- * 挑一個 provider。
+ * Pick a provider.
  *
- * 優先序：
- *   1. PROVIDER 環境變數（anthropic | openai | gemini | fake）
- *   2. 哪個 API key 有設就用哪個
+ * Priority:
+ *   1. the PROVIDER environment variable (anthropic | openai | gemini | fake)
+ *   2. whichever API key is set
  *
- * MODEL 環境變數可以覆寫預設 model。如果預設的 model id 對你的帳號
- * 回 404 / not found，就設 MODEL=<你有權限的 model> 再跑一次。
+ * The MODEL environment variable overrides the default model. If the default model id returns
+ * 404 / not found for your account, set MODEL=<a model you have access to> and run again.
  *
- * 沒有任何 key？用 PROVIDER=fake，不需要網路也不需要付錢。
+ * No key at all? Use PROVIDER=fake, which needs no network and costs nothing.
  */
 
 import { resolve } from "node:path";
@@ -17,16 +17,16 @@ import { fakeProvider } from "./fake.ts";
 import { openaiProvider } from "./openai.ts";
 import type { Provider } from "./types.ts";
 
-// 從專案根目錄的 .env 讀 API key，這樣你不用每開一個 terminal 就 export 一次。
-// 已經設在環境變數裡的值優先，.env 不會覆蓋它。
+// Read API keys from the project root's .env, so you do not export them in every new terminal.
+// Values already in the environment win; .env does not override them.
 //
-// process.loadEnvFile 是 Node 20.12+ 的內建功能，不需要 dotenv 套件。
-// Bun 沒有這個 API，但它本來就會自動讀 .env，所以直接跳過即可。
+// process.loadEnvFile is built into Node 20.12+, so no dotenv package is needed.
+// Bun does not have that API and reads .env automatically anyway, so it simply skips this.
 if (typeof process.loadEnvFile === "function") {
 	try {
 		process.loadEnvFile(resolve(import.meta.dirname, "../../.env"));
 	} catch {
-		// 沒有 .env 檔很正常 ， 直接用環境變數就好
+			// Having no .env file is entirely normal — the environment variables are enough
 	}
 }
 
@@ -63,7 +63,7 @@ export function selectProvider(): Provider {
 				model: modelOverride ?? DEFAULT_MODELS.gemini,
 				apiKey: process.env.GEMINI_API_KEY,
 				baseURL: GEMINI_BASE_URL,
-				// Gemini 的相容層吃 max_tokens
+					// Gemini's compatibility layer takes max_tokens
 				tokenParam: "max_tokens",
 			});
 

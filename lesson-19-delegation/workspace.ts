@@ -1,16 +1,16 @@
 /**
- * 三個服務的錯誤日誌，以及它們的標準答案。
+ * Three services' error logs, and their ground truth.
  *
- * 這份語料是為了量**資訊遺失**設計的，所以有一個刻意的機關：
+ * This corpus was designed to measure **information loss**, so it has one deliberate device:
  *
- *   inventory.log 最常出現的錯誤碼是 E-118，
- *   但檔頭寫著「2026-07-14 之前用的是舊的編號方案」。
+ *   the most frequent error code in inventory.log is E-118,
+ *   and the file header says "an older numbering scheme was used before 2026-07-14".
  *
- * 一個看得到原文的 agent 有機會講出這件事；
- * 一個只拿得到子 agent 摘要的 agent，**只有在子 agent 決定把它寫進摘要時**
- * 才知道。這就是委派那條資訊邊界的具體形狀。
+ * An agent that can see the original text has a chance to state that;
+ * an agent that only receives a subagent's summary knows it **only if the subagent chose to write it in**.
+ * That is the concrete shape of delegation's information boundary.
  *
- * 判定全部是 `includes()`，沒有 LLM 裁判（跟 Lesson 25、29 同一個立場）。
+ * Every verdict is an `includes()`, with no LLM judge (the same position as Lessons 25 and 29).
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -18,7 +18,7 @@ import { dirname, join, resolve } from "node:path";
 
 export const WORKSPACE = resolve(import.meta.dirname, "workspace");
 
-/** 每個服務最常出現的錯誤碼 —— 這是要答對的東西。 */
+/** Each service's most frequent error code — what has to be answered correctly. */
 export const GROUND_TRUTH = {
 	checkout: "E-402",
 	inventory: "E-118",
@@ -26,11 +26,11 @@ export const GROUND_TRUTH = {
 } as const;
 
 /**
- * 「有沒有提到那個但書」的判定字串。
+ * The strings that decide "was the caveat mentioned".
  *
- * 刻意收得寬（任何一個命中就算），因為這一題要量的是**資訊有沒有跨過邊界**，
- * 不是措辭。收太窄會把「講對了但用別的說法」誤判成遺失 ——
- * 那正是 Lesson 16 那種假陰性。
+ * Deliberately broad (any one match counts), because what this question measures is **whether the information crossed the boundary**,
+ * not the wording. Too narrow would misjudge "said it correctly in other words" as lost —
+ * exactly the kind of false negative Lesson 16 hit.
  */
 export const CAVEAT_MARKERS = ["2026-07-14", "renumber", "編號", "改號", "遷移", "migration", "舊"];
 
@@ -86,7 +86,7 @@ export const FIXTURE: Record<string, string> = {
 		),
 	].join("\n"),
 
-	// 讓 `npm test` 不會爬到主 repo（Lesson 2 的逃逸，Lesson 29 又踩了一次）。
+	// Stop `npm test` climbing into the main repo (Lesson 2's escape, hit again in Lesson 29).
 	"package.json": `{
 	"name": "delegation-workspace",
 	"private": true,
@@ -105,7 +105,7 @@ export async function resetWorkspace(): Promise<void> {
 	}
 }
 
-/** 答案裡有沒有三個正確的錯誤碼。 */
+/** Does the answer contain the three correct error codes. */
 export function scoreCodes(answer: string): { hit: string[]; missed: string[] } {
 	const hit: string[] = [];
 	const missed: string[] = [];
@@ -115,7 +115,7 @@ export function scoreCodes(answer: string): { hit: string[]; missed: string[] } 
 	return { hit, missed };
 }
 
-/** 答案裡有沒有提到那個但書。 */
+/** Does the answer mention the caveat. */
 export function mentionsCaveat(answer: string): boolean {
 	return CAVEAT_MARKERS.some((marker) => answer.toLowerCase().includes(marker.toLowerCase()));
 }

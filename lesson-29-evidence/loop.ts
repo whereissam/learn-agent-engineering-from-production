@@ -1,28 +1,28 @@
 /**
- * Lesson 29 的 agent loop：跟 Lesson 8 同一個 loop，多了兩行 snapshot。
+ * Lesson 29's agent loop: the same loop as Lesson 8's, plus two lines of snapshot.
  *
- * 設計原則 6 在這一課特別好守。「完成的證據」聽起來像是要改 loop，
- * 實際上它只是**在 loop 兩端各加一次量測**：
+ * Design principle 6 is especially easy to keep here. "Evidence of completion" sounds like it needs
+ * loop changes, and in fact it only **adds one measurement at each end of the loop**:
  *
- *     base = await snapshot.track()      ← 串流開始之前
- *     …… 整輪照舊 ……
- *     patch = await snapshot.patch(base) ← 這一輪結束之後
+ *     base = await snapshot.track()      ← before the stream starts
+ *     …… the turn proceeds as before ……
+ *     patch = await snapshot.patch(base) ← after this turn ends
  *
- * ⚠️ **第一行的位置是這一課最容易寫錯的地方。**
+ * ⚠️ **The first line's position is the easiest thing in this lesson to get wrong.**
  *
- * opencode 把它放在 `SessionProcessor.create` 的最前面，而且留了註解說明
- * 為什麼不能等事件到了再抓（`session/processor.ts:98-101`）：
+ * opencode puts it at the very start of `SessionProcessor.create` and leaves a comment explaining
+ * why it cannot wait for an event (`session/processor.ts:98-101`):
  *
  *   > Pre-capture snapshot before the LLM stream starts. The AI SDK
  *   > may execute tools internally before emitting start-step events,
  *   > so capturing inside the event handler can be too late.
  *
- * 也就是說：**provider 有可能在送出任何事件以前就已經動過檔案了**
- * （provider-executed tool、SDK 內建工具、背景 hook）。
- * 等 `tool_call` 事件到了再抓基準點，那次改動就落在基準點之前，
- * 於是它從 patch 裡消失 —— 而且不會有任何錯誤訊息。
+ * That is: **a provider may already have touched files before emitting any event**
+ * (provider-executed tools, SDK built-in tools, background hooks).
+ * Take the baseline when the `tool_call` event arrives and that change falls before the baseline,
+ * so it disappears from the patch — with no error message at all.
  *
- * `CAPTURE=first-tool` 就是這個錯誤版本，情境 5 會把它跑出來。
+ * `CAPTURE=first-tool` is that wrong version, and scenario 5 runs it.
  */
 
 import type { Decision } from "../shared/permissions/engine.ts";
@@ -43,7 +43,7 @@ export type Asker = (
 	args: Record<string, unknown>,
 ) => Promise<boolean>;
 
-/** 什麼時候抓基準點。預設是對的那一個。 */
+/** When to take the baseline. The default is the correct one. */
 export type CapturePoint = "pre-stream" | "first-tool";
 
 export interface RunOptions {
@@ -58,7 +58,7 @@ export interface RunOptions {
 	system: string;
 	capture?: CapturePoint;
 	maxSteps?: number;
-	/** 印不印串流過程。demo 要，測試不要。 */
+		/** Whether to print the stream. The demo wants it; tests do not. */
 	verbose?: boolean;
 }
 
@@ -66,7 +66,7 @@ export interface TurnOutcome {
 	record: TurnRecord;
 	findings: Finding[];
 	steps: number;
-	/** 有沒有撞到步數上限（撞到的話 patch 只是「到目前為止」）。 */
+		/** Whether it hit the step ceiling (if so, the patch is only "so far"). */
 	exhausted: boolean;
 }
 
@@ -90,7 +90,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 		verbose = true,
 	} = options;
 
-	// ── 基準點 ────────────────────────────────────────────────
+		// ── the baseline ──────────────────────────────────────────
 	let base = capture === "pre-stream" ? await snapshot.track() : undefined;
 
 	const toolRecords: ToolRecord[] = [];
@@ -118,7 +118,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 					if (verbose) process.stdout.write("\n");
 					break;
 				case "tool_call":
-					// 錯誤版本的抓取點：這時候 provider 可能已經動過檔案了。
+						// The wrong capture point: by now the provider may already have touched files.
 					if (base === undefined) base = await snapshot.track();
 					break;
 				case "done":
@@ -170,7 +170,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 			if (verbose) console.log(dim(`  → ${call.name}(${summarize(call.args)})  [${risk}]`));
 
 			if (denial) {
-				// Lesson 3 的硬規則：每個 tool call 都必須有結果，否則下一次請求 400。
+					// Lesson 3's hard rule: every tool call must have a result, or the next request 400s.
 				results.push({
 					toolCallId: call.id,
 					toolName: call.name,
@@ -203,10 +203,10 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 		messages.push({ role: "toolResult", results });
 	}
 
-	// ── 收尾 ──────────────────────────────────────────────────
+		// ── finishing up ──────────────────────────────────────────
 	//
-	// `base` 還是 undefined 只可能發生在 `first-tool` 模式下模型一個工具都沒叫。
-	// 那種情況「這一輪之前」就是現在，patch 一定是空的。
+		// `base` can still be undefined only in `first-tool` mode when the model called no tool at all.
+		// In that case "before this turn" is now, and the patch is necessarily empty.
 	if (base === undefined) base = await snapshot.track();
 
 	const patch = await snapshot.patch(base);
@@ -217,7 +217,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 
 // ─────────────────────────────────────────────────────────────
 
-/** 跟 Lesson 8 同一個閘門，只是把 DENY_HINT 那個實驗拿掉了。 */
+/** The same gate as Lesson 8's, minus the DENY_HINT experiment. */
 async function gate(
 	_engine: PermissionEngine,
 	decision: Decision,

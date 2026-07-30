@@ -1,5 +1,5 @@
 /**
- * 挑一個 streaming provider。選法跟非串流版完全一樣。
+ * Pick a streaming provider. The selection works exactly as the non-streaming version's does.
  */
 
 import { resolve } from "node:path";
@@ -12,7 +12,7 @@ if (typeof process.loadEnvFile === "function") {
 	try {
 		process.loadEnvFile(resolve(import.meta.dirname, "../../.env"));
 	} catch {
-		// 沒有 .env 很正常
+			// Having no .env is entirely normal
 	}
 }
 

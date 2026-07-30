@@ -1,15 +1,15 @@
 /**
- * 完成的證據（Lesson 29）。
+ * Evidence of completion (Lesson 29).
  *
- * 兩組測試，守的東西不一樣：
+ * Two groups guarding different things:
  *
- *   snapshot  影子 git 真的量得到檔案系統的變化（會真的開 git，用暫存目錄）
- *   compare   三份紀錄的集合運算
+ *   snapshot  the shadow git really measures filesystem changes (it really invokes git, in a temp directory)
+ *   compare   the set operations over the three records
  *
- * `compare` 那一組每一條都對應到一個實際跑出來的情境（`bun run lesson-29`），
- * 不是為了覆蓋率。特別是 `read_file` 那一條：少了 `mutating` 欄位的話，
- * **每一次唯讀探索都會生出一條假的 unbacked-write**，而那種假陽性
- * 會讓整個檢查器變成雜訊。
+ * Every case in the `compare` group matches a scenario that really ran (`bun run lesson-29`),
+ * rather than existing for coverage. The `read_file` one especially: without the `mutating` field,
+ * **every read-only exploration produces a false unbacked-write**, and that kind of false positive
+ * turns the whole checker into noise.
  */
 
 import assert from "node:assert/strict";
@@ -77,7 +77,7 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 	});
 
 	test("read_file 不算「聲稱改過」", () => {
-		// 少了 mutating 這個欄位，這一條會冒出一個假的 unbacked-write。
+			// Without the mutating field, this case produces a false unbacked-write.
 		const read: ToolRecord = {
 			name: "read_file",
 			path: "src/app.ts",
@@ -104,13 +104,13 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 			findings.map((f) => f.kind),
 			["unmentioned-change"],
 		);
-		// 這條不該讓判定變成「有結構性分歧」。工具跟檔案系統是一致的，
-		// 不一致的只有那段自然語言，而那條比對本來就會有假陰性。
+			// This must not make the verdict "there is structural divergence". The tool and the filesystem agree;
+			// only the natural language disagrees, and that comparison has false negatives by design.
 		assert.equal(hasStructuralDivergence(findings), false);
 	});
 
 	test("沒有變更也沒有說話 → 不報 no-evidence", () => {
-		// 使用者只是問問題，模型沒回半個字的情況不該被算成謊報。
+			// The user only asked a question, and the model saying nothing must not count as a false report.
 		const findings = compare(record([], [], ""));
 		assert.deepEqual(findings, []);
 	});
@@ -123,7 +123,7 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Snapshot（會真的呼叫 git）
+// Snapshot (really calls git)
 // ─────────────────────────────────────────────────────────────
 
 describe("影子 git snapshot（Lesson 29）", () => {
@@ -167,7 +167,7 @@ describe("影子 git snapshot（Lesson 29）", () => {
 
 		assert.deepEqual((await snapshot.patch(hash)).files, ["a.txt", "sub/b.txt"]);
 
-		// 刪除也要算。少了 `add --all`，這一條會過不了。
+			// Deletions count too. Without `add --all`, this case fails.
 		const after = await snapshot.track();
 		await rm(join(workspace, "sub/b.txt"));
 		assert.deepEqual((await snapshot.patch(after)).files, ["sub/b.txt"]);

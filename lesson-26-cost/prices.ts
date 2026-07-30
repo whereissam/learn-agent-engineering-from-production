@@ -1,51 +1,51 @@
 /**
- * 價目表。
+ * The price table.
  *
- * ## 這個檔案是空的，而且是刻意的
+ * ## This file is empty, deliberately
  *
- * 設計原則 3 說「輸出範例要是真的跑出來的，不要編造」。價目也一樣：
- * **我不會把我沒查證過的數字寫死在這裡**，因為
+ * Design principle 3 says example output must be really produced rather than invented. Prices are the same:
+ * **unverified numbers are not hardcoded here**, because
  *
- *   1. 價格每隔幾個月就變
- *   2. 同一個模型在不同區域、不同層級、有沒有快取，價格都不同
- *   3. 一個看起來很精確但其實過期的數字，比沒有數字更危險——
- *      你會拿它去做決策
+ *   1. prices change every few months
+ *   2. the same model differs by region, by tier, and by whether caching applies
+ *   3. a precise-looking but stale number is more dangerous than no number —
+ *      you will make decisions with it
  *
- * 所以這裡只定義**形狀**，數字由你自己填。填法有兩種：
+ * So this defines only the **shape**, with the numbers left to you. Two ways to fill them in:
  *
  * ```bash
- * # 1. 環境變數（試算的時候最方便）
+ * # 1. Environment variables (most convenient while estimating)
  * PRICE_INPUT=0.30 PRICE_OUTPUT=2.50 bun run lesson-26
  * ```
  *
  * ```ts
- * // 2. 寫進下面的 PRICES（正式使用）
+ * // 2. Write them into PRICES below (for real use)
  * "gemini-3.6-flash": { input: 0.30, output: 2.50, verifiedOn: "2026-07-27" },
  * ```
  *
- * 單位一律是**每一百萬 token 多少美元**，因為所有 provider 的官方定價
- * 都是這個單位，換算越少出錯機會越少。
+ * The unit is always **dollars per million tokens**, because every provider's official pricing
+ * uses that unit, and fewer conversions mean fewer mistakes.
  *
- * ## 沒填價目會怎樣
+ * ## What happens with no prices filled in
  *
- * 一切照跑，只是不顯示金額，**token 數還是完整記錄**。
- * 這是刻意的：token 是可以量測的事實，錢是需要外部資訊的推算。
- * 兩者不該混在一起。
+ * Everything runs, amounts are not shown, and **token counts are still recorded in full**.
+ * That is deliberate: tokens are a measurable fact and money is an inference needing external information.
+ * The two should not be mixed.
  */
 
 export interface Price {
-	/** 每百萬 input token 多少美元 */
+	/** Dollars per million input tokens */
 	input: number;
-	/** 每百萬 output token 多少美元（thinking token 通常算這個價） */
+	/** Dollars per million output tokens (thinking tokens usually bill at this rate) */
 	output: number;
-	/** 你是哪一天去官網確認的。沒有這個欄位的價格不值得相信。 */
+	/** The date you checked the official site. A price without this field is not worth believing. */
 	verifiedOn: string;
 }
 
 /**
- * 自己填。key 是 model id（`provider.model` 的值）。
+ * Fill this in yourself. The key is the model id (the value of `provider.model`).
  *
- * 建議連 `verifiedOn` 一起寫，半年後你會感謝自己。
+ * Write `verifiedOn` alongside it; six months from now you will thank yourself.
  */
 export const PRICES: Record<string, Price> = {
 	// "gemini-3.6-flash": { input: 0, output: 0, verifiedOn: "YYYY-MM-DD" },
@@ -57,7 +57,7 @@ export function priceFor(model: string): Price | undefined {
 	const fromEnv = envPrice();
 	if (fromEnv) return fromEnv;
 
-	// 完全比對優先，再試前綴（因為 model id 常常帶日期後綴）
+	// Exact match first, then a prefix (because model ids often carry a date suffix)
 	if (PRICES[model]) return PRICES[model];
 	for (const [key, price] of Object.entries(PRICES)) {
 		if (model.startsWith(key)) return price;

@@ -1,33 +1,40 @@
-# Lesson 21: Crawl 與內容抽取
+# Lesson 21: Crawling and Content Extraction
 
-> 前置：[Lesson 20](../lesson-20-search-agent/)（最小的 search agent）。
+> [繁體中文](README.zh-TW.md)
 >
-> 這一課只多一個工具：`fetch_page`。但它會改變 agent 能不能誠實。
+> Prerequisite: [Lesson 20](../lesson-20-search-agent/) (the smallest search
+> agent).
+>
+> This lesson adds exactly one tool: `fetch_page`. But it changes whether the
+> agent can be honest.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 一頁 HTML 裡，正文到底佔多少？剩下的是什麼？
-2. 「把標籤拿掉就是正文」哪裡錯了？錯多少？
-3. 抓不到一頁有幾種抓不到？每一種模型該做什麼？
-4. 一萬字的頁面怎麼塞進 context？
-5. **抽取器沒抽到的東西，模型要怎麼知道自己沒看到？**
+1. How much of an HTML page is actually body text? What is the rest?
+2. What is wrong with "strip the tags and you have the body"? How wrong?
+3. How many ways are there to fail to fetch a page, and what should the model do
+   about each?
+4. How does a ten-thousand-word page fit into context?
+5. When the extractor misses something, how does the model know it did not see
+   it?
 
-第 5 題是這一課最貴的一題，Step 5 有完整的實測記錄：
-同一個問題跑三次，前兩次都燒光步數上限答不出來。
+The fifth is the most expensive question here, and Step 5 has the full record:
+the same question run three times, with the first two burning the step ceiling
+without producing an answer.
 
 ---
 
-## Step 0：正文只佔一半
+## Step 0: the body is only half of it
 
-抽取器可以單獨量，不需要模型、不需要金鑰：
+The extractor can be measured on its own, no model and no key:
 
 ```bash
 bun run lesson-21:measure
 ```
 
-這一課有一個很少見的好條件：**我們知道正確答案**。
-Lesson 20 的 `corpus/index.json` 裡存的就是每一頁的正文，
-因為 HTML 本來就是從那份文字產生的。所以可以直接算分：
+This lesson has a rare luxury: **the right answer is known**. Lesson 20's
+`corpus/index.json` holds each page's body text, because the HTML was generated
+from that text in the first place. So it can be scored directly:
 
 ```
 recall = 正文抽到多少   noise = 抽出來的東西有多少不是正文
@@ -47,16 +54,16 @@ stripTags 抽出來    17403 字元  (2.00x)
 extractMain 抽出來  8688 字元  (1.00x)
 ```
 
-`stripTags` 就是那個大家第一次寫爬蟲都會寫的版本：
+`stripTags` is the version everybody writes the first time they write a crawler:
 
 ```ts
 html.replace(/<[^>]+>/g, " ")
 ```
 
-它的 recall 是 100%（正文一個字都沒漏），所以**看起來完全正確**。
-問題在 noise：抽出來的東西有一半不是正文。
+Its recall is 100% (not one word of the body is lost), so it **looks completely
+correct**. The problem is noise: half of what comes out is not body text.
 
-看一頁就懂：
+One page makes it obvious:
 
 ```bash
 bun run lesson-21:measure --show retarget-anything
@@ -72,13 +79,13 @@ RoboOps Cloud. Start free. Related posts 10 things nobody tells you about humano
 © 2026 github.com. All rights reserved. Terms · Privacy · Contact
 ```
 
-這些東西會進 context、會被計費、而且**會被模型當成內容引用**。
-一個回答裡出現「根據該頁面，可以用 RoboOps Cloud 加速部署」，
-來源就是這裡。
+This goes into context, gets billed, and **gets cited by the model as content**.
+When an answer says "according to that page, you can speed up deployment with
+RoboOps Cloud", this is where it came from.
 
-> 兩倍的 noise 不只是浪費兩倍的錢。它是在稀釋真正的證據。
+> Twice the noise is not just twice the money. It dilutes the real evidence.
 
-`extractMain` 的做法沒有任何魔法，就三步：
+`extractMain` has no magic in it, just three steps:
 
 ```text
 1. 整塊丟掉：script / style / nav / header / footer / aside / form
@@ -86,29 +93,31 @@ RoboOps Cloud. Start free. Related posts 10 things nobody tells you about humano
 3. 挑正文容器：<article> 優先，其次 <main>，都沒有才退回 <body>
 ```
 
-> ⚠️ **0% noise 是假的。** 語料的 HTML 是我們自己用同一個模板產生的，
-> 抽取器剛好照著那個模板寫。真實網頁不可能這麼乾淨——
-> Step 5 會給你看它碰到不同版型時怎麼壞掉。
+> The 0% noise is fake. The corpus HTML was generated from one template, and the
+> extractor happens to be written against that template. Real pages are never
+> this clean — Step 5 shows how it breaks on a different layout.
 >
-> 真的要做，用 Readability、trafilatura 或 Crawl4AI，
-> 它們骨子裡也是同一套啟發式規則，只是黑名單更長、還配上文字密度統計。
-> **沒有一個抽取器是「原理上正確」的。**
+> For real work, use Readability, trafilatura or Crawl4AI. They are the same
+> family of heuristics underneath, only with longer blocklists and text-density
+> statistics on top. No extractor is "correct in principle".
 
 ---
 
-## Step 1：只多了一個工具
+## Step 1: exactly one new tool
 
 ```diff
 - const registry = new ToolRegistry([webSearchTool]);
 + const registry = new ToolRegistry([webSearchTool, fetchPageTool]);
 ```
 
-`web_search` 是直接 `import` Lesson 20 的那一個，沒有複製。
-`runTurn` 從 Lesson 3 到現在還是一行都沒改。
+`web_search` is `import`ed directly from Lesson 20, not copied. `runTurn` still
+has not changed a line since Lesson 3.
 
-**這一課要證明的就是「加一個工具能改變什麼」，所以其他東西必須完全一樣。**
+What this lesson proves is what one added tool changes, so everything else has to
+be identical.
 
-system prompt 改了一條規則。Lesson 20 是兩級標籤，這裡變三級：
+One rule changed in the system prompt. Lesson 20 had two labels; here there are
+three:
 
 ```diff
 - CONFIRMED: a snippet you retrieved literally says it.
@@ -117,15 +126,16 @@ system prompt 改了一條規則。Lesson 20 是兩級標籤，這裡變三級�
 + UNVERIFIED:    neither.
 ```
 
-Lesson 20 的結尾說過：**prompt 可以要求誠實，但只有工具能讓誠實變得可能。**
-現在工具有了，來看看有沒有變。
+Lesson 20 ended by saying a prompt can demand honesty but only tools can make it
+possible. The tool now exists; time to see whether anything changed.
 
 ---
 
-## Step 2：同一個問題，答案翻過來
+## Step 2: same question, the answer flips
 
-Lesson 20 問「retarget-anything 還能用嗎」時模型答對了，
-但那是因為 query 剛好命中棄用段落。這次問一個更難的：
+When Lesson 20 asked "does retarget-anything still work", the model got it
+right, but only because the query happened to hit the deprecation paragraph.
+This time the question is harder:
 
 ```bash
 bun run lesson-21
@@ -135,7 +145,7 @@ bun run lesson-21
 > retarget-anything 現在還能用在 2026 SDK 的 G1 上嗎？如果不行，替代方案是什麼？
 ```
 
-實際軌跡（Gemini 3.6 Flash，7 個工具呼叫）：
+The real trajectory (Gemini 3.6 Flash, 7 tool calls):
 
 ```
 → web_search(retarget-anything Unitree G1)
@@ -147,7 +157,7 @@ bun run lesson-21
 → web_search(Unitree G1 retargeting tools alternative 2026 …)
 ```
 
-答案（節錄）：
+The answer (excerpted):
 
 ```markdown
 **直接回答：無法直接開箱使用（預設 G1 Profile 已失效/官方已棄用）。**
@@ -166,19 +176,21 @@ bun run lesson-21
   [CONFIRMED: https://discourse.ros.org/t/…/45211]
 ```
 
-每一條 `CONFIRMED` 現在都真的有讀過那一頁。最後那條「0.8x」尤其值得看：
-那是論壇裡一個工程師的臨場做法，**只有把整頁讀完才拿得到**，
-snippet 永遠不會截到它。
+Every `CONFIRMED` now really did read the page. The last one, "0.8x", is
+especially worth looking at: it is one engineer's improvised workaround from a
+forum thread, **obtainable only by reading the whole page**. A snippet would
+never have cut to it.
 
-對照 Lesson 20 那個「開箱即用支援 G1」的答案，差別不是模型變聰明了，
-是它終於有辦法把頁面打開。
+Against Lesson 20's "supports the G1 out of the box" answer, the difference is
+not that the model got smarter. It finally had a way to open the page.
 
 ---
 
-## Step 3：抓不到有四種樣子
+## Step 3: four shapes of failing to fetch
 
-`fetcher.ts` 把真實 web 最常見的四種失敗做成規則。
-每一種的**下一步都不一樣**，所以錯誤訊息必須說得出差別：
+`fetcher.ts` encodes the four most common real-web failures as rules. **The next
+step differs for each**, so the error message must be able to state the
+difference:
 
 ```
 ✗ https://top-robotics-tools.example.net/…
@@ -203,32 +215,35 @@ snippet 永遠不會截到它。
   run web_search and fetch one of the URLs it returned.
 ```
 
-三個設計決定值得說：
+Three design decisions are worth stating.
 
-**robots.txt 檢查在最前面。** 先問「我可不可以抓」，再問「抓不抓得到」。
-而且要記住：**robots.txt 沒有強制力**，它是一份請求，你的爬蟲自己要遵守。
-會擋你的是法務和 IP 封鎖，不是這個檔案。
+The robots.txt check comes first. Ask "may I fetch this" before asking "can I
+fetch this". And remember: **robots.txt has no enforcement**. It is a request,
+and your crawler is the one that has to honour it. What actually stops you is
+legal and IP blocking, not that file.
 
-**JS 空殼的錯誤訊息寫得最長**，因為它最危險。模型很容易把
-「抽不到內容」理解成「這一頁沒有這個資訊」，然後寫出
-「該頁面並未提到 G1」——那是一個**憑空生出來的否定結論**。
-所以錯誤訊息要直接把這條路堵死：`this means the content is unknown, NOT that the page is empty`。
+**The JS-shell message is the longest**, because it is the most dangerous. A
+model easily reads "no content extracted" as "this page does not have that
+information", and then writes "the page does not mention the G1" — a **negative
+conclusion invented out of nothing**. So the error message closes that road
+explicitly: `this means the content is unknown, NOT that the page is empty`.
 
-**404 順便講「不要自己編網址」。** 模型很愛把記憶裡的 repo 名字拼成一個
-看起來很合理的 URL 然後去抓。
+The 404 also mentions "do not invent URLs". Models love assembling a
+plausible-looking URL from a repo name they remember and fetching it.
 
-> 真實爬蟲還要處理逾時、重試與退避、redirect 鏈、PDF、
-> robots 的 crawl-delay、ETag 條件式請求。這裡沒做，練習 5 是逾時那題。
+> A real crawler also handles timeouts, retries and backoff, redirect chains,
+> PDFs, robots crawl-delay, and ETag conditional requests. None of that is here;
+> Exercise 5 is the timeout one.
 
 ---
 
-## Step 4：長頁面要切塊
+## Step 4: long pages need chunking
 
-`https://www.unitree.com/g1/developer` 這一頁是一份 SDK 遷移文件，
-抽出來 13,514 字元，一次塞不進去。
+`https://www.unitree.com/g1/developer` is an SDK migration document. It extracts
+to 13,514 characters, which does not fit in one go.
 
-為什麼不像 Lesson 2 那樣截斷就好？**因為你要的東西通常在後面。**
-截斷等於永遠拿不到第 18 節。
+Why not just truncate like Lesson 2? Because what you want is usually near the
+end. Truncating means never reaching section 18.
 
 ```
 # Unitree G1 - developer resources and SDK - SDK migration guide
@@ -244,29 +259,31 @@ chunk=2 to continue, and do not describe the page as a whole until you have read
 you need.
 ```
 
-三個設計決定（`extract/chunk.ts`）：
+Three design decisions (`extract/chunk.ts`):
 
-| 決定 | 為什麼 |
+| Decision | Why |
 |---|---|
-| 只在**段落邊界**切 | 切在句子中間會產生半句話，模型會自己補完後半句——幻覺最好的溫床 |
-| 相鄰的塊**重疊**一段 | 一段話剛好跨在邊界上時，沒有重疊兩邊都讀不完整 |
-| 每一塊都標**第幾塊、共幾塊** | 不標的話，模型會拿第 1 塊的內容回答整份文件的問題 |
+| cut only at **paragraph boundaries** | cutting mid-sentence produces half a sentence, and the model completes the other half itself — the finest breeding ground for hallucination |
+| adjacent chunks **overlap** a little | when a passage lands exactly on a boundary, without overlap neither side reads it whole |
+| every chunk is labelled **which one of how many** | without it, the model answers questions about the whole document from chunk 1 |
 
 ---
 
-## Step 5：最貴的一課——靜默的抽取失敗
+## Step 5: the most expensive lesson — silent extraction failure
 
-這一段是實測踩出來的，三次跑同一個問題。
+This section came out of measurement, running the same question three times.
 
 ```
 > G1 的 waist_yaw 關節在 2026 SDK 裡是第幾號？
 ```
 
-答案在那份遷移文件的一個 HTML `<table>` 裡：`waist_yaw | 1 | 13`。
+The answer sits in an HTML `<table>` in that migration document:
+`waist_yaw | 1 | 13`.
 
-### 第一次：16 步上限，沒有答案
+### First run: 16-step ceiling, no answer
 
-當時的 `extractMain` 只取 `<p>`，表格被丟掉了。模型的軌跡：
+`extractMain` at the time took only `<p>`, so the table was thrown away. The
+model's trajectory:
 
 ```
 web_search × 6
@@ -276,19 +293,22 @@ web_search × 2
 [已達 16 步上限]
 ```
 
-**16 個工具呼叫，沒有答案，也沒有一句「我找不到」。**
-它把整份文件七塊全部讀完，因為它相信答案就在裡面——
-而答案確實在那一頁上，只是不在**抽出來的文字**裡。
+16 tool calls, no answer, and not one sentence saying "I cannot find it". It read
+all seven chunks of the document because it believed the answer was in there —
+and the answer *was* on that page, just not in **the extracted text**.
 
-> 這比抓不到頁面危險得多。抓不到至少有錯誤訊息。
-> **抽錯內容什麼訊號都沒有，模型和你都不會發現。**
+> This is far more dangerous than failing to fetch. A failed fetch at least has
+> an error message. Wrong extraction has no signal at all; neither the model nor
+> you will notice.
 
-好消息是它沒有編一個數字出來。壞消息是它也沒能說「找不到」，
-是被步數上限打斷的——如果上限再高一點，它會繼續燒錢。
+The good news is it did not invent a number. The bad news is it could not say "I
+cannot find it" either; it was cut off by the step ceiling — with a higher
+ceiling it would have kept burning money.
 
-### 第二次：加了警告，還是 16 步上限
+### Second run: added a warning, still hit the 16-step ceiling
 
-第一個修法是讓工具講實話（Lesson 6「工具要主動報告資料品質」）：
+The first attempted fix was making the tool tell the truth (Lesson 6, "tools
+should report data quality unprompted"):
 
 ```ts
 NOTE: this extractor keeps paragraphs only. This page also contains 1 table(s) and
@@ -297,23 +317,25 @@ NOTE: this extractor keeps paragraphs only. This page also contains 1 table(s) a
 Do NOT conclude that the page does not contain it, and do not guess the value.
 ```
 
-工具老老實實在每一塊都印了這段警告。結果：
+The tool dutifully printed that warning on every chunk. Result:
 
 ```
 [已達 16 步上限]
 ```
 
-**它還是沒停。** 它讀完七塊、又搜了六次，包括最後這個很絕望的 query：
+It still did not stop. It read all seven chunks and searched six more times,
+including this rather desperate query at the end:
 
 ```
 web_search("waist_yaw" "G1" "12" OR "13" OR "14" OR "11" OR "0" OR "15")
 ```
 
-它在猜號碼然後試著搜出來。
+It was guessing the number and trying to search its way to confirmation.
 
-### 第三次：真的把表格抽出來，8 步答對
+### Third run: actually extract the table, correct in 8 steps
 
-止血不是修法。真正的修法是讓抽取器**把表格抽出來**：
+Stopping the bleeding is not a fix. The real fix is making the extractor **pull
+the table out**:
 
 ```ts
 const pattern = options.includeStructures
@@ -321,11 +343,12 @@ const pattern = options.includeStructures
   : /<(p)\b[^>]*>([\s\S]*?)<\/\1>/gi;
 ```
 
-表格轉成 pipe 分隔的純文字（保留的是「哪些值在同一列」，不是標記語言），
-清單轉成 `- item`，而且**依照原始順序**放回去——
-表格要是被搬到全文最後面，「上面那段講的就是下面這張表」的關係就斷了。
+Tables become pipe-separated plain text (what is preserved is which values share
+a row, not the markup language), lists become `- item`, and everything goes back
+**in original order** — move a table to the end of the document and the relation
+"the paragraph above is talking about the table below" is severed.
 
-再跑一次：
+Run again:
 
 ```
 → web_search × 3
@@ -337,32 +360,34 @@ const pattern = options.includeStructures
 * 2024 SDK 舊版索引：1  [CONFIRMED: https://www.unitree.com/g1/developer]
 ```
 
-**8 步，答對，引用正確。**
+Eight steps, correct answer, correct citation.
 
-### 這一段真正的教訓
+### What this section is actually teaching
 
 ```text
 16 步（沒答案）→ 加警告 → 16 步（還是沒答案）→ 改抽取器 → 8 步（答對）
 ```
 
-Lesson 6 有一條原則：**能用 harness 保證的事，不要交給 prompt 祈禱。**
-這次的實測是它的反面教材加正面教材各一次：
+Lesson 6 has a principle: what the harness can guarantee should not be left to
+prayer in a prompt. This measurement is one negative and one positive example of
+it:
 
-| 做法 | 層次 | 結果 |
+| Approach | Layer | Result |
 |---|---|---|
-| 在工具輸出裡警告模型 | prompt 層的拜託 | 沒用 |
-| 讓抽取器真的抽到表格 | harness 層的修正 | 有用 |
+| warn the model in the tool output | a plea at the prompt layer | useless |
+| make the extractor actually get the table | a fix at the harness layer | worked |
 
-警告不是沒有價值——它在「真的抽不到」的時候仍然是最後一道防線
-（程式碼還留著，`includeStructures: false` 時會出現）。
-但**能修的東西不要只加警告**。
+The warning is not worthless — it remains the last line of defence when
+something genuinely cannot be extracted (the code is still there and shows up
+when `includeStructures: false`). But **do not settle for a warning about
+something you can fix**.
 
 ---
 
-## Step 6：修好了漏讀，沒修好無中生有
+## Step 6: missed reading is fixed, invention is not
 
-不要以為加了 `fetch_page` 就沒事了。另一次跑「有哪些專案支援 G1」時，
-模型除了正確的兩個 repo 之外，還多寫了一整節：
+Do not assume `fetch_page` settles everything. On another run of "which projects
+support the G1", the model added a whole section beyond the two correct repos:
 
 ```markdown
 ### 二、社群常用的「兩階段自訂重定向工具鏈」
@@ -373,121 +398,135 @@ Lesson 6 有一條原則：**能用 harness 保證的事，不要交給 prompt �
 * DexRetargeting [UNVERIFIED]
 ```
 
-這些專案**在語料裡完全不存在**，它們來自訓練資料。
+Those projects **do not exist in the corpus at all**. They come from training
+data.
 
-好消息：三級標籤真的被用起來了。Lesson 20 那次是**每一條都 CONFIRMED**，
-這次出現了 `SNIPPET-ONLY` 和 `UNVERIFIED`——工具讓誠實變得可能之後，
-prompt 的要求才開始有效。
+The good news: the three-level labels genuinely got used. Lesson 20's run had
+**every line CONFIRMED**; this one has `SNIPPET-ONLY` and `UNVERIFIED` — once
+tools made honesty possible, the prompt's demand started to work.
 
-壞消息：看那條 Pink。「可以直接載入 G1 的 URDF」被標成 `CONFIRMED` 並掛上
-unitree.com——但那一頁只說了 G1 是 23 DoF，從來沒提過 Pink。
-**引用被嫁接了。**
+The bad news: look at that Pink line. "Can load the G1's URDF directly" is
+tagged `CONFIRMED` and attached to unitree.com — but that page only says the G1
+is 23 DoF and never mentions Pink. The citation was grafted on.
 
 ```text
 fetch_page 解決的是「模型漏讀」。
 它不解決「模型多寫」，也不保證引用真的支持那句話。
 ```
 
-要抓這種錯，只能回頭去驗證每一條引用：那個 URL 的正文裡，
-真的有支持這句話的文字嗎？**這是 Lesson 25 的題目**，
-而且做法會跟 Lesson 7 一樣是確定性的檢查，不是再叫一個模型來評分。
+Catching that kind of error means going back and verifying every citation: does
+the body text at that URL actually contain something supporting the sentence?
+**That is Lesson 25's subject**, and like Lesson 7 it will be a deterministic
+check rather than another model handing out scores.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
-| `robots.txt disallows` | 這是設計 | 見 Step 3，那一頁本來就不該被爬 |
-| `found no readable text` | JS 渲染的頁面 | 見 Step 3。**不代表那一頁沒內容** |
-| 模型只讀 chunk 1 就下結論 | 沒有強調「還有幾塊」 | 見 `tools/fetch.ts` 的 footer |
-| 模型一直找不到表格裡的數字 | 抽取器把 `<table>` 丟了 | 見 Step 5，`includeStructures` |
-| 抽出來混著「Subscribe」「Sponsored」 | 用到 `stripTags` | 那是反例，用 `extractMain` |
+| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| `robots.txt disallows` | by design | see Step 3; that page should not be crawled |
+| `found no readable text` | a JS-rendered page | see Step 3. **It does not mean the page is empty** |
+| the model concludes from chunk 1 alone | the "how many chunks remain" note is not emphatic enough | see the footer in `tools/fetch.ts` |
+| the model can never find the number in the table | the extractor threw `<table>` away | see Step 5, `includeStructures` |
+| the extraction is mixed with "Subscribe" and "Sponsored" | you used `stripTags` | that is the counter-example; use `extractMain` |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 includeStructures 關掉 ⭐
+### Exercise 1: turn includeStructures off ⭐
 
-`tools/fetch.ts` 裡改成 `{ includeStructures: false }`，
-然後問「waist_yaw 在 2026 SDK 是第幾號」。
+Set `{ includeStructures: false }` in `tools/fetch.ts`, then ask "which index is
+waist_yaw in the 2026 SDK".
 
-親眼看一次 Step 5 的第一版：模型讀完整份文件，然後撞上步數上限。
-**這題只要兩分鐘，但會讓你記得「靜默失敗」長什麼樣子。**
+See Step 5's first version with your own eyes: the model reads the entire
+document and then hits the step ceiling. Two minutes of work, and you will
+remember what a silent failure looks like.
 
-### 練習 2：讓 measure 也量長文件 ⭐⭐
+### Exercise 2: measure the long document too ⭐⭐
 
-`extract/measure.ts` 現在只量 Lesson 20 那 14 頁（同一個模板，所以 0% noise）。
-把 `fetcher.ts` 產生的那份長文件也加進去量。
+`extract/measure.ts` currently measures only Lesson 20's 14 pages (one template,
+hence 0% noise). Add the long document produced by `fetcher.ts`.
 
-觀察：換一個版型之後，`extractMain` 還有 0% noise 嗎？
-（提示：那份文件沒有 `<article>`，會退回 `<body>`。）
+Observe: with a different layout, does `extractMain` still have 0% noise? (Hint:
+that document has no `<article>`, so it falls back to `<body>`.)
 
-### 練習 3：加上程式碼區塊 ⭐⭐
+### Exercise 3: add code blocks ⭐⭐
 
-`<pre>` / `<code>` 現在會被丟掉。對技術文件來說這是致命傷。
+`<pre>` and `<code>` are currently discarded. For technical documents that is
+fatal.
 
-思考：程式碼要不要保留縮排？要不要標註語言？
-一大段程式碼要不要算進 chunk 的字數上限？
+To think about: should code keep its indentation? Should the language be tagged?
+Should a large code block count towards the chunk character limit?
 
-### 練習 4：句子級的切分 ⭐⭐
+### Exercise 4: sentence-level splitting ⭐⭐
 
-`chunkText` 遇到「單一段落就超過上限」時是整段放進去，
-所以那一塊會超過 `maxChars`。改成在句子邊界切。
+When `chunkText` meets a single paragraph that exceeds the limit, it puts the
+whole paragraph in, so that chunk exceeds `maxChars`. Change it to split at
+sentence boundaries.
 
-難點：`"see Fig. 3"`、`"v2.0"`、`"e.g."` 裡的句點不是句尾。
-你會發現這題比想像中麻煩——這也是為什麼很多人直接用現成的 splitter。
+The hard part: the periods in `"see Fig. 3"`, `"v2.0"` and `"e.g."` are not
+sentence ends. You will find this fiddlier than expected — which is why many
+people just use an off-the-shelf splitter.
 
-### 練習 5：逾時與重試 ⭐⭐⭐
+### Exercise 5: timeout and retry ⭐⭐⭐
 
-在 `fetcher.ts` 加一個「這個網域第一次一定逾時，第二次才成功」的規則。
+Add a rule to `fetcher.ts` where a given domain always times out on the first
+attempt and succeeds on the second.
 
-然後回答三個問題：
+Then answer three questions:
 
-1. 重試要退避多久？固定間隔還是指數退避？
-2. 重試該由**工具**做，還是回錯誤讓**模型**決定要不要重試？
-3. 如果模型自己重試，你怎麼避免它把步數上限全部花在同一個網址上？
+1. How long should the backoff be? Fixed interval or exponential?
+2. Should the retry be done by the **tool**, or should the error go back so the
+   **model** decides?
+3. If the model retries itself, how do you stop it spending the whole step
+   ceiling on one URL?
 
-第 2 題沒有標準答案，但值得想清楚：交給工具，模型看不到延遲；
-交給模型，它可能重試五次。**這就是 harness 設計。**
+The second has no standard answer, but it is worth thinking through: give it to
+the tool and the model cannot see the delay; give it to the model and it may
+retry five times. That is harness design.
 
-### 練習 6：把 fetch_page 換成真的網路 ⭐⭐⭐
+### Exercise 6: point fetch_page at the real network ⭐⭐⭐
 
-把 `fetcher.ts` 的 `readFileSync` 換成真的 `fetch()`，
-搭配一個真的搜尋來源（SearXNG 或任何 search API）。
+Replace `fetcher.ts`'s `readFileSync` with a real `fetch()`, paired with a real
+search source (SearXNG or any search API).
 
-你會立刻遇到這一課提到、但語料裡沒有的東西：redirect、
-gzip、字元編碼、cookie 牆、Cloudflare、PDF、無限捲動。
+You will immediately meet the things this lesson mentions but the corpus does not
+contain: redirects, gzip, character encodings, cookie walls, Cloudflare, PDFs,
+infinite scroll.
 
-**做完這題，你就知道 Firecrawl 和 Crawl4AI 到底在賣什麼了。**
+Finish this and you will know what Firecrawl and Crawl4AI are actually selling.
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-| 這一課的概念 | 對照 |
+| Concept in this lesson | Reference |
 |---|---|
-| HTML → LLM 友善的文字 | [Crawl4AI](https://github.com/unclecode/crawl4ai)（Apache-2.0，適合改） |
-| 服務化的 scrape / crawl / extract | [Firecrawl](https://github.com/firecrawl/firecrawl)（核心 AGPL-3.0） |
-| 正文抽取的啟發式規則 | Readability、trafilatura |
-| 輸出截斷 vs 切塊 | 本系列 `shared/tools/truncate.ts`（Lesson 2） |
-| 工具要主動報告資料品質 | 本系列 Lesson 6 Step 4 |
+| HTML → LLM-friendly text | [Crawl4AI](https://github.com/unclecode/crawl4ai) (Apache-2.0, easy to modify) |
+| scrape / crawl / extract as a service | [Firecrawl](https://github.com/firecrawl/firecrawl) (core is AGPL-3.0) |
+| body-extraction heuristics | Readability, trafilatura |
+| output truncation vs chunking | this series' `shared/tools/truncate.ts` (Lesson 2) |
+| tools reporting data quality unprompted | this series' Lesson 6 Step 4 |
 
-> ⚠️ 這幾個專案我還沒逐一讀過原始碼，只標概念對應，沒有標行號（設計原則 4）。
+> The source of these projects has not been read line by line, so only concepts
+> are matched up, without line numbers (design principle 4).
 
-一個值得先知道的分界：**Crawl4AI 偏 library，Firecrawl 偏平台。**
-你要嵌進自己的 pipeline 就看前者，你要理解怎麼把它做成服務就看後者。
-Lesson 23 會把這一課和 Lesson 22 組成一個服務，那時會再回到這個對照。
+One distinction worth knowing first: Crawl4AI leans library, Firecrawl leans
+platform. Read the former to embed it in your own pipeline, the latter to
+understand how to turn it into a service. Lesson 23 assembles this lesson and
+Lesson 22 into a service, and returns to this comparison then.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 22: 檢索與排序](../lesson-22-retrieval/)**：Lesson 20 的 BM25 把 SEO 農場排第一、
-正確答案排第八。這一課讓 agent 能讀完整頁面之後，那個問題反而更明顯了——
-**它讀的每一頁都是排序決定的。**
+[Lesson 22: retrieval and ranking](../lesson-22-retrieval/): Lesson 20's BM25 put
+the SEO farm first and the correct answer eighth. Now that the agent can read
+whole pages, that problem is more visible rather than less — every page it reads
+was chosen by the ranking.
 
 ```text
 BM25 + dense retrieval + RRF 融合 + cross-encoder rerank
@@ -497,4 +536,5 @@ BM25 + dense retrieval + RRF 融合 + cross-encoder rerank
 來源多樣性
 ```
 
-語料裡那對近似重複的頁面（GitHub README 和 docs 站）就是為那一課準備的。
+That pair of near-duplicate pages in the corpus (the GitHub README and the docs
+site) was prepared for that lesson.

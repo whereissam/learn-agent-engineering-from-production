@@ -1,47 +1,48 @@
 /**
- * Context 壓縮。
+ * Context compaction.
  *
- * 問題：每一輪都要把「完整對話歷史」重送給模型。歷史越長，
- * 每一輪就越慢、越貴，最後撞到 context window 上限，請求直接失敗。
+ * The problem: every turn resends the full conversation history to the model. The longer the
+ * history, the slower and more expensive each turn, until it hits the context window and the request fails.
  *
- * 解法：把「很久以前的訊息」換成一段摘要，保留最近的原文。
+ * The fix: replace long-ago messages with a summary and keep the recent originals.
  *
- *   壓縮前： [msg1][msg2][msg3]...[msg40][msg41][msg42]
- *   壓縮後： [摘要:msg1-msg30    ][msg31]...[msg42]
- *            └─ 一段文字         └─ 保留原文的「尾巴」
+ *   before: [msg1][msg2][msg3]...[msg40][msg41][msg42]
+ *   after:  [summary: msg1-msg30 ][msg31]...[msg42]
+ *            └─ one passage        └─ the original tail is kept
  *
- * 對照 Pi：packages/agent/src/harness/compaction/compaction.ts（880 行）
+ * Against Pi: packages/agent/src/harness/compaction/compaction.ts (880 lines)
  */
 
 import type { Message } from "./providers/types.ts";
 import type { StreamingProvider } from "./streaming/types.ts";
 
 export interface CompactionConfig {
-	/** 估算 token 數超過這個值就壓縮。 */
+	/** Compact once the estimated token count exceeds this. */
 	triggerTokens: number;
-	/** 壓縮後保留最後幾則原始訊息。 */
+	/** How many original messages to keep after compaction. */
 	keepRecent: number;
-	/** 摘要本身最多用多少 token。 */
+	/** How many tokens the summary itself may use. */
 	summaryMaxTokens: number;
 }
 
 export const DEFAULT_COMPACTION: CompactionConfig = {
-	// 真實應用要看 model 的 context window 來設。
-	// 這裡刻意設得很小，方便你在短對話裡就看到壓縮發生。
+	// A real application sets this from the model's context window.
+	// It is deliberately small here so compaction is visible in a short conversation.
 	triggerTokens: Number(process.env.COMPACT_AT ?? 8000),
 	keepRecent: 6,
 	summaryMaxTokens: 2000,
 };
 
 /**
- * 粗估 token 數。
+ * A rough token estimate.
  *
- * 真的要準就要用 provider 的 count_tokens API（每家都不一樣，而且要多打
- * 一次網路請求）。壓縮的觸發時機不需要那麼準，差 10% 不會怎樣，
- * 所以用字元數除以一個常數就夠了。
+ * Real accuracy needs a provider's count_tokens API (different for every vendor, and one more
+ * network round trip). Compaction's trigger point does not need that accuracy; 10% out changes
+ * nothing, so a character count divided by a constant is enough.
  *
- * 4 是英文的經驗值。CJK 大約 1.5-2 個字元一個 token，所以中文對話
- * 這個函式會「低估」，寧可低估晚一點壓縮，也不要高估而過早壓縮。
+ * 4 is the empirical value for English. CJK is roughly 1.5-2 characters per token, so this
+ * function **underestimates** Chinese conversations — and underestimating (compacting later) is
+ * preferable to overestimating (compacting too early).
  */
 export function estimateTokens(messages: Message[]): number {
 	let chars = 0;
@@ -68,28 +69,28 @@ export function estimateTokens(messages: Message[]): number {
 }
 
 export interface CompactionResult {
-	/** 壓縮後要用的訊息串。 */
+	/** The message list to use after compaction. */
 	messages: Message[];
-	/** 摘要文字，可以存進 session 供之後查閱。 */
+	/** The summary text, which can be stored in the session for later reference. */
 	summary: string;
 	tokensBefore: number;
 	tokensAfter: number;
-	/** 被摘要掉的訊息數量。 */
+	/** How many messages were summarised away. */
 	compactedCount: number;
 }
 
-/** 要不要壓縮？ */
+/** Should we compact? */
 export function shouldCompact(messages: Message[], config: CompactionConfig): boolean {
-	// 太短就沒必要，摘要本身也要花錢，壓縮反而更貴
+	// Too short is not worth it: the summary costs money too, so compacting can cost more
 	if (messages.length <= config.keepRecent + 2) return false;
 	return estimateTokens(messages) > config.triggerTokens;
 }
 
 /**
- * 執行壓縮。
+ * Perform the compaction.
  *
- * 這是一個「用 LLM 處理 LLM 的 context」的操作，我們額外呼叫一次模型，
- * 請它把舊訊息寫成摘要。
+ * This is "using an LLM to handle an LLM's context": one extra model call asking it to write
+ * the old messages up as a summary.
  */
 export async function compact(
 	provider: StreamingProvider,
@@ -99,14 +100,14 @@ export async function compact(
 ): Promise<CompactionResult> {
 	const tokensBefore = estimateTokens(messages);
 
-	// 切成「要摘要的」跟「要保留原文的」
+	// Split into "to be summarised" and "kept verbatim"
 	const cutoff = findCutoff(messages, config.keepRecent);
 	const toSummarize = messages.slice(0, cutoff);
 	const recent = messages.slice(cutoff);
 
 	const transcript = renderTranscript(toSummarize);
 
-	// 用 call() 而不是 stream()，這個過程不需要給使用者看
+	// call() rather than stream(); the user does not need to watch this
 	const response = await provider.call(
 		{
 			system: SUMMARY_SYSTEM_PROMPT,
@@ -124,11 +125,11 @@ export async function compact(
 			.join("\n")
 			.trim() || "(摘要產生失敗)";
 
-	// 摘要以「使用者訊息」的形式放回去。
+	// The summary goes back as a **user message**.
 	//
-	// 為什麼是 user 而不是 assistant？因為 assistant 訊息代表「模型說過的話」，
-	// 但這段摘要是我們（harness）產生的。放成 assistant 會讓模型以為
-	// 自己講過這些，可能導致奇怪的自我指涉。
+	// Why user rather than assistant? Because an assistant message means "what the model said",
+	// and this summary was produced by us (the harness). As an assistant message it would make
+	// the model believe it said all this, which can cause odd self-reference.
 	const summaryMessage: Message = {
 		role: "user",
 		text:
@@ -140,13 +141,13 @@ export async function compact(
 	const compactedMessages = [summaryMessage, ...recent];
 	const tokensAfter = estimateTokens(compactedMessages);
 
-	// 壓縮「可能讓事情變糟」。
+	// Compaction **can make things worse**.
 	//
-	// 摘要有一個固定的成本下限（那段包裝文字 + 模型至少會寫幾行）。
-	// 如果被壓縮的訊息本來就很短，摘要反而比原文長，我實測第一次
-	// 壓縮就是 424 → 455 tokens，倒賠 7%。
+	// A summary has a fixed cost floor (the wrapping text plus at least a few lines from the model).
+	// If the compacted messages were short to begin with, the summary is longer than the original;
+	// the first measured compaction went 424 → 455 tokens, a 7% loss.
 	//
-	// 所以算完要檢查。沒賺到就退回原本的訊息串。
+	// So check afterwards. With no gain, fall back to the original message list.
 	if (tokensAfter >= tokensBefore) {
 		return {
 			messages,
@@ -167,18 +168,18 @@ export async function compact(
 }
 
 /**
- * 找切點。
+ * Find the cut point.
  *
- * 這裡有一個硬性限制：**切點不能落在 assistant(有 toolCall) 跟它的
- * toolResult 中間**。切在那裡的話，保留下來的訊息會以一則沒有對應
- * tool_use 的 tool_result 開頭，API 會直接回 400。
+ * There is a hard constraint here: **the cut may not fall between an assistant message with a
+ * toolCall and its toolResult**. Cutting there leaves the kept messages starting with a
+ * tool_result that has no matching tool_use, and the API returns 400.
  *
- * 所以我們從理想切點往後找，直到找到一個安全的位置。
+ * So search forwards from the ideal cut point until a safe position is found.
  */
 function findCutoff(messages: Message[], keepRecent: number): number {
 	let cutoff = Math.max(0, messages.length - keepRecent);
 
-	// 往後推，直到切點「不是」一則 toolResult
+	// Move forwards until the cut point is **not** a toolResult
 	while (cutoff < messages.length && messages[cutoff]?.role === "toolResult") {
 		cutoff++;
 	}
@@ -186,7 +187,7 @@ function findCutoff(messages: Message[], keepRecent: number): number {
 	return cutoff;
 }
 
-/** 把訊息串轉成純文字，餵給摘要用的模型。 */
+/** Turn the message list into plain text for the summarising model. */
 function renderTranscript(messages: Message[]): string {
 	const lines: string[] = [];
 
@@ -211,8 +212,8 @@ function renderTranscript(messages: Message[]): string {
 
 			case "toolResult":
 				for (const result of message.results) {
-					// 工具輸出在摘要裡再截一次，完整內容通常不重要，
-					// 重要的是「做了什麼、結果成功還失敗」
+						// Tool output is truncated again inside the summary; the full content rarely matters,
+						// what matters is "what was done, and did it succeed or fail"
 					const preview =
 						result.content.length > 500 ? `${result.content.slice(0, 500)}…` : result.content;
 					lines.push(
@@ -227,10 +228,10 @@ function renderTranscript(messages: Message[]): string {
 }
 
 /**
- * 摘要用的 system prompt。
+ * The system prompt for summarising.
  *
- * 這段 prompt 決定壓縮的品質，值得反覆調整。重點是明確列出
- * 「什麼一定要留」，不然模型會寫出一段文情並茂但沒有可執行資訊的摘要。
+ * This prompt determines compaction quality and is worth iterating on. The key is listing
+ * explicitly what must be kept, or the model writes an eloquent summary with no actionable information.
  */
 const SUMMARY_SYSTEM_PROMPT = `You are summarizing an earlier portion of a coding agent's conversation so it can be dropped from the context window.
 

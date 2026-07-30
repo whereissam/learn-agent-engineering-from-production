@@ -1,9 +1,9 @@
 /**
- * AI Search 篇（Lesson 20-27）。
+ * The AI Search part (Lessons 20-27).
  *
- * 這裡的每一個測試都對應到**一個實測踩過的坑**，不是為了覆蓋率而寫的。
- * 每個 test 的註解會標出它鎖住的是哪一課的哪個 bug——
- * 這樣半年後看到測試失敗，你會知道自己正在把什麼東西弄壞。
+ * Every test here matches **a trap hit in a measurement**, rather than being written for coverage.
+ * Each test's comment names the lesson and the bug it locks down —
+ * so when a test fails six months from now, you know what you are breaking.
  */
 
 import assert from "node:assert/strict";
@@ -25,17 +25,17 @@ import { chunkMarkdown } from "../lesson-27-local-docs/ingest.ts";
 
 describe("Lesson 20：關鍵字檢索", () => {
 	test("中文 query 斷不出任何詞（這是限制，不是 bug）", () => {
-		// Lesson 20 Step 4：中文查詢在 BM25 下回 0 筆，
-		// 這個行為是整個 Lesson 22 dense retrieval 的動機。
+			// Lesson 20 Step 4: a Chinese query returns 0 results under BM25,
+			// and that behaviour is the entire motivation for Lesson 22's dense retrieval.
 		assert.deepEqual(corpusTokenize("把影片動作轉到人形機器人"), []);
 		assert.ok(corpusTokenize("unitree g1 retargeting").length > 0);
 	});
 
 	test("停用詞被濾掉——但那份清單是手寫的，不完整", () => {
 		assert.deepEqual(corpusTokenize("the and for"), []);
-		// "of" 不在清單裡，所以它會活下來。寫這個測試的時候才發現。
-		// **停用詞表是一份手工清單，不是完備的語言學規則**，
-		// 這一行就是拿來提醒未來的自己不要以為它涵蓋了所有虛詞。
+			// "of" is not in the list, so it survives. Discovered while writing this test.
+			// **A stopword list is a hand-made list, not a complete linguistic rule**,
+			// and this line reminds a future reader not to assume it covers every function word.
 		assert.deepEqual(corpusTokenize("of"), ["of"]);
 	});
 });
@@ -68,8 +68,8 @@ describe("Lesson 21：抽取與切塊", () => {
 	});
 
 	test("預設會丟掉表格和清單，而且要說出來", () => {
-		// Lesson 21 Step 5：只取 <p> 的版本讓模型燒掉兩次 16 步上限。
-		// 這裡鎖住「丟掉了要回報」這個行為。
+			// Lesson 21 Step 5: the <p>-only version made the model burn the 16-step ceiling twice.
+			// This locks down the behaviour "what was dropped must be reported".
 		const result = extractMain(html);
 		assert.ok(!result.text.includes("waist_yaw"));
 		assert.equal(result.dropped.tables, 1);
@@ -89,7 +89,7 @@ describe("Lesson 21：抽取與切塊", () => {
 		assert.ok(chunks.length > 1);
 		for (const chunk of chunks) {
 			assert.equal(chunk.total, chunks.length);
-			// 不能切在段落中間：每一塊都該以某個 "Paragraph n" 開頭
+				// It must not cut mid-paragraph: every chunk should begin with some "Paragraph n"
 			assert.match(chunk.text, /^Paragraph \d/);
 		}
 	});
@@ -109,8 +109,8 @@ describe("Lesson 22：排序訊號", () => {
 	});
 
 	test("短文件不該因為重複幾個字就被判成關鍵字堆砌", () => {
-		// Lesson 22 Step 5：第一版只看比例，25 字的 LICENSE 檔重複 4 次
-		// "license" 就被判成農場，害 q8 從 nDCG 1.000 崩到 0.131。
+			// Lesson 22 Step 5: the first version looked only at the ratio, and a 25-word LICENSE file
+			// repeating "license" 4 times was judged a farm, collapsing q8 from nDCG 1.000 to 0.131.
 		const license = page({
 			text: "Apache License, Version 2.0. Licensed under the License; you may not use this file except in compliance with the License.",
 		});
@@ -128,7 +128,7 @@ describe("Lesson 22：排序訊號", () => {
 		const fresh = signalsFor(page({ published: "2026-07-20" })).freshness;
 		const old = signalsFor(page({ published: "2023-01-01" })).freshness;
 		assert.ok(fresh > old);
-		// 跑兩次要一樣，否則回歸測試沒有意義
+			// Two runs must agree, or regression testing is meaningless
 		assert.equal(fresh, signalsFor(page({ published: "2026-07-20" })).freshness);
 	});
 
@@ -138,25 +138,25 @@ describe("Lesson 22：排序訊號", () => {
 			["c", "b", "a"],
 		]);
 
-		// 對稱的兩個一定同分
+			// Two symmetric ones must score equally
 		assert.equal(fused.get("a"), fused.get("c"));
 
-		// ⚠️ 這一條跟直覺相反，我第一次也寫錯了斷言。
+			// ⚠️ This one is counter-intuitive, and the assertion was written backwards the first time.
 		//
 		//   a: 1/61 + 1/63 = 0.032266
 		//   b: 1/62 + 1/62 = 0.032258
 		//
-		// 因為 1/x 是凸函數，所以「一邊很前面、一邊普通」會**贏過**
-		// 「兩邊都中間」。
+			// Because 1/x is convex, "very high on one side and ordinary on the other" **beats**
+			// "middling on both".
 		//
-		// 實務上這是好事：**它獎勵「至少有一個來源非常確定」的結果**，
-		// 而不是獎勵「大家都覺得還好」的結果。
-		// 但你要知道有這個性質，不然調 K 的時候會調到反效果。
+			// In practice that is good: **it rewards results where at least one source is very sure**,
+			// rather than results everybody finds acceptable.
+			// But you have to know the property, or tuning K will have the opposite effect.
 		assert.ok((fused.get("a") ?? 0) > (fused.get("b") ?? 0));
 	});
 
 	test("近似重複的相似度要遠高於不相關的一對", () => {
-		// Lesson 22：門檻我第一次憑印象設 0.5，實測鏡像對只有 0.17。
+			// Lesson 22: the threshold was first set to 0.5 from intuition, and mirror pairs measure only 0.17.
 		const shingle = (text: string): Set<string> => {
 			const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 			const set = new Set<string>();
@@ -183,8 +183,8 @@ describe("Lesson 24：研究預算", () => {
 	});
 
 	test("換句話說的同一條 query 算重複", () => {
-		// prompt 裡寫了「不要重複」，但假 provider 第一次跑就重複兩條，
-		// 所以這件事寫進程式。
+			// The prompt says "do not repeat", and the fake provider repeated two on its first run,
+			// so this went into code.
 		assert.equal(
 			normalizeQuery("unitree g1 retargeting"),
 			normalizeQuery("Retargeting  UNITREE   g1!"),
@@ -203,8 +203,8 @@ describe("Lesson 25：引用驗證", () => {
 	]);
 
 	test("報告解析要抓得到句尾括號裡的網址", () => {
-		// Lesson 25 坑 1：第一版的佔位符壞掉，**每一條 claim 的引用都變成空的**，
-		// 而程式照樣跑完，看起來像「這份報告爛透了」。
+			// Lesson 25's trap 1: the first version's placeholders broke and **every claim's citations became empty**,
+			// while the program still ran through, making it look like "this report is terrible".
 		const claims = parseReport(
 			"* 這個專案採用 MIT 授權，於 2026 年 6 月釋出 (https://example.com/repo)。",
 		);
@@ -222,7 +222,7 @@ describe("Lesson 25：引用驗證", () => {
 	});
 
 	test("引用嫁接抓得到", () => {
-		// 真實報告裡的那一條：授權句掛了一個從沒提過授權的論壇網址。
+			// The one in the real report: a licensing sentence carrying a forum URL that never mentions licensing.
 		const verdict = verifyClaim(
 			"程式碼採用 MIT 授權",
 			["https://example.com/repo", "https://example.com/forum"],
@@ -232,8 +232,8 @@ describe("Lesson 25：引用驗證", () => {
 	});
 
 	test("英文月份要對得上中文的月份數字", () => {
-		// Lesson 25 坑 3：去空白讓 "June 2026" 變成 "62026"，
-		// 於是原子 6 被判成查無來源。
+			// Lesson 25's trap 3: stripping whitespace turned "June 2026" into "62026",
+			// so the atom 6 was judged unsourced.
 		const verdict = verifyClaim("於 2026 年 6 月釋出", ["https://example.com/repo"], corpus);
 		assert.deepEqual(verdict.unsupportedAtoms, []);
 	});

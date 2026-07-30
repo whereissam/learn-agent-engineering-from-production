@@ -1,32 +1,32 @@
 /**
- * 跨 session 搜尋：「上次我是怎麼做的？」
+ * Cross-session search: "how did I do this last time?"
  *
- * ## 一個我原本想錯的地方
+ * ## Something that is easy to get wrong
  *
- * 我本來以為這課會是「全文檢索先縮小範圍，再用 LLM 判斷相關性」，
- * 也就是 Lesson 6 `find_anomalies` 的那個模式。
+ * The assumption was that this lesson would be "full-text search narrows the field, then an LLM
+ * judges relevance" — the pattern of Lesson 6's `find_anomalies`.
  *
- * 讀了 Hermes 的 `tools/session_search_tool.py` 才發現**它刻意不這樣做**：
+ * Reading Hermes's `tools/session_search_tool.py` shows it **deliberately does not**:
  *
  *   > All three modes operate on the SQLite session DB via the FTS5 index...
  *   > **No LLM calls anywhere** - every shape returns actual messages from the DB.
  *
- * 而且它的 History 註記寫得很清楚，那是「後來拿掉的」：
+ * And its History note says plainly that the summary path was removed later:
  *
  *   > PR #20238 seeded a fast/summary dual-mode split; ... This module merges
  *   > all of that into a single calling shape with no mode parameter,
  *   > **no summary LLM path**, and explicit scroll support.
  *
- * 他們試過摘要路線，然後移除了。
+ * They tried the summarisation route and took it out.
  *
- * 為什麼？因為呼叫這個工具的**本來就是模型**。你不需要另一個 LLM
- * 幫它判斷相關性 - 把原始訊息給它，它自己會判斷。中間那層摘要
- * 只是多花一次錢、多一次延遲、多一個會出錯的地方。
+ * Why? Because the thing calling this tool **is already a model**. You do not need another LLM
+ * to judge relevance for it - hand it the raw messages and it judges for itself. The summary
+ * layer in between only spends money, adds latency and adds a place to go wrong.
  *
- * 所以這一課的重點不是「加 LLM」，而是**排序衛生**：
- * 怎麼讓真正相關的東西浮上來。
+ * So this lesson's point is not "add an LLM" but **ranking hygiene**:
+ * how to make the genuinely relevant things surface.
  *
- * 對照：hermes-agent/tools/session_search_tool.py（1120 行）
+ * Source: hermes-agent/tools/session_search_tool.py (1120 lines)
  */
 
 import type { Message } from "../providers/types.ts";
@@ -40,18 +40,18 @@ export interface SearchableMessage {
 }
 
 /**
- * session 的來源。**這個欄位是排序品質的關鍵。**
+ * A session's source. **This field is the key to ranking quality.**
  *
- * Hermes 把來源分成三類處理，見下面 SOURCE_WEIGHT。
+ * Hermes handles three classes of source; see SOURCE_WEIGHT below.
  */
 export type SessionSource =
-	/** 使用者實際對話。 */
+	/** The user's actual conversation. */
 	| "interactive"
-	/** 排程自動跑的。 */
+	/** Run automatically on a schedule. */
 	| "cron"
-	/** 子 agent 的委派工作。 */
+	/** A subagent's delegated work. */
 	| "subagent"
-	/** 第三方整合塞進來的。 */
+	/** Pushed in by a third-party integration. */
 	| "tool";
 
 export interface SessionMeta {
@@ -63,17 +63,17 @@ export interface SessionMeta {
 }
 
 /**
- * 完全不出現在搜尋與瀏覽裡的來源。
+ * Sources that never appear in search or browsing.
  *
- * Hermes 的理由：subagent 跟 tool 的 session「不屬於使用者的對話歷史」。
- * 使用者要找的是「我上次怎麼做的」，不是「某個子 agent 內部做了什麼」。
+ * Hermes's reasoning: subagent and tool sessions "are not part of the user's conversation
+ * history". What the user wants is "how did I do this last time", not "what some subagent did".
  */
 const HIDDEN_SOURCES = new Set<SessionSource>(["subagent", "tool"]);
 
 /**
- * 保留可搜尋、但**降權**的來源。
+ * Sources that stay searchable but are **demoted**.
  *
- * 這是 Hermes 踩過的一個真實 bug（他們的 issue #19434），註解寫得很好：
+ * This is a real bug Hermes hit (their issue #19434), and the comment states it well:
  *
  *   > Cron jobs run on a schedule and accumulate large volumes of repetitive
  *   > vocabulary (recurring project names, dates, "session", summaries);
@@ -81,15 +81,17 @@ const HIDDEN_SOURCES = new Set<SessionSource>(["subagent", "tool"]);
  *   > user's own interactive sessions, producing **"recall blindness"**
  *   > where only cron sessions surface.
  *
- * 排程任務每天跑、每次講一樣的話，於是它的詞頻統計把使用者的真實對話
- * 完全壓過去。使用者搜尋自己講過的東西，結果全是機器人的日報。
+ * A scheduled job runs daily and says the same words every time, so its term frequencies bury
+ * the user's real conversations. The user searches for something they said and gets the robot's
+ * daily reports.
  *
- * 修法是**降權而不是排除**：
+ * The fix is **demoting rather than excluding**:
  *
  *   > Demoting - not excluding - keeps cron content reachable when it's the
  *   > only match, while interactive sessions always win when both match.
  *
- * 這個取捨很值得記：排除會讓資訊消失，降權只是讓它排後面。
+ * The trade-off is worth remembering: excluding makes information disappear, demoting only ranks
+ * it lower.
  */
 const SOURCE_WEIGHT: Record<SessionSource, number> = {
 	interactive: 1.0,
@@ -99,21 +101,22 @@ const SOURCE_WEIGHT: Record<SessionSource, number> = {
 };
 
 /**
- * context 壓縮產生的交接摘要的前綴。
+ * Prefixes of the handover summaries context compaction produces.
  *
- * 這是另一個真實 bug（Hermes issue #43175）。壓縮摘要是以普通訊息的形式
- * 存在 session 裡的，所以搜尋會搜到它們。後果：
+ * Another real bug (Hermes issue #43175). A compaction summary lives in the session as an
+ * ordinary message, so search finds it. The consequence:
  *
  *   > They must be excluded from discovery bookends to avoid **re-introducing
  *   > huge compaction payloads into fresh sessions** via session_search.
  *
- * 想一下那個迴圈：
- *   1. 舊 session 被壓縮，產生一大段摘要
- *   2. 新 session 搜尋歷史，搜到那段摘要
- *   3. 那段摘要被塞進新 session 的 context
- *   4. 新 session 因此變大，又被壓縮……
+ * Consider the loop:
+ *   1. an old session is compacted, producing a large summary
+ *   2. a new session searches history and finds that summary
+ *   3. that summary is pushed into the new session's context
+ *   4. the new session grows and is compacted in turn…
  *
- * **搜尋把壓縮掉的東西又搬回來了。** 這是 Lesson 5 跟這一課交界處的坑。
+ * **Search dragged back what compaction removed.** This is the trap at the seam between Lesson 5
+ * and this lesson.
  */
 const COMPACTION_PREFIXES = ["[CONTEXT COMPACTION", "[CONTEXT SUMMARY]:", "[以下是這次對話較早部分的摘要"];
 
@@ -123,25 +126,25 @@ function isCompactionArtifact(text: string): boolean {
 }
 
 /**
- * 掃描多少筆 FTS 結果才做去重與排序。
+ * How many FTS results to scan before deduping and ranking.
  *
- * Hermes 設 300，理由是：
+ * Hermes uses 300, and the reason is:
  *
  *   > The interactive vs automation split below only helps if enough rows are
  *   > in hand to find interactive matches buried under a wall of cron hits.
  *
- * 也就是說，如果你只取前 10 筆就排序，那 10 筆可能全是 cron，
- * 降權也救不了 - 因為使用者的對話根本沒進到候選集。
+ * That is, take the top 10 and rank those and all 10 may be cron, so demotion cannot help -
+ * the user's conversation never entered the candidate set.
  *
- * **先撈寬，再排序。**
+ * **Scan wide, then rank.**
  */
 const SCAN_LIMIT = 300;
 
-/** 使用者輸入的查詢長度上限，防止病態輸入。 */
+/** A cap on user query length, guarding against pathological input. */
 export const MAX_QUERY_CHARS = 2048;
 
 // ─────────────────────────────────────────────────────────────
-// 索引
+// The index
 // ─────────────────────────────────────────────────────────────
 
 export interface SearchHit {
@@ -149,7 +152,7 @@ export interface SearchHit {
 	sessionTitle: string;
 	source: SessionSource;
 	messageId: string;
-	/** 命中的那則訊息。 */
+	/** The matching message. */
 	snippet: string;
 	score: number;
 	timestamp: string;
@@ -157,20 +160,20 @@ export interface SearchHit {
 
 export interface DiscoverResult {
 	hit: SearchHit;
-	/** 命中前後各 N 則，提供上下文。 */
+	/** N messages either side of the hit, for context. */
 	window: SearchableMessage[];
-	/** session 開頭的幾則，讓你知道這個 session 本來在幹嘛。 */
+	/** The session's opening messages, so you know what it was about. */
 	bookendStart: SearchableMessage[];
-	/** session 結尾的幾則，讓你知道最後結論是什麼。 */
+	/** The session's closing messages, so you know how it concluded. */
 	bookendEnd: SearchableMessage[];
 }
 
 export interface SearchOptions {
 	/**
-	 * 關掉來源降權，讓所有來源同權。
+		 * Turn source demotion off, weighting every source equally.
 	 *
-	 * **這個選項的存在只有一個目的：讓你親眼看到 recall blindness。**
-	 * 真實系統不該有這個開關。
+		 * **This option exists for one purpose: letting you see recall blindness yourself.**
+		 * A real system should not have this switch.
 	 */
 	disableSourceWeighting?: boolean;
 }
@@ -178,9 +181,9 @@ export interface SearchOptions {
 export class SessionSearchIndex {
 	private readonly messages: SearchableMessage[] = [];
 	private readonly sessions = new Map<string, SessionMeta>();
-	/** term -> 出現在哪些訊息（index 位置）。 */
+	/** term -> which messages it appears in (index positions). */
 	private readonly postings = new Map<string, Set<number>>();
-	/** term -> 有幾則訊息含它，算 IDF 用。 */
+	/** term -> how many messages contain it, for IDF. */
 	private readonly docFreq = new Map<string, number>();
 
 	addSession(meta: SessionMeta, messages: Message[]): void {
@@ -214,7 +217,7 @@ export class SessionSearchIndex {
 	}
 
 	/**
-	 * 模式一：DISCOVERY。給關鍵字，找相關的 session。
+		 * Mode one: DISCOVERY. Given keywords, find relevant sessions.
 	 */
 	discover(query: string, limit = 3, windowSize = 2, options: SearchOptions = {}): DiscoverResult[] {
 		if (query.length > MAX_QUERY_CHARS) {
@@ -224,25 +227,25 @@ export class SessionSearchIndex {
 		const terms = tokenize(query);
 		if (terms.length === 0) return [];
 
-		// 1. 撈候選（撈寬）
+			// 1. Gather candidates (scan wide)
 		//
-		// 計分是簡化版的 BM25：IDF（詞有多罕見）× TF（在這則訊息出現幾次）。
+			// Scoring is a simplified BM25: IDF (how rare the term is) times TF (how often it occurs here).
 		//
-		// **TF 那一項是 recall blindness 的成因。** 排程摘要會反覆講同樣的詞
-		// （「telemetry」「取樣率」「session」），TF 因此很高，於是它們在
-		// 純詞頻排序下把使用者的自然對話壓下去。真實的 BM25 也是這個行為。
+			// **The TF term is what causes recall blindness.** Scheduled summaries repeat the same words
+			// ("telemetry", "sample rate", "session"), so their TF is high, and under pure
+			// term-frequency ranking they bury the user's natural conversation. Real BM25 does the same.
 		const candidates = new Map<number, number>();
 		for (const term of terms) {
 			const idf = Math.log(1 + this.messages.length / ((this.docFreq.get(term) ?? 0) + 1));
 			for (const position of this.postings.get(term) ?? []) {
 				const text = this.messages[position]?.text.toLowerCase() ?? "";
 				const tf = countOccurrences(text, term);
-				// 開根號做飽和，避免一個詞重複 50 次就無限拉高分數
+					// Square root saturation, so a word repeated 50 times does not scale without bound
 				candidates.set(position, (candidates.get(position) ?? 0) + idf * Math.sqrt(tf));
 			}
 		}
 
-		// 2. 過濾與加權
+			// 2. Filtering and weighting
 		const scored: SearchHit[] = [];
 		for (const [position, rawScore] of candidates) {
 			const message = this.messages[position];
@@ -251,13 +254,13 @@ export class SessionSearchIndex {
 			const meta = this.sessions.get(message.sessionId);
 			if (!meta) continue;
 
-			// 隱藏來源直接不出現
+				// Hidden sources simply never appear
 			if (HIDDEN_SOURCES.has(meta.source)) continue;
 
-			// 壓縮摘要不出現（見上面的迴圈說明）
+				// Compaction summaries never appear (see the loop described above)
 			if (isCompactionArtifact(message.text)) continue;
 
-			// disableSourceWeighting 只是為了示範 bug，見 SearchOptions
+				// disableSourceWeighting exists only to demonstrate the bug; see SearchOptions
 			const weight = options.disableSourceWeighting ? 1 : SOURCE_WEIGHT[meta.source];
 			if (weight === 0) continue;
 
@@ -275,7 +278,7 @@ export class SessionSearchIndex {
 		scored.sort((a, b) => b.score - a.score);
 		const scanned = scored.slice(0, SCAN_LIMIT);
 
-		// 3. 同一個 session 只留最佳的一筆
+			// 3. Keep only the best hit per session
 		const bySession = new Map<string, SearchHit>();
 		for (const hit of scanned) {
 			const existing = bySession.get(hit.sessionId);
@@ -294,12 +297,12 @@ export class SessionSearchIndex {
 	}
 
 	/**
-	 * 模式二：SCROLL。已經知道位置，往前後翻。
+		 * Mode two: SCROLL. The position is known; page forwards or backwards.
 	 *
-	 * Hermes 的翻頁方式很值得學：**不用 offset，用「重新錨定」**。
-	 * 要往後翻就用這次結果最後一則的 id 當新的 anchor。
+		 * Hermes's pagination is worth learning: **no offset, but re-anchoring**.
+		 * To page forwards, use the id of this result's last message as the new anchor.
 	 *
-	 * 好處是即使中間插入了新訊息，也不會跳過或重複。
+		 * The benefit is that a message inserted in between causes no skip and no duplicate.
 	 */
 	windowAround(messageId: string, size = 5): SearchableMessage[] {
 		const index = this.messages.findIndex((m) => m.messageId === messageId);
@@ -312,7 +315,7 @@ export class SessionSearchIndex {
 	}
 
 	/**
-	 * 模式三：BROWSE。什麼都不給，就列最近的 session。
+		 * Mode three: BROWSE. Given nothing, list the most recent sessions.
 	 */
 	browse(limit = 10): SessionMeta[] {
 		return [...this.sessions.values()]
@@ -322,10 +325,10 @@ export class SessionSearchIndex {
 	}
 
 	/**
-	 * session 的頭尾。
+		 * A session's bookends.
 	 *
-	 * 為什麼需要？因為只給你「命中的那一句」，你不知道那個 session
-	 * 本來在幹嘛、最後結論是什麼。頭尾兩段提供**定位感**。
+		 * Why they are needed: given only the matching sentence, you do not know what that session
+		 * was about or how it concluded. The two ends provide **bearings**.
 	 */
 	bookend(sessionId: string, end: "start" | "end", count = 3): SearchableMessage[] {
 		const inSession = this.messages.filter(
@@ -359,13 +362,13 @@ function messageText(message: Message): string {
 }
 
 /**
- * 斷詞。
+ * Tokenisation.
  *
- * 中文沒有空格，所以逐字切。這很粗糙，但**對搜尋來說夠用**，
- * 而且不需要引入斷詞套件。
+ * Chinese has no spaces, so it is split character by character. Crude, but **adequate for
+ * search**, and it introduces no segmentation dependency.
  *
- * （Hermes 為此載入了 FTS5 的 CJK extension，
- * 見 `hermes_state.py` 的 `load_fts5_cjk_extension`。）
+ * (Hermes loads FTS5's CJK extension for this; see `load_fts5_cjk_extension` in
+ * `hermes_state.py`.)
  */
 function tokenize(text: string): string[] {
 	return text

@@ -1,25 +1,25 @@
 /**
- * Lesson 23: 對照真實原始碼
+ * Lesson 23: against the real source
  *
- * 這個檔案跟 `lesson-22-retrieval/agent.ts` **只差一個東西：SYSTEM_PROMPT**。
- * 工具一樣、loop 一樣（從 Lesson 3 到現在都一樣）、檢索管線一樣。
+ * This file differs from `lesson-22-retrieval/agent.ts` **in exactly one thing: SYSTEM_PROMPT**.
+ * Same tools, same loop (unchanged since Lesson 3), same retrieval pipeline.
  *
- * 改的那幾行是從真實專案抄來的，而且每一條都標了出處：
+ * The lines that changed were copied from real projects, each with its citation:
  *
- *   gpt-researcher/gpt_researcher/prompts.py:250    不要用搜尋運算子
- *   deep-research/src/deep-research.ts:54           一次生 N 條，彼此不相似
- *   deep-research/src/deep-research.ts:66           每條 query 要附研究目標
- *   gpt-researcher/.../query_processing.py:108      先搜一次，再用結果生子問題
+ *   gpt-researcher/gpt_researcher/prompts.py:250    do not use search operators
+ *   deep-research/src/deep-research.ts:54           generate N at once, dissimilar to each other
+ *   deep-research/src/deep-research.ts:66           every query carries a research goal
+ *   gpt-researcher/.../query_processing.py:108      search once, then generate sub-questions from the results
  *
- * 為什麼值得單獨開一課做這件事？因為 Lesson 20-22 是我們自己從零推導的，
- * 推導出來的東西有些**他們早就有一行程式碼在擋**。看到那一行的當下，
- * 你才會知道自己踩的坑不是自己笨，是這個領域公認的坑。
+ * Why does this deserve its own lesson? Because Lessons 20-22 were derived here from scratch,
+ * and some of what was derived **they already had a line of code guarding against**. Seeing that line
+ * is what tells you the trap you hit is not stupidity but a trap the field knows about.
  *
- * 實測結果在 README Step 5（改 prompt 之前 vs 之後）。
+ * The measured results are in README Step 5 (before and after the prompt change).
  *
- * 執行：
- *   bun run lesson-23                     用真模型
- *   bun run lesson-23:check               驗證這一課引用的行號還對不對
+ * Run:
+ *   bun run lesson-23                     with a real model
+ *   bun run lesson-23:check               verify this lesson's cited line numbers are still right
  */
 
 import { resolve } from "node:path";
@@ -39,14 +39,14 @@ const MAX_TOKENS = 8000;
 const MAX_STEPS = 16;
 
 /**
- * 跟 Lesson 20 比，規則 4 是這一課真正改動的地方。
+ * Against Lesson 20, rule 4 is what this lesson really changes.
  *
- * Lesson 20 的 CONFIRMED 只能代表「某個 snippet 這樣說」，
- * 因為那時候沒有工具可以再往下確認。現在有了，所以標籤要分三級，
- * 而且「只有 snippet 支持」必須是一個**看得出來的**狀態。
+ * Lesson 20's CONFIRMED could only mean "some snippet said so",
+ * because there was no tool to confirm further. There is now, so the labels have three levels,
+ * and "supported by a snippet only" has to be a **visible** state.
  *
- * 注意規則 6：抓不到的頁面要說出來。這是 Lesson 6「工具要報告資料品質」
- * 的另一面——**agent 也要報告自己的資料品質**。
+ * Note rule 6: pages that could not be fetched must be reported. The other face of Lesson 6's
+ * "tools should report data quality" — **an agent must report its own data quality too**.
  */
 const SYSTEM_PROMPT = `You are a research assistant. You search the web, read pages, and answer
 with citations.
@@ -117,7 +117,7 @@ function handleInterrupt(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop: 跟 Lesson 3 / 6 / 20 / 21 完全相同，一行都沒改
+// The agent loop: identical to Lessons 3 / 6 / 20 / 21, not one line changed
 // ─────────────────────────────────────────────────────────────
 
 export async function runTurn(

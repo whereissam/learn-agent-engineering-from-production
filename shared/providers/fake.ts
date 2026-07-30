@@ -1,24 +1,24 @@
 /**
- * 假的 provider ， 不需要任何 API key。
+ * A fake provider — no API key needed.
  *
- * 它照一份寫死的腳本回應，讓你在還沒申請 key 之前就能跑起來、
- * 用 debugger 一步步走過整個 loop。
+ * It answers from a hardcoded script, so you can run things before obtaining a key
+ * and step through the whole loop in a debugger.
  *
- * 這不只是玩具：真實的 agent 專案都需要一個這樣的東西來寫測試，
- * 否則每跑一次測試就要付錢、而且結果不可重現。
- * 對照 Pi：packages/ai/src/providers/faux.ts
+ * Not merely a toy: every real agent project needs something like this to write tests,
+ * or every test run costs money and the results are irreproducible.
+ * Against Pi: packages/ai/src/providers/faux.ts
  *
- * 用法：PROVIDER=fake bun run lesson-01-agent-loop/agent.ts
+ * Usage: PROVIDER=fake bun run lesson-01-agent-loop/agent.ts
  *
- * 腳本會依照「有哪些工具可用」自動切換：
- *   只有 read_file          → Lesson 1 的腳本
- *   有 write_file/edit_file → Lesson 2 的腳本（會觸發批准流程）
+ * The script switches itself based on which tools are available:
+ *   read_file only          → Lesson 1's script
+ *   write_file/edit_file    → Lesson 2's script (which triggers the approval flow)
  */
 
 import type { AssistantBlock, ModelRequest, ModelResponse, Provider } from "./types.ts";
 
 export function fakeProvider(): Provider {
-	// 第幾次被呼叫。腳本靠這個往下走。
+	// How many times it has been called. The script advances on this.
 	let step = 0;
 
 	return {
@@ -36,18 +36,18 @@ export function fakeProvider(): Provider {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Lesson 1：只有 read_file
+// Lesson 1: read_file only
 // ─────────────────────────────────────────────────────────────
 
 function lesson1Script(turn: number, request: ModelRequest): ModelResponse {
-	// 第 1 次：先看 README
+		// Call 1: look at the README first
 	if (turn === 0) {
 		return toolCalls([{ id: "call_1", name: "read_file", args: { path: "README.md" } }]);
 	}
 
-	// 第 2 次：一次讀兩個檔案。
-	// 這示範「平行工具呼叫」， 一則 assistant 訊息裡有多個 tool call，
-	// loop 必須全部執行完再一起回傳。
+		// Call 2: read two files at once.
+		// This demonstrates parallel tool calls — one assistant message with several tool calls,
+		// which the loop must execute all of before returning them together.
 	if (turn === 1) {
 		return toolCalls([
 			{ id: "call_2", name: "read_file", args: { path: "src/store.ts" } },
@@ -55,14 +55,14 @@ function lesson1Script(turn: number, request: ModelRequest): ModelResponse {
 		]);
 	}
 
-	// 第 3 次：故意讀一個不存在的檔案，讓你看到錯誤怎麼回到模型手上。
+		// Call 3: deliberately read a file that does not exist, so you see how an error reaches the model.
 	if (turn === 2) {
 		return toolCalls([
 			{ id: "call_4", name: "read_file", args: { path: "src/does-not-exist.ts" } },
 		]);
 	}
 
-	// 第 4 次：講出結論，沒有 tool call → loop 結束。
+		// Call 4: state the conclusion with no tool call → the loop ends.
 	const readCount = request.messages.filter((m) => m.role === "toolResult").length;
 	return text(
 		`[fake provider] 我跑完了 ${readCount} 輪工具呼叫。\n\n` +
@@ -71,10 +71,10 @@ function lesson1Script(turn: number, request: ModelRequest): ModelResponse {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Lesson 2：完整工具組，會走到批准流程
+// Lesson 2: the full tool set, reaching the approval flow
 //
-// 腳本刻意設計成「修掉大小寫 bug」的完整流程：
-//   探索 → 讀檔 → 跑測試（失敗）→ 改檔（要批准）→ 再跑測試（通過）
+// The script deliberately acts out a complete "fix the case-sensitivity bug" flow:
+//   explore → read → run the tests (they fail) → edit (needs approval) → run again (they pass)
 // ─────────────────────────────────────────────────────────────
 
 function lesson2Script(turn: number, _request: ModelRequest): ModelResponse {
@@ -83,18 +83,18 @@ function lesson2Script(turn: number, _request: ModelRequest): ModelResponse {
 			return toolCalls([{ id: "c1", name: "list_files", args: {} }]);
 
 		case 1:
-			// 平行讀三個檔案
+				// Read three files in parallel
 			return toolCalls([
 				{ id: "c2", name: "read_file", args: { path: "src/store.ts" } },
 				{ id: "c3", name: "read_file", args: { path: "src/config.ts" } },
 			]);
 
 		case 2:
-			// 跑測試看現況 ， 第一次觸發批准（run_command 是 mutating）
+				// Run the tests to see the current state — the first approval prompt (run_command is mutating)
 			return toolCalls([{ id: "c4", name: "run_command", args: { command: "bun test" } }]);
 
 		case 3:
-			// 動手改 ， 第二次觸發批准（edit_file 是 mutating）
+				// Make the change — the second approval prompt (edit_file is mutating)
 			return toolCalls([
 				{
 					id: "c5",
@@ -108,7 +108,7 @@ function lesson2Script(turn: number, _request: ModelRequest): ModelResponse {
 			]);
 
 		case 4:
-			// 驗證修好了
+				// Verify the fix
 			return toolCalls([{ id: "c6", name: "run_command", args: { command: "bun test" } }]);
 
 		default:

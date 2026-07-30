@@ -1,16 +1,16 @@
 /**
- * Lesson 12 專用的 fake provider。
+ * The fake provider specific to Lesson 12.
  *
- * 一樣的理由（這是第四課自備了）：共用的腳本只會呼叫檔案工具，
- * 不會碰到任何 MCP 工具，那就什麼都示範不到。
+ * The same reason again (the fourth lesson to bring its own): the shared script only calls file tools
+ * and never touches an MCP tool, so nothing would be demonstrated.
  *
- * 劇本兩拍，對應這一課的兩個重點：
+ * The script has two beats, matching this lesson's two points:
  *
- *   turn 0  mcp__fleet__list_robots        唯讀，但**還是要批准**
- *   turn 1  mcp__fleet__schedule_maintenance  外部副作用，一定要批准
+ *   turn 0  mcp__fleet__list_robots            read-only, and **still requires approval**
+ *   turn 1  mcp__fleet__schedule_maintenance   an external side effect, definitely requires approval
  *
- * turn 0 是重點：`list_robots` 聽起來完全無害，
- * 但它是別人寫的程式，**你只有它的名字跟一句它自己寫的描述**。
+ * Turn 0 is the point: `list_robots` sounds entirely harmless,
+ * and it is somebody else's program, of which **you have only its name and one sentence it wrote about itself**.
  */
 
 import type {
@@ -30,7 +30,7 @@ export function mcpFakeProvider(): StreamingProvider {
 		async *stream(request: ModelRequest, signal?: AbortSignal): AsyncIterable<StreamEvent> {
 			const turn = step++;
 
-			/** 找一個名字符合的工具，找不到就退回第一個，這樣 COLLIDE 模式也跑得動。 */
+				/** Find a tool whose name matches, falling back to the first, so COLLIDE mode still runs. */
 			const pick = (suffix: string): string =>
 				request.tools.find((tool) => tool.name.endsWith(suffix))?.name ??
 				request.tools[0]?.name ??

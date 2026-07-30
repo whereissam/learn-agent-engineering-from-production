@@ -1,17 +1,17 @@
 /**
- * 這一課的假 provider。
+ * This lesson's fake provider.
  *
- * 前面幾課的假 provider 是「照腳本演一段軌跡」，這一課不一樣：
- * research loop 會呼叫**四種不同的步驟**，所以它必須看懂自己被問了什麼，
- * 然後回對應形狀的 JSON。
+ * Earlier lessons' fake providers act out a scripted trajectory; this one is different:
+ * the research loop makes **four different kinds of step**, so it has to recognise what it was asked
+ * and return JSON of the matching shape.
  *
- * 這件事本身就說明了 research loop 跟 agent loop 的差別：
- * agent loop 只有一種呼叫（「這是對話歷史，下一步做什麼」），
- * research loop 有四種各自獨立、各自可測的呼叫。
+ * That fact alone shows the difference between a research loop and an agent loop:
+ * an agent loop has one kind of call ("here is the history, what next"),
+ * while a research loop has four independent, independently testable calls.
  *
- * **它回的 sources 是從 prompt 裡真的抓出來的網址**，不是編的——
- * 否則 `extractLearnings` 的來源過濾會把它全部丟掉（那個過濾是刻意的，
- * 見 steps.ts）。假 provider 也要遵守真規則。
+ * **The sources it returns are URLs really pulled out of the prompt** rather than invented —
+ * otherwise `extractLearnings`'s source filter would discard all of them (that filter is deliberate;
+ * see steps.ts). A fake provider has to obey the real rules too.
  */
 
 import type {
@@ -57,7 +57,7 @@ export function fakeResearchProvider(): StreamingProvider {
 				// generateQueries
 				text = JSON.stringify(queryRounds++ === 0 ? QUERIES_LAYER_1 : QUERIES_LAYER_2);
 			} else if (prompt.includes("Extract up to")) {
-				// extractLearnings：sources 一定要用 prompt 裡真的出現過的網址
+					// extractLearnings: sources must use URLs that really appeared in the prompt
 				const urls = [...prompt.matchAll(/<source url="([^"]+)"/g)].map((m) => m[1] ?? "");
 				const first = urls[0] ?? "";
 				const second = urls[1] ?? first;

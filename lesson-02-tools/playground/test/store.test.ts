@@ -1,5 +1,5 @@
 /**
- * 用 Node 內建的 test runner，不需要裝任何東西。
+ * Uses Node's built-in test runner; nothing to install.
  *
  *   node --test test/store.test.ts     （Node 22+）
  *   bun test                           （Bun）
@@ -31,7 +31,7 @@ test("save increases the number of stored links", () => {
 });
 
 test("round-trips many links without losing any", () => {
-	// 這個測試會抓到大小寫的 bug ， 只跑一次可能剛好過，跑 50 次一定爆。
+	// This test catches the case-sensitivity bug: one run may pass by luck, and 50 runs certainly will not.
 	const urls = Array.from({ length: 50 }, (_, i) => `https://example.com/item/${i}`);
 	const codes = urls.map(save);
 

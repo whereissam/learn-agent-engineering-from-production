@@ -1,25 +1,25 @@
 /**
- * Lesson 30 探針：同一份 tool schema，不同 provider 會怎樣。
+ * Lesson 30's probe: one tool schema, and what different providers do with it.
  *
  *   PROVIDER=gemini bun run lesson-30:probe
  *   PROVIDER=openai bun run lesson-30:probe
  *
- * 需要金鑰，因為要量的就是**真的 provider 怎麼反應**。
+ * A key is required, because what is being measured is **how a real provider reacts**.
  *
- * ## 兩種完全不同的失敗
+ * ## Two completely different failures
  *
- * 這是這一課的主軸，也是最容易搞混的一件事：
+ * This is the lesson's spine and the easiest thing to confuse:
  *
- *   API 層失敗    請求直接被打回來（400）。吵，但至少你知道
- *   模型層失敗    請求過了、模型也回了，**但值不符合 schema**。安靜
+ *   an API-layer failure    the request comes straight back (400). Loud, and at least you know
+ *   a model-layer failure   the request passed, the model answered, **and the value violates the schema**. Silent
  *
- * 第二種才是這一課存在的理由。你的 schema 寫了 `maxLength: 8`,
- * API 收下了，模型回一個 20 字的字串，**沒有任何東西報錯**。
+ * The second is why this lesson exists. Your schema says `maxLength: 8`,
+ * the API accepts it, the model returns a 20-character string, and **nothing raises an error**.
  *
- * ## 為什麼這件事不能靠「自己小心」
+ * ## Why "just be careful" cannot work here
  *
- * Lesson 12 的 MCP 工具，schema 是**別人寫的**，你改不了。
- * 所以相容層不是可選的品味問題，是必要的基礎設施。
+ * Lesson 12's MCP tools have schemas **written by somebody else** that you cannot change.
+ * So a compatibility layer is not a matter of taste but necessary infrastructure.
  */
 
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
@@ -34,16 +34,16 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 export interface Case {
 	key: string;
-	/** 這個案例在測 JSON Schema 的哪一個構造。 */
+	/** Which JSON Schema construct this case tests. */
 	construct: string;
 	schema: Record<string, unknown>;
-	/** 要模型呼叫工具的那句話。 */
+	/** The sentence that makes the model call the tool. */
 	prompt: string;
 	/**
-	 * 回傳 undefined 代表通過，回傳字串代表哪裡不符合。
+	 * Returning undefined means it passed; a string says what did not conform.
 	 *
-	 * **刻意手寫而不是用 ajv**：這一課要示範的正是
-	 * 「provider 沒有幫你驗」，所以驗證那段必須是你看得見的程式碼。
+	 * **Deliberately hand-written rather than using ajv**: what this lesson demonstrates is exactly
+	 * "the provider did not validate for you", so the validation has to be code you can see.
 	 */
 	check(args: Record<string, unknown>): string | undefined;
 }
@@ -110,8 +110,8 @@ export const CASES: Case[] = [
 			},
 			required: ["code"],
 		},
-		// 刻意不在句子裡講長度。長度是 schema 的責任，
-		// 講出來就變成在測 prompt 而不是測 schema。
+			// The sentence deliberately does not mention the length. Length is the schema's responsibility,
+			// and stating it would turn this into a test of the prompt rather than the schema.
 		prompt: "幫這次事故產生一個識別碼。",
 		check: (args) => {
 			const code = args.code;
@@ -188,11 +188,11 @@ export const CASES: Case[] = [
 ];
 
 /**
- * 第二層：比較硬的構造。
+ * Tier two: harder constructs.
  *
- * 第一層六題兩家 provider 都全過，所以那一層量不到東西。
- * **一個測不出差異的測試不是「證明沒問題」，是「題目太簡單」**
- * （Lesson 16 Step 2.5 學到的）。所以要往上加難度，直到看到邊界為止。
+ * Tier one's six cases pass on both providers, so that tier measures nothing.
+ * **A test that cannot detect a difference does not "prove there is no problem"; the task is too easy**
+ * (learned in Lesson 16 Step 2.5). So the difficulty goes up until the boundary appears.
  */
 export const HARD_CASES: Case[] = [
 	{
@@ -205,7 +205,7 @@ export const HARD_CASES: Case[] = [
 			},
 			required: ["ticket"],
 		},
-		// 刻意不講格式。格式是 schema 的責任。
+			// Deliberately silent about the format. The format is the schema's responsibility.
 		prompt: "幫這次事故開一張工單，給我工單編號。",
 		check: (args) =>
 			/^[A-Z]{3}-[0-9]{4}$/.test(String(args.ticket))
@@ -222,8 +222,8 @@ export const HARD_CASES: Case[] = [
 			},
 			required: ["summary"],
 		},
-		// 一個「請詳細說明」的要求，配上一個 20 字的上限。
-		// schema 跟 prompt 互相牴觸時，誰贏？
+			// A request for a detailed explanation paired with a 20-character limit.
+			// When schema and prompt contradict each other, who wins?
 		prompt:
 			"詳細說明這起事故：R-204 在倉庫東側行走時，因為地面積水導致左腳打滑，" +
 			"整台向左前方傾倒，撞到旁邊的貨架，左手臂外殼破損。",
@@ -327,11 +327,11 @@ export const HARD_CASES: Case[] = [
 
 export type Outcome =
 	| { kind: "ok"; args: Record<string, unknown> }
-	/** API 直接把請求打回來。吵，但看得見。 */
+		/** The API sent the request straight back. Loud, and visible. */
 	| { kind: "api-error"; message: string }
-	/** 請求過了、模型回了，但值不符合 schema。**這種是安靜的。** */
+		/** The request passed and the model answered with a value violating the schema. **This kind is silent.** */
 	| { kind: "violation"; args: Record<string, unknown>; why: string }
-	/** 模型根本沒呼叫工具。 */
+		/** The model never called the tool. */
 	| { kind: "no-call" };
 
 export async function probeCase(

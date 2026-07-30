@@ -1,31 +1,31 @@
 /**
- * 檢索評估集。
+ * The retrieval evaluation set.
  *
- * 這是 Lesson 7 的做法搬到搜尋上：**先有評分標準，再改排序。**
- * 不然你調 BM25 的 k1、加一個新訊號、換一個 embedding 模型之後，
- * 只能靠「感覺好像好一點」。
+ * Lesson 7's approach moved onto search: **have the scoring standard before changing the ranking.**
+ * Otherwise, after tuning BM25's k1, adding a signal or changing embedding model,
+ * all you have is "it feels a bit better".
  *
- * 每個 query 標出哪些網址相關，以及相關到什麼程度：
+ * Each query marks which URLs are relevant and how relevant:
  *
- *   3 = 直接回答了這個 query
- *   2 = 有用的佐證，但不是主要答案
- *   1 = 沾到邊，讀了不會後悔但也不太有用
- *   0 = 沒列出來的都算 0（不相關）
+ *   3 = answers this query directly
+ *   2 = useful corroboration, not the main answer
+ *   1 = tangential; you would not regret reading it and it is not much use
+ *   0 = anything unlisted (irrelevant)
  *
- * **分級（graded）而不是「相關/不相關」二分**，因為排序的問題從來不是
- * 「有沒有找到」，是「最有用的有沒有排在前面」。二分制沒辦法區分
- * 「第一名是佐證、第五名才是答案」跟「第一名就是答案」。
+ * **Graded rather than a relevant/irrelevant binary**, because ranking's problem is never
+ * "was it found" but "is the most useful thing near the top". A binary cannot distinguish
+ * "first place is corroboration and fifth is the answer" from "first place is the answer".
  *
- * 標註原則：**我照著語料的 groundTruth 標，不是照著現在的排序結果標。**
- * 反過來做（先看排序輸出再決定哪些算相關）等於自己給自己打分。
+ * The labelling principle: **labels follow the corpus's groundTruth, not the current ranking output.**
+ * The other way round (looking at the ranking and then deciding what is relevant) is marking your own homework.
  */
 
 export interface EvalQuery {
 	id: string;
 	query: string;
-	/** 為什麼要有這一題。寫下來才不會之後看不懂自己在測什麼。 */
+	/** Why this query exists. Written down so you can still tell what it tests later. */
 	tests: string;
-	/** 網址 → 相關程度（1-3）。沒列的都是 0。 */
+	/** URL → relevance (1-3). Anything unlisted is 0. */
 	relevant: Record<string, number>;
 }
 

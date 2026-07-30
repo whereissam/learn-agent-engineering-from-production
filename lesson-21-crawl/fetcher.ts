@@ -1,23 +1,23 @@
 /**
- * 抓網頁這一層。
+ * The fetching layer.
  *
- * Lesson 20 的語料是一疊靜態 HTML 檔，直接 readFile 就好了。
- * 但那樣學不到東西，因為真實的 web 不是這樣運作的：
+ * Lesson 20's corpus is a stack of static HTML files that readFile handles directly.
+ * That teaches nothing, because the real web does not work like that:
  *
- *   fetch(url)  ← 這一行背後有一整排會出錯的地方
+ *   fetch(url)  ← behind this one line sits a whole row of things that go wrong
  *
- * 所以這裡在讀檔之外加了一層規則，把最常見的四種狀況演出來：
+ * So a rule layer sits on top of reading files, acting out the four most common situations:
  *
- *   robots.txt 不准爬   你要自己遵守，網站不會擋你
- *   403 / 付費牆        對方擋你，而且不會說原因
- *   內容是 JS 畫的      HTML 抓回來是空殼
- *   頁面非常長          抓得到，但塞不進 context
+ *   robots.txt disallows it   you have to honour it; the site will not stop you
+ *   403 / paywall             they block you, and will not say why
+ *   the content is drawn by JS the fetched HTML is an empty shell
+ *   a very long page          fetchable, and it does not fit in context
  *
- * 每一種都要求 agent 做不同的事，所以**錯誤訊息必須說得出差別**。
- * 一律回「fetch failed」的話，模型只會一直重試同一個網址。
+ * Each demands something different of the agent, so **the error messages must state the difference**.
+ * Return "fetch failed" for all of them and the model just keeps retrying the same URL.
  *
- * 沒有做的：逾時與重試（練習 5）、redirect 鏈、PDF、robots crawl-delay、
- * 條件式請求（ETag / If-Modified-Since）。真實爬蟲這些都要處理。
+ * Not done: timeouts and retries (Exercise 5), redirect chains, PDFs, robots crawl-delay,
+ * conditional requests (ETag / If-Modified-Since). A real crawler handles all of these.
  */
 
 import { readFileSync } from "node:fs";
@@ -27,25 +27,25 @@ import type { IndexedPage } from "../lesson-20-search-agent/corpus/generate.ts";
 const CORPUS = resolve(import.meta.dirname, "../lesson-20-search-agent/corpus");
 
 /**
- * 我們自己的 robots.txt 快取。
+ * Our own robots.txt cache.
  *
- * 重點觀念：**robots.txt 沒有強制力。** 它是一份請求，
- * 你的爬蟲要自己讀、自己遵守。會擋你的是法務和 IP 封鎖，不是這個檔案。
+ * The key idea: **robots.txt has no enforcement.** It is a request,
+ * and your crawler has to read and honour it. What actually stops you is legal action and IP blocking, not this file.
  *
- * 這裡把 SEO 農場設成 disallow，剛好也是真實世界常見的情形：
- * 內容農場很歡迎搜尋引擎，但不歡迎會把內容整段抄走的爬蟲。
+ * The SEO farm is set to disallow here, which is also common in the real world:
+ * a content farm welcomes search engines and does not welcome crawlers that copy whole pages.
  */
 const ROBOTS: Record<string, string[]> = {
 	"top-robotics-tools.example.net": ["/"],
 };
 
-/** 內容是 JavaScript 畫出來的網站，抓回來的 HTML 是空殼。 */
+/** Sites whose content is drawn by JavaScript, so the fetched HTML is an empty shell. */
 const JS_RENDERED = new Set(["huggingface.co"]);
 
-/** 會回 403 的網站（付費牆、bot 偵測、地區封鎖…理由不會告訴你）。 */
+/** Sites that return 403 (paywall, bot detection, geo-blocking… you are never told which). */
 const FORBIDDEN = new Set(["technews.example.com"]);
 
-/** 這些網址會回一份很長的文件（見底下的 longDocument）。 */
+/** These URLs return a very long document (see longDocument below). */
 const LONG_PAGES = new Set(["https://www.unitree.com/g1/developer"]);
 
 export type FetchResult =
@@ -74,7 +74,7 @@ export function hostOf(url: string): string {
 	}
 }
 
-/** robots.txt 檢查。真實爬蟲會先去抓 /robots.txt 並快取，這裡直接查表。 */
+/** The robots.txt check. A real crawler fetches and caches /robots.txt; this looks it up in a table. */
 export function robotsAllows(url: string): boolean {
 	const rules = ROBOTS[hostOf(url)];
 	if (!rules) return true;
@@ -83,10 +83,10 @@ export function robotsAllows(url: string): boolean {
 }
 
 /**
- * 抓一頁。
+ * Fetch one page.
  *
- * 注意順序：**robots 檢查在最前面**。先問「我可不可以抓」，
- * 再問「抓不抓得到」。反過來的話，你已經送出請求了才發現不該送。
+ * Note the order: **the robots check comes first**. Ask "may I fetch this" before
+ * "can I fetch this". The other way round means the request is already sent before you find out it should not be.
  */
 export function fetchPage(url: string): FetchResult {
 	const normalized = url.trim();
@@ -138,12 +138,12 @@ export function fetchPage(url: string): FetchResult {
 		};
 	}
 
-	// JS 渲染的站：HTML 抓得到，但正文不在裡面
+	// A JS-rendered site: the HTML arrives and the body is not in it
 	if (JS_RENDERED.has(host)) {
 		return { ok: true, url: normalized, html: jsShell(page.title) };
 	}
 
-	// 很長的文件：抓得到，但一次塞不進 context
+	// A very long document: fetchable, and it does not fit in context at once
 	if (LONG_PAGES.has(normalized)) {
 		return { ok: true, url: normalized, html: longDocument(page) };
 	}
@@ -156,16 +156,16 @@ export function fetchPage(url: string): FetchResult {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 兩種特別的頁面
+// Two special kinds of page
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 單頁應用（SPA）抓回來的樣子：一個空的掛載點，正文全部由 JS 在瀏覽器裡畫。
+ * What a single-page application looks like when fetched: an empty mount point, with the body drawn by JS in the browser.
  *
- * 這是「要不要上 headless browser」這個決定的分水嶺。
- * 純 HTTP 抓取便宜到幾乎免費，headless browser 每一頁都要花掉幾百毫秒
- * 和幾百 MB 記憶體。真實系統的做法通常是：**先用便宜的抓，
- * 抽不到內容再退回昂貴的。**
+ * This is the watershed for "do we need a headless browser".
+ * Pure HTTP fetching is nearly free; a headless browser costs hundreds of milliseconds
+ * and hundreds of MB per page. A real system usually does this: **fetch cheaply first,
+ * and fall back to the expensive path when nothing can be extracted.**
  */
 function jsShell(title: string): string {
 	return `<!doctype html>
@@ -181,20 +181,20 @@ function jsShell(title: string): string {
 }
 
 /**
- * 一份很長的技術文件。
+ * A very long technical document.
  *
- * 兩個用途：
+ * Two uses:
  *
- *   1. **chunking 的教材**：一次塞不進去，要切。
- *   2. **抽取器的考驗**：注意這一份的 HTML 模板跟 Lesson 20 語料**不一樣**，
- *      沒有 <article>，正文放在 <div class="doc-body"> 裡，還有表格和清單。
- *      `extractMain` 是照 Lesson 20 的模板寫的，碰到這種頁面就會露餡。
- *      這正是真實世界的樣子：**你的抽取器只對你看過的版型有效。**
+ *   1. **teaching material for chunking**: it does not fit at once and must be split.
+ *   2. **a test for the extractor**: note that this HTML template **differs** from Lesson 20's corpus.
+ *      There is no <article>, the body sits in <div class="doc-body">, and there are tables and lists.
+ *      `extractMain` was written against Lesson 20's template and shows its seams on a page like this.
+ *      Which is exactly what the real world is like: **your extractor only works on layouts you have seen.**
  */
 function longDocument(page: IndexedPage): string {
 	const sections: string[] = [];
 
-	// 24 個小節，內容是機械式產生的但固定（不用亂數，每次都一樣）
+	// 24 sections, generated mechanically but fixed (no randomness; identical every time)
 	for (let i = 1; i <= 24; i++) {
 		const joint = `joint_${String(i).padStart(2, "0")}`;
 		sections.push(`

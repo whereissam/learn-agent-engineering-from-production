@@ -1,12 +1,16 @@
-# Lesson 31：把 `runTurn` 裡的 if 搬到外面
+# Lesson 31: Moving the ifs Out of `runTurn`
 
-> **Mastra 篇第二課。** 前置：[Lesson 05](../lesson-05-compaction/)、
-> [Lesson 08](../lesson-08-permissions/)、[Lesson 26](../lesson-26-cost/)。
+> [繁體中文](README.zh-TW.md)
 >
-> 對照原始碼：`mastra/packages/core/src/processors/`、
-> `processors/processors/pii-detector.ts`。
+> Second lesson of the Mastra part. Prerequisites:
+> [Lesson 05](../lesson-05-compaction/), [Lesson 08](../lesson-08-permissions/),
+> [Lesson 26](../lesson-26-cost/).
+>
+> Source: `mastra/packages/core/src/processors/`,
+> `processors/processors/pii-detector.ts`.
 
-到目前為止，每加一個能力，最直接的寫法都是在 loop 裡多一個 `if`：
+So far, every added capability has had one obvious implementation: another `if` in
+the loop.
 
 ```ts
 if (contextTooLong) compact()
@@ -15,16 +19,18 @@ if (costTooHigh) stop()
 if (textContainsSecret) redact()
 ```
 
-每一個 `if` 都合理，合起來卻讓 loop 同時負責控制流、政策、安全與保存格式。
-這一課只做一個轉折：**把會變的邊界政策移到 processor pipeline，loop 不動。**
+Each `if` is reasonable, and together they make the loop responsible for control
+flow, policy, safety and storage format all at once. This lesson makes one move:
+shift the boundary policies that change into a processor pipeline and leave the
+loop alone.
 
-## Step 0：先把 processor 關掉
+## Step 0: turn the processors off first
 
 ```bash
 bun run lesson-31
 ```
 
-示範用的是假 `.env` tool result：
+The demonstration uses a fake `.env` tool result:
 
 ```text
 read_file(.env) → tool result → model context
@@ -32,12 +38,13 @@ read_file(.env) → tool result → model context
                             ↘ memory
 ```
 
-沒有 processor 時，三條路都看得到假 token。這裡不需要真模型，因為要驗的不是
-「模型會不會使用 secret」，而是更前面、確定性的問題：**secret 有沒有跨過邊界。**
+With no processor, all three paths can see the fake token. No real model is needed
+here, because what is being verified is not "will the model use the secret" but
+something earlier and deterministic: did the secret cross a boundary.
 
-## Step 1：最小的 pipeline
+## Step 1: the smallest pipeline
 
-`processor.ts` 的介面只有一個方法：
+`processor.ts`'s interface has a single method:
 
 ```ts
 interface Processor {
@@ -46,17 +53,20 @@ interface Processor {
 }
 ```
 
-pipeline 依序把上一個 processor 的輸出交給下一個。截斷、正規化、注入偵測、
-成本閘門都可以長在同一個接縫，不必再編譯進 `runTurn`。
+The pipeline hands each processor's output to the next in order. Truncation,
+normalisation, injection detection and cost gating can all grow on this same seam
+without being compiled into `runTurn`.
 
-兩個不變條件有測試保護：
+Two invariants have tests protecting them:
 
-- 不就地修改輸入。原始 tool result 可能還要送往別的 sink
-- processor 不准偷偷改 `boundary`。政策層不能把「送模型」改成「寫 trace」
+- do not mutate the input in place. The original tool result may still be going to
+  another sink
+- a processor may not quietly change `boundary`. The policy layer cannot turn "send
+  to the model" into "write to trace"
 
-## Step 2：只保護模型，不夠 ★
+## Step 2: protecting the model alone is not enough
 
-第二個情境只在 `model` pipeline 加 `SecretRedactor`：
+The second scenario adds `SecretRedactor` to the `model` pipeline only:
 
 ```text
 model   safe
@@ -64,20 +74,23 @@ trace   LEAK
 memory  LEAK
 ```
 
-這是本課唯一的主張：
+This is the lesson's one thesis:
 
-> **進入模型之前、進入 log 之前、進入 memory 之前，是三個不同的邊界。**
+> Before entering the model, before entering the log, and before entering memory
+> are three different boundaries.
 
-模型沒看到 secret，只能證明雲端模型沒收到它。trace 可能由 observability hook
-直接讀原始 tool result；memory 也可能在 turn 完成後保存原始訊息。兩者都不會
-自動繼承 model-input processor 的結果。
+The model not seeing the secret only proves the cloud model did not receive it. A
+trace may be read straight from the raw tool result by an observability hook, and
+memory may persist the original message after the turn completes. Neither
+inherits a model-input processor's result automatically.
 
-memory 那條尤其危險：Lesson 15 已經證明記憶會在未來 session 被 recall 回來。
-一次漏掉，會變成持續性的 context 污染。
+The memory path is the dangerous one: Lesson 15 already showed that memory gets
+recalled in future sessions. Missing it once turns into ongoing context
+contamination.
 
-## Step 3：在每個 sink 的入口處處理
+## Step 3: handle it at each sink's entrance
 
-第三個情境替三個 boundary 各自配置 pipeline：
+The third scenario configures a pipeline for each of the three boundaries:
 
 ```ts
 const pipelines = {
@@ -87,76 +100,81 @@ const pipelines = {
 }
 ```
 
-三條全部變成 `safe`。重複配置看起來麻煩，但它把資料流寫清楚了：新增一個
-持久化 sink 時，型別會逼你決定那個 sink 的 pipeline，而不是默默沿用原文。
+All three become `safe`. The repetition looks tedious, but it writes the data flow
+down: when a new persistence sink is added, the types force you to decide that
+sink's pipeline rather than silently inheriting the original text.
 
-`findings` 只記錄類型和數量，不記錄命中的原字串。否則 redactor 自己的 audit
-log 反而會成為另一份 secret 資料庫。
+`findings` records only the kind and the count, never the matched string.
+Otherwise the redactor's own audit log becomes a second secrets database.
 
-## Step 4：重點不是 regex
+## Step 4: the point is not the regex
 
-這份 `SecretRedactor` 只認得幾種環境變數與 provider token，刻意不假裝完整。
-真實版本還需要：
+This `SecretRedactor` recognises a few environment variables and provider tokens
+and deliberately does not pretend to be complete. A real version also needs:
 
-- provider-specific token pattern 與 entropy detection
-- false positive 的 allowlist 與版本管理
-- block / warn / redact 等策略
-- streaming 時跨 chunk 的匹配
-- 對圖片、檔案附件和 structured tool result 的處理
+- provider-specific token patterns and entropy detection
+- an allowlist for false positives, with versioning
+- block / warn / redact strategies
+- matching across chunks while streaming
+- handling of images, file attachments and structured tool results
 
-Mastra 的 `pii-detector.ts` 超過一千行，正是因為它同時處理這些策略、串流與
-多種 PII。這一課沒有把那一千行縮成一個神奇 regex；它只抽出更可移植的部分：
-**processor 應該掛在哪裡。**
+Mastra's `pii-detector.ts` runs over a thousand lines precisely because it handles
+those strategies, streaming, and several kinds of PII at once. This lesson does not
+compress those into one magic regex; it extracts the more portable part: where a
+processor should hang.
 
-## Step 5：哪些東西適合變成 processor
+## Step 5: what makes a good processor
 
-| 機制 | 對應舊課 | 適合的邊界 |
+| Mechanism | Earlier lesson | Suitable boundary |
 |---|---|---|
 | context compaction / token limit | Lesson 05 | model input |
 | permission / moderation | Lesson 08 | tool execution / model input |
-| secret / PII redaction | Lesson 31 | model、trace、memory 各自處理 |
-| cost guard | Lesson 26 | model call 前後 |
-| output scrubber | — | 回使用者或寫入 sink 前 |
+| secret / PII redaction | Lesson 31 | model, trace and memory separately |
+| cost guard | Lesson 26 | around the model call |
+| output scrubber | — | before returning to the user or writing to a sink |
 
-processor 不是「所有 middleware 都塞進來」的理由。會改變 loop 控制流本身的東西
-仍然不適合，例如 Lesson 33 的 suspend / resume；那需要可序列化的狀態機，
-不是多一個文字轉換 hook。
+Processors are not a licence to cram every middleware in. Anything that changes the
+loop's control flow still does not fit — Lesson 33's suspend/resume, for instance;
+that needs a serialisable state machine, not one more text-transformation hook.
 
-## 契約測試
+## The contract test
 
 ```bash
 bun test tests/processors.test.ts
 ```
 
-測試不需要 API key，因為它保護的是我們自己的不變條件：遮蔽、非敏感內容保留、
-不修改輸入、三個邊界互不冒充。
+The test needs no API key, because what it protects are our own invariants:
+redaction happens, non-sensitive content survives, the input is not mutated, and
+the three boundaries do not impersonate each other.
 
-這跟 Lesson 30 的分界一樣：CI 能證明自己的 pipeline 沒壞，不能證明世界上每一種
-secret 都會被偵測。後者需要持續更新 fixture 與量測。
+Same division as Lesson 30: CI can prove your own pipeline is not broken, not that
+every secret in the world will be detected. The latter needs continuously updated
+fixtures and measurement.
 
-## 這課刻意不做的事
+## What this lesson deliberately leaves out
 
-| 沒做 | 為什麼 |
+| Left out | Why |
 |---|---|
-| 用 LLM 偵測人名、地址 | 這課驗的是資料流，不是 classifier 品質 |
-| 寫真的 trace / memory 檔 | in-memory sink 已足以證明是否跨界，避免示範自己留下 secret |
-| 統一所有 sink 的保存政策 | 那是 Prod 57 的產品政策；這課只教一次呼叫的機制 |
-| 修改既有 `runTurn` | processor 的價值正是讓核心 loop 維持原樣 |
+| using an LLM to detect names and addresses | this lesson verifies data flow, not classifier quality |
+| writing real trace / memory files | in-memory sinks suffice to show whether a boundary was crossed, and avoid the demo leaving secrets behind |
+| unifying every sink's retention policy | that is product policy; this lesson teaches the mechanism for one call |
+| modifying the existing `runTurn` | a processor's value is precisely that the core loop stays as it was |
 
-## 練習
+## Exercises
 
-### 練習 1：加 email 與信用卡偵測 ⭐
+### Exercise 1: add email and credit-card detection ⭐
 
-先各寫一個 false positive fixture。`4111 1111 1111 1111` 很容易，
-「哪些 16 位數字不該被遮」才是實際工作。
+Write a false-positive fixture for each first. `4111 1111 1111 1111` is easy;
+"which 16-digit numbers should not be redacted" is the actual work.
 
-### 練習 2：加 block 策略 ⭐⭐
+### Exercise 2: add a block strategy ⭐⭐
 
-讓 processor 可以選擇 `redact` 或 abort。想清楚三個 boundary 的安全預設值是否
-一樣：trace 寫不進去時該不該讓整個 agent turn 失敗？
+Let a processor choose `redact` or abort. Think through whether the safe default is
+the same for all three boundaries: when a trace cannot be written, should the whole
+agent turn fail?
 
-### 練習 3：測 processor 順序 ⭐⭐
+### Exercise 3: test processor ordering ⭐⭐
 
-加一個只保留前 40 字的 truncation processor，交換它跟 redactor 的順序。
-哪一種順序可能把半截 token 留下？把答案寫成契約測試。
-
+Add a truncation processor that keeps the first 40 characters and swap its order
+with the redactor. Which order can leave half a token behind? Write the answer as a
+contract test.

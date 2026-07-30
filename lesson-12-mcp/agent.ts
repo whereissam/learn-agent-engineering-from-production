@@ -1,18 +1,18 @@
 /**
- * Lesson 12 - MCP 工具接進 agent loop
+ * Lesson 12 - MCP tools wired into the agent loop
  *
- * 三台 server，其中兩台是壞的。這是刻意的：
- * **MCP 最重要的工程問題不是協定，是「別人的進程不受你控制」。**
+ * Three servers, two of them broken. That is deliberate:
+ * **MCP's most important engineering problem is not the protocol but that somebody else's process is out of your control.**
  *
- *   fleet    正常
- *   ghost    握手就卡住，永遠不回（最難處理的一種：沒有錯誤，只有沉默）
- *   rubble   啟動就掛掉
+ *   fleet    fine
+ *   ghost    hangs at the handshake and never answers (the hardest kind: no error, only silence)
+ *   rubble   dies on startup
  *
- * 執行：
- *   bun run lesson-12                       # 腳本 provider，不用 key
- *   PROVIDER=gemini bun run lesson-12       # 真模型
- *   MODE=auto bun run lesson-12             # 看 AUTO 模式下 MCP 工具還會不會被問
- *   COLLIDE=1 bun run lesson-12             # 名稱截斷造成的碰撞（README Step 4）
+ * Run:
+ *   bun run lesson-12                       # the scripted provider, no key
+ *   PROVIDER=gemini bun run lesson-12       # a real model
+ *   MODE=auto bun run lesson-12             # see whether MCP tools are still gated in AUTO mode
+ *   COLLIDE=1 bun run lesson-12             # the collision caused by name truncation (README Step 4)
  */
 
 import { LineReader } from "../shared/repl.ts";
@@ -38,24 +38,24 @@ const SELF = new URL("server.ts", import.meta.url).pathname;
 const MODE = (process.env.MODE?.toLowerCase() as Mode | undefined) ?? Mode.INTERACTIVE;
 const ANSWER = process.env.ANSWER?.toLowerCase();
 const COLLIDE = process.env.COLLIDE === "1";
-/** 把今天的日期放進 system prompt。預設關閉是為了讓 Step 6 的實驗跑得出來。 */
+/** Put today's date in the system prompt. Off by default so Step 6's experiment can run. */
 const TODAY = process.env.TODAY === "1";
 
 /**
- * server 設定。
+ * Server configuration.
  *
- * 形狀刻意跟 Claude Desktop / Cursor / Codex 的 `mcpServers` 一樣，
- * 因為 openworker 的 config.py 特別註明它是 **paste-compatible** 的：
- * 使用者已經有一份設定了，要能直接貼過來。
+ * The shape deliberately matches Claude Desktop's / Cursor's / Codex's `mcpServers`,
+ * because openworker's config.py specifically notes that it is **paste-compatible**:
+ * the user already has a configuration and must be able to paste it straight in.
  */
 const SERVERS: McpServerDef[] = [
 	{
 		/**
-		 * COLLIDE=1 時換成一個很長的 server 名字。
+			 * With COLLIDE=1, use a very long server name.
 		 *
-		 * 47 個字元聽起來很誇張，但內部平台的 MCP server 名字長這樣
-		 * 一點都不奇怪（`mcp__` 前綴 + `__` 分隔就吃掉 7 個，
-		 * 64 字的預算剩下不到 10 個字給工具名字）。
+			 * 47 characters sounds absurd, and an internal platform's MCP server name looking like
+			 * that is entirely unremarkable (the `mcp__` prefix plus the `__` separator eat 7,
+			 * leaving under 10 of the 64-character budget for the tool name).
 		 */
 		name: COLLIDE ? "acme-internal-platform-tools-production-cluster" : "fleet",
 		command: process.execPath,
@@ -92,21 +92,21 @@ interface LoadedTool {
 }
 
 /**
- * 連上所有 server，收集工具。
+ * Connect to every server and collect tools.
  *
- * **一台掛掉不能影響其他台。** 這是這一課最實際的一條，
- * 因為使用者的 mcp.json 裡遲早會有一台是壞的（套件更新、
- * token 過期、指令改名），而那時候 agent 必須照常啟動。
+ * **One dying must not affect the others.** This is the most practical line in the lesson,
+ * because a user's mcp.json will eventually contain a broken server (a package update,
+ * an expired token, a renamed command), and the agent must start normally when it does.
  *
- * 對照 client.py 的 `_serve`：連線失敗會設進那個 future 的 exception，
- * 呼叫端 catch 之後跳過那一台。
+ * Against `_serve` in client.py: a connection failure sets the exception on that future,
+ * and the caller catches it and skips that server.
  */
 async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: string[] }> {
 	const tools = new Map<string, LoadedTool>();
 	const report: string[] = [];
 
-	// 平行連，不要一台一台等。ghost 那台會吃掉整個逾時，
-	// 序列連的話啟動時間會變成所有壞掉 server 的逾時總和。
+	// Connect in parallel rather than one at a time. The ghost server eats a whole timeout,
+	// and connecting serially would make startup the sum of every broken server's timeout.
 	const results = await Promise.allSettled(
 		SERVERS.map(async (def) => {
 			const connection = await McpConnection.connect(def);
@@ -131,8 +131,8 @@ async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: st
 		for (const tool of list) {
 			const name = toolName(def.name, tool.name);
 
-			// ⚠️ 碰撞偵測。openworker 那份沒有做，我們做了，
-			// 因為靜靜覆蓋掉一個工具是最難查的那種 bug。
+				// ⚠️ Collision detection. openworker's version does not do this and this does,
+				// because silently overwriting a tool is the hardest kind of bug to find.
 			const existing = tools.get(name);
 			if (existing) {
 				report.push(
@@ -147,10 +147,10 @@ async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: st
 				spec: {
 					name,
 					description: tool.description,
-					// ⚠️ schema **原封不動**傳給模型。
-					// 這是 openworker `_openai_schema` 的做法（註解寫 "for fidelity"），
-					// 而它正是 Lesson 30 要處理的問題：這份 schema 不是你寫的，
-					// 而每家 provider 能吃的 JSON Schema 子集都不一樣。
+						// ⚠️ The schema is passed to the model **verbatim**.
+						// That is openworker's `_openai_schema` approach (its comment says "for fidelity"),
+						// and it is exactly the problem Lesson 30 handles: you did not write this schema,
+						// and every provider accepts a different subset of JSON Schema.
 					parameters: tool.inputSchema,
 				},
 				server: def.name,
@@ -180,16 +180,16 @@ async function main(): Promise<void> {
 	const specs = [...tools.values()].map((t) => t.spec);
 
 	/**
-	 * ⚠️ **所有 MCP 工具預設都是 EXTERNAL 風險。**
+		 * ⚠️ **Every MCP tool defaults to EXTERNAL risk.**
 	 *
-	 * 理由很簡單：你不知道它會做什麼。工具描述是**別人寫的**,
-	 * 它說「list robots」不代表它只是列出機器人。
+		 * The reason is simple: you do not know what it will do. The tool description was **written by
+		 * somebody else**, and "list robots" does not mean it only lists robots.
 	 *
-	 * 這正是 Lesson 8 `risk.ts:128` 那條規則存在的原因：
+		 * Which is why the rule at Lesson 8's `risk.ts:128` exists:
 	 *   `if (metadata?.requiresApproval) return RiskClass.EXTERNAL;`
 	 *
-	 * 使用者可以用 riskOverrides 個別放寬（「這台我信任」），
-	 * 但預設必須保守。
+		 * A user can relax individual ones with riskOverrides ("I trust this server"),
+		 * and the default must be conservative.
 	 */
 	const metadata: ToolRiskMetadata = { requiresApproval: true, category: "mcp" };
 
@@ -222,12 +222,12 @@ async function main(): Promise<void> {
 				system:
 					"You are an agent operating a robot fleet through MCP tools. " +
 					"Use the tools to answer. Report honestly on what actually happened." +
-					// ⚠️ `TODAY=1` 才會加上今天的日期。
+						// ⚠️ Today's date is added only with `TODAY=1`.
 					//
-					// 這個開關是實測逼出來的：不加的時候，模型把「8/1」
-					// 填成 **2024**-08-01（三次全部），因為它只能用訓練資料的先驗。
-					// 而那個參數會被送進一個**有外部副作用、收不回來**的 MCP 工具。
-					// 見 README Step 6。
+						// This switch was forced out by measurement: without it, the model filled "8/1" in as
+						// **2024**-08-01 (all three runs), because all it had were training-data priors.
+						// And that argument goes into an MCP tool with an **external, unrecallable** side effect.
+						// See README Step 6.
 					(TODAY ? `\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.` : ""),
 				messages,
 				tools: specs,
@@ -303,8 +303,8 @@ async function main(): Promise<void> {
 				}
 
 				try {
-					// 注意送出去的是 **remoteName**，不是我們加了前綴的名字。
-					// 前綴是給模型用的命名空間，server 那邊不認得它。
+						// Note what is sent is the **remoteName**, not the prefixed name we added.
+						// The prefix is a namespace for the model; the server does not recognise it.
 					const content = await tool.connection.callTool(tool.remoteName, call.args);
 					results.push({ toolCallId: call.id, toolName: call.name, content });
 					console.log(dim(`  ${green("✓")} ${content.split("\n")[0] ?? ""}`));

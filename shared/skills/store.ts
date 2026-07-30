@@ -1,25 +1,25 @@
 /**
- * Skill 儲存與 progressive disclosure。
+ * Skill storage and progressive disclosure.
  *
- * ## 為什麼 description 有 60 字元上限
+ * ## Why a description has a 60-character limit
  *
- * skill 不是「全部塞進 system prompt」。那樣的話 20 個 skill 就把
- * context 吃光了。做法是拆兩層：
+ * Skills are not "stuff everything into the system prompt". That way 20 skills eat the whole
+ * context. The approach splits into two layers:
  *
- *   索引（index）：每個 skill 一行 name + description，**每次都載入**
- *   本文（body）：完整的操作步驟，**模型要求時才載入**
+ *   the index: one line of name plus description per skill, **loaded every time**
+ *   the body:  the full procedure, **loaded only when the model asks**
  *
- * 這叫 progressive disclosure。所以：
+ * This is called progressive disclosure. So:
  *
- *   description 是「路由用的」，不是「說明用的」。
+ *   a description is **for routing**, not for explaining.
  *
- * 模型只憑那一行決定要不要展開這個 skill。超過 60 字被截掉的部分，
- * 模型永遠看不到，那個 skill 就永遠不會被叫用，而且**你不會收到
- * 任何錯誤訊息**，它只是安靜地不被使用。
+ * The model decides whether to expand a skill from that one line alone. Anything past 60 characters
+ * is cut, the model never sees it, that skill is never invoked, and **you receive no error
+ * message at all** — it is simply, silently unused.
  *
- * 這也解釋了為什麼 Hermes 的 authoring standard 對這條這麼兇。
+ * Which also explains why Hermes's authoring standard is so fierce about this.
  *
- * 對照：hermes-agent/agent/skill_utils.py、agent/learn_prompt.py
+ * Source: hermes-agent/agent/skill_utils.py, agent/learn_prompt.py
  */
 
 import { readdir, readFile } from "node:fs/promises";
@@ -28,9 +28,9 @@ import type { ToolSpec } from "../providers/types.ts";
 import { parseSkill, type Skill, type SkillOrigin } from "./types.ts";
 
 export interface SkillStoreOptions {
-	/** 已啟用的 skill 目錄。 */
+	/** The directory of active skills. */
 	dir: string;
-	/** 提議中、還沒審核的 skill 目錄。 */
+	/** The directory of proposed, unreviewed skills. */
 	proposedDir?: string;
 	platform?: "macos" | "linux" | "windows";
 }
@@ -56,10 +56,10 @@ export class SkillStore {
 	}
 
 	/**
-	 * 給 system prompt 的索引。
+		 * The index for the system prompt.
 	 *
-	 * **只有已啟用的 skill 會出現。** proposed 的不會，
-	 * 這就是審核閘門的實際執行點：沒過審的 skill 對模型不存在。
+		 * **Only active skills appear.** Proposed ones do not,
+		 * which is where the review gate actually executes: an unreviewed skill does not exist to the model.
 	 */
 	buildIndex(): string {
 		const active = [...this.skills.values()].filter((s) => this.matchesPlatform(s));
@@ -77,7 +77,7 @@ export class SkillStore {
 		);
 	}
 
-	/** 模型要求時才給本文。 */
+		/** The body, given only when the model asks. */
 	loadBody(name: string): string {
 		const skill = this.skills.get(name);
 		if (!skill) {
@@ -121,7 +121,7 @@ export class SkillStore {
 		return this.skills.get(name) ?? this.proposed.get(name);
 	}
 
-	/** 直接放一個 skill 進來（示範與測試用）。 */
+		/** Insert a skill directly (for demonstrations and tests). */
 	add(skill: Skill): void {
 		if (skill.origin === "proposed") this.proposed.set(skill.frontmatter.name, skill);
 		else this.skills.set(skill.frontmatter.name, skill);
@@ -134,10 +134,10 @@ export class SkillStore {
 	}
 
 	/**
-	 * 索引佔多少字元。
+		 * How many characters the index occupies.
 	 *
-	 * 這個數字值得盯著：它是**每一次請求**都要付的固定成本。
-	 * 100 個 skill × 每個 70 字元 = 7000 字元，每一輪都在燒。
+		 * This number is worth watching: it is a fixed cost paid on **every request**.
+		 * 100 skills × 70 characters each = 7000 characters burning every turn.
 	 */
 	indexCost(): number {
 		return this.buildIndex().length;
@@ -160,14 +160,14 @@ async function loadDir(dir: string, origin: SkillOrigin): Promise<Map<string, Sk
 			const skill = parseSkill(raw, origin);
 			out.set(skill.frontmatter.name, skill);
 		} catch {
-			// 也支援直接放 <name>.md
+				// A plain <name>.md is supported too
 			try {
 				if (!entry.endsWith(".md")) continue;
 				const raw = await readFile(join(dir, entry), "utf8");
 				const skill = parseSkill(raw, origin);
 				out.set(skill.frontmatter.name, skill);
 			} catch {
-				// 壞掉的 skill 檔跳過，不要讓整包載不進來
+					// Skip a broken skill file rather than failing the whole load
 			}
 		}
 	}

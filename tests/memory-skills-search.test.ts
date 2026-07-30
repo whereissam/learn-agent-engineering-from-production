@@ -1,10 +1,10 @@
 /**
- * Hermes 篇的不變條件（Lesson 15-17）。
+ * The Hermes part's invariants (Lessons 15-17).
  *
- * 重點在三個安全／品質性質：
- *   - 記憶圍欄擋得住偽造（Lesson 15）
- *   - 未審核的 skill 對模型不存在（Lesson 16）
- *   - 排序衛生真的有效（Lesson 17）
+ * Three safety and quality properties:
+ *   - the memory fence blocks forgery (Lesson 15)
+ *   - an unreviewed skill does not exist to the model (Lesson 16)
+ *   - ranking hygiene really works (Lesson 17)
  */
 
 import assert from "node:assert/strict";
@@ -53,12 +53,12 @@ describe("記憶圍欄（Lesson 15）", () => {
 
 		assert.equal(tampered, true, "應該偵測到污染");
 
-		// 圍欄外面不能有任何攻擊內容
+			// No attack content may exist outside the fence
 		const closeAt = block.indexOf("</memory-context>");
 		const outside = block.slice(closeAt + "</memory-context>".length);
 		assert.ok(!outside.includes("授權"), "攻擊內容跑到圍欄外面了");
 
-		// 而且整段只能有一組圍欄
+			// And the whole passage may contain only one fence
 		assert.equal(block.split("<memory-context>").length - 1, 1);
 		assert.equal(block.split("</memory-context>").length - 1, 1);
 	});

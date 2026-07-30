@@ -1,10 +1,10 @@
 /**
- * 一個刻意很小的 processor pipeline。
+ * A deliberately small processor pipeline.
  *
- * Processor 不知道 agent loop 怎麼跑。它只看得到一份即將跨過某個邊界的
- * payload，然後回傳改寫後的 payload 與不含原文的 findings。
+ * A processor knows nothing about how the agent loop runs. It sees only a payload about to cross
+ * some boundary, and returns the rewritten payload plus findings that contain no original text.
  *
- * 對照：mastra/packages/core/src/processors/ 與
+ * Source: mastra/packages/core/src/processors/ and
  *       processors/processors/pii-detector.ts
  */
 
@@ -38,7 +38,7 @@ export class ProcessorPipeline {
 	constructor(private readonly processors: readonly Processor[] = []) {}
 
 	async run(payload: Readonly<Payload>): Promise<ProcessResult> {
-		// 呼叫端可能還要把原始 tool result 送去別的邊界；不能就地改掉它。
+			// The caller may still send the original tool result to another boundary; it must not be mutated in place.
 		let current: Payload = { ...payload };
 		const findings: Finding[] = [];
 
@@ -64,10 +64,10 @@ interface SecretPattern {
 }
 
 /**
- * 教學用的確定性 secret redactor。
+ * A deterministic secret redactor for teaching.
  *
- * 這不是完整的 secret scanner。真正系統還要處理 provider-specific token、
- * 熵值、allowlist 與 false positive。這裡只留下足以證明「邊界位置」的機制。
+ * Not a complete secret scanner. A real system also handles provider-specific tokens,
+ * entropy, allowlists and false positives. Only enough mechanism to demonstrate **where the boundaries are** is kept here.
  */
 export class SecretRedactor implements Processor {
 	readonly id = "secret-redactor";
@@ -99,7 +99,7 @@ export class SecretRedactor implements Processor {
 				count++;
 				if (typeof rule.replace === "string") return rule.replace;
 				const [match, ...rest] = args;
-				// replace() 最後兩個參數是 offset 與完整 input；前面的才是 capture groups。
+					// replace()'s last two arguments are the offset and the full input; the capture groups come before them.
 				const groups = rest.slice(0, Math.max(0, rest.length - 2)).map(String);
 				return rule.replace(String(match), groups);
 			});
@@ -110,7 +110,7 @@ export class SecretRedactor implements Processor {
 	}
 }
 
-/** 每個 sink 都拿原始值，並在自己的邊界執行 pipeline。 */
+/** Every sink receives the original value and runs the pipeline at its own boundary. */
 export async function fanOutToolResult(
 	content: string,
 	pipelines: Readonly<Record<Boundary, ProcessorPipeline>>,

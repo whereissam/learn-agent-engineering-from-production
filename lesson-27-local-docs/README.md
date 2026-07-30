@@ -1,23 +1,28 @@
-# Lesson 27: 本地文件 + web 混合檢索
+# Lesson 27: Hybrid Local-Document and Web Retrieval
 
-> 前置：[Lesson 21](../lesson-21-crawl/)（chunk）、[Lesson 22](../lesson-22-retrieval/)（RRF 與排序）。
+> [繁體中文](README.zh-TW.md)
 >
-> AI Search 篇一路都在搜網路。這一課把檢索接到**你自己的檔案**上，
-> 然後兩邊混在一起排序。
+> Prerequisites: [Lesson 21](../lesson-21-crawl/) (chunking),
+> [Lesson 22](../lesson-22-retrieval/) (RRF and ranking).
+>
+> The AI Search part has searched the web throughout. This lesson points
+> retrieval at **your own files**, then ranks both sides together.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 本地文件沒有 URL，「來源」要寫什麼？
-2. 本地文件**會變**，索引怎麼不每次全部重算？
-3. 兩種完全不同的來源，分數尺度不一樣，怎麼排在一起？
-4. **一邊完全不相關的時候會發生什麼事？**（這題的答案讓我改了三次）
+1. Local documents have no URL, so what is a "source"?
+2. Local documents **change** — how does the index avoid recomputing everything?
+3. Two completely different sources on different score scales: how do they rank
+   together?
+4. What happens when one side is entirely irrelevant? (This answer took three
+   attempts.)
 
-語料就是**這個 repo 自己的 markdown**：22 個檔案、214 個 chunk。
-不用另外準備資料，而且你讀得懂每一筆結果。
+The corpus is **this repo's own markdown**: 22 files, 214 chunks. No data to
+prepare, and you can read every result.
 
 ---
 
-## Step 0：跑起來
+## Step 0: run it
 
 ```bash
 bun run lesson-27:ingest    # 掃描 → 切塊 → 建索引
@@ -31,22 +36,24 @@ bun run lesson-27           # 三個示範查詢
   最大的檔案：docs/TODO.md (25 塊)、lesson-23-real-world/README.md (15 塊)
 ```
 
-再跑一次：
+Run it again:
 
 ```
   沿用 22、重切 0、移除 0
 ```
 
-**這一行就是這一課跟前面所有課最大的差別。**
+That one line is the biggest difference between this lesson and every previous
+one.
 
 ---
 
-## Step 1：本地文件會變，網頁語料不會
+## Step 1: local documents change, a web corpus does not
 
-Lesson 20-26 的語料產生一次就不動了。本地文件不是——你今天改了 README，
-索引就過期了。而 embedding 要花錢，所以不能每次全部重算。
+Lessons 20-26 generate their corpus once and leave it. Local documents are not
+like that — edit a README today and the index is stale. And embedding costs money,
+so recomputing everything each time is out.
 
-`ingest.ts` 用內容雜湊決定要不要重切：
+`ingest.ts` uses a content hash to decide what to re-chunk:
 
 ```text
 雜湊沒變  → 沿用舊 chunk（連帶沿用它們的 embedding）
@@ -54,49 +61,53 @@ Lesson 20-26 的語料產生一次就不動了。本地文件不是——你今�
 檔案不見  → 移除它的 chunk
 ```
 
-**這是本地 RAG 真正的工程量所在。** 很多教學跳過它，
-於是你做出一個「第二次跑就開始給過期答案」的系統。
+This is where the real engineering in local RAG lives. Many tutorials skip it,
+leaving you with a system that starts giving stale answers on its second run.
 
-### 來源識別
+### Source identity
 
-網頁的來源是 URL，天生唯一而且點得開。本地文件要自己造一個：
+A web source is a URL: unique by nature and clickable. A local document needs one
+constructed:
 
 ```text
 docs/TODO.md#L120-L168
 lesson-21-crawl/README.md#L477-L501
 ```
 
-三個好處：使用者看得懂、編輯器點得開、**而且 Lesson 25 的引用驗證
-可以拿它回去撈原文對答案**。
+Three benefits: a user can read it, an editor can open it, **and Lesson 25's
+citation verification can use it to fetch the original text and check**.
 
-為了做到這件事，`chunkMarkdown` 比 Lesson 21 的 `chunkText` 多做一件事：
-記住每一塊落在哪幾行。沒有行號，本地來源就沒辦法被驗證。
+To make that possible, `chunkMarkdown` does one thing more than Lesson 21's
+`chunkText`: it remembers which lines each chunk covers. Without line numbers, a
+local source cannot be verified.
 
 ---
 
-## Step 2：融合幾乎不用寫程式（因為 Lesson 22 選對了）
+## Step 2: fusion needs almost no code (because Lesson 22 chose right)
 
-兩種來源的分數完全不可比：本地是 BM25 分數（2.7 這種數字），
-網頁是經過訊號調整的融合分數（0.9 這種數字）。
+The two sources' scores are not comparable at all: local is a BM25 score (numbers
+like 2.7) and web is a signal-adjusted fusion score (numbers like 0.9).
 
-但 **RRF 只看名次**：
+But **RRF only looks at rank**:
 
 ```ts
 rrf([localIds, webIds])   // 本地第 1 名 + 網頁第 3 名 → 1/61 + 1/63
 ```
 
-Lesson 22 當初選 RRF 的理由是「BM25 的 2.771 和 cosine 的 0.83 不在同一個
-尺度上」。現在同一個性質順便解決了「兩個來源不可比」的問題。
+Lesson 22 chose RRF because "BM25's 2.771 and a cosine's 0.83 are not on the same
+scale". That same property now incidentally solves "two sources are not
+comparable".
 
-> **好的抽象會在你沒預期的地方付利息。**
-> 如果當初選的是加權相加，這一課就要重新設計正規化。
+> A good abstraction pays interest where you did not expect it.
+> Had a weighted sum been chosen back then, this lesson would have had to redesign
+> normalisation.
 
 ---
 
-## Step 3：但一邊完全不相關的時候會出事 ★
+## Step 3: but it goes wrong when one side is entirely irrelevant
 
-第一版沒有任何過濾，兩邊各取前 N 名直接融合。然後查
-「chunk 大小要怎麼選」：
+The first version had no filtering, taking the top N from each side and fusing.
+Then, querying "how do you choose chunk size":
 
 ```
 1. [本地] 對照原始碼             lesson-21-crawl/README.md#L477-L501
@@ -105,38 +116,40 @@ Lesson 22 當初選 RRF 的理由是「BM25 的 2.771 和 cosine 的 0.83 不在
 4. [網頁] A practical guide to sous vide cooking times     ← ???
 ```
 
-**一篇 sous vide 烹飪指南排到第 4 名。**
+A sous vide cooking guide ranks 4th.
 
-原因不是排序壞了，是 RRF 的性質：網頁語料是機器人主題，跟「chunk 大小」
-毫無關係，但它還是交出了一份「前五名」，而 **RRF 看到「第 1 名」就給高分**。
-相關性的絕對高低在融合的時候被丟掉了。
+The cause is not broken ranking but a property of RRF: the web corpus is about
+robots and has nothing to do with chunk size, yet it still hands over a "top five",
+and **RRF gives a high score to anything called "rank 1"**. The absolute level of
+relevance is discarded during fusion.
 
 ```text
 單一來源  top-k 沒事：爛結果排在後面，使用者自己會忽略
 跨來源    top-k 有害：爛來源的第 1 名會被當成「第 1 名」對待
 ```
 
-這正好是 Lesson 23 Step 3 讀到、當時只是「記下來」的那個差異：
-gpt-researcher 用**相似度門檻**過濾，而不是取 top-k。
-當時我寫「對 agent 來說門檻常常更好」——
-現在知道**跨來源融合的時候它不是更好，是必要**。
+This is exactly the difference read in Lesson 23 Step 3 and merely noted at the
+time: gpt-researcher filters by a **similarity threshold** rather than taking
+top-k. What was written then was "a threshold is often better for an agent" — and
+now it is clear that **for cross-source fusion it is not better, it is necessary**.
 
-### 第二版：相對門檻。沒用。
+### Second version: a relative threshold. Useless.
 
-「低於最高分 35% 就丟掉」——結果**一筆都沒擋掉**。
+"Drop anything below 35% of the top score" — and it **blocked nothing at all**.
 
-因為 Lesson 22 的 `score` 是候選集內 min-max 正規化過的，
-**最高分永遠接近 1，不管那一批到底相不相關**。相對門檻對它沒有意義。
+Because Lesson 22's `score` is min-max normalised within the candidate set, so
+**the top score is always near 1 regardless of whether that batch is relevant**. A
+relative threshold means nothing against it.
 
-修法是讓 pipeline 多回傳一個 `denseScore`（cosine 相似度）——
-那是整個回傳值裡唯一有絕對意義的分數。
+The fix is having the pipeline also return a `denseScore` (the cosine similarity)
+— the only score in the whole return value with absolute meaning.
 
-### 第三版：抄 gpt-researcher 的門檻。還是沒用。
+### Third version: copy gpt-researcher's threshold. Still useless.
 
-`SIMILARITY_THRESHOLD = 0.35`（`context/compression.py:123`）。
-抄過來，**還是一筆都沒擋掉**。
+`SIMILARITY_THRESHOLD = 0.35` (`context/compression.py:123`). Copied over, and it
+**still blocked nothing**.
 
-量一下才知道為什麼：
+Measuring shows why:
 
 ```text
 query                          web 結果的 cosine 範圍
@@ -145,53 +158,59 @@ query                          web 結果的 cosine 範圍
 "BM25 RRF 融合 排序"            0.47 - 0.52    ← 完全不相關
 ```
 
-**`gemini-embedding-001` 的無關基線就有 0.45-0.52。**
-gpt-researcher 那個 0.35 是配 OpenAI embedding 的，換一個模型直接失效。
+`gemini-embedding-001`'s irrelevant baseline is already 0.45-0.52.
+gpt-researcher's 0.35 is calibrated for OpenAI embeddings and stops working the
+moment the model changes.
 
-分界其實很乾淨（0.52 vs 0.70），取中間的 **0.60**。
+The separation is actually clean (0.52 vs 0.70), so take the middle: **0.60**.
 
-> **門檻是模型的性質，不是通則。抄別人的常數之前先量自己的分佈。**
+> A threshold is a property of the model, not a general rule. Measure your own
+> distribution before copying somebody's constant.
 >
-> 這跟 Lesson 22 猜錯去重門檻（憑印象 0.5，實際 0.17）是同一種錯，
-> 但這次更容易中招：我抄的是「權威來源的正式常數」，
-> 那讓人更放心地不去驗證。
+> Same class of error as Lesson 22's wrong dedup threshold (0.5 from intuition,
+> 0.17 in reality), but easier to fall for: this was **an authoritative project's
+> declared constant**, which makes it more comfortable not to verify.
 
-### 修好之後
+### After the fix
 
 ```
 chunk 大小要怎麼選
   本地 6 筆、網頁 0 筆（門檻擋掉 本地 0、網頁 6）
 ```
 
-烹飪指南消失了，六筆全是我們自己寫過 chunk 的段落。
+The cooking guide is gone, and all six results are passages this repo wrote about
+chunking.
 
-### 那模型拿到爛結果會怎樣？我猜錯了
+### So what does the model do with bad results? Not what was predicted
 
-上面全部是檢索側的量測。但檢索是中間產物，真正該問的是：
+Everything above is measured on the retrieval side. But retrieval is an
+intermediate product, and the real question is:
 
-> 模型拿到那 8 筆（其中 4 筆是機器人、1 筆是舒肥）之後，
-> **會不會真的引用它們？**
+> Once the model has those 8 results (4 about robots, 1 about sous vide), does it
+> actually cite them?
 
 ```bash
 PROVIDER=gemini bun run lesson-27:agent            # 有門檻
 FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
 ```
 
-判定是確定性的：網頁語料對「chunk 大小」一律不相關，
-所以答案裡出現任何一個 http 網址都是錯的。
+The verdict is deterministic: the web corpus is uniformly irrelevant to chunk
+size, so any http URL appearing in the answer is wrong.
 
-我原本預期會看到模型引用舒肥指南。**實測結果相反**：
+The prediction was that the model would cite the sous vide guide. **The
+measurement says the opposite:**
 
-| | 檢索到的不相關來源 | 模型引用了嗎（5 次） |
+| | Irrelevant sources retrieved | Did the model cite them (5 runs) |
 |---|---|---|
-| 有門檻 | 0 筆 | 不適用 |
-| 沒門檻 | **4 筆** | **0/5，一次都沒有** |
+| with the floor | 0 | not applicable |
+| without the floor | **4** | **0/5, never once** |
 
-模型每一次都自己避開了。舒肥指南就躺在 context 裡，它就是沒去碰。
+The model avoided them every time. The sous vide guide lay right there in context
+and it simply did not touch it.
 
-### 所以門檻的價值不是我以為的那個
+### So the floor's value is not what it appeared to be
 
-它擋的不是「會被引用的垃圾」，是**位置**：
+What it blocks is not "garbage that gets cited" but **slots**:
 
 ```
 有門檻    8 個位置：本地 8 筆
@@ -199,143 +218,152 @@ FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
                     ↑ 4 筆相關的本地文件被擠掉了
 ```
 
-> **真正的傷害是排擠，不是幻覺。**
+> The real damage is crowding out, not hallucination.
 >
-> 那 4 筆機器人頁面沒有讓模型講錯話，它們只是**佔走了 4 個位置**，
-> 而那 4 個位置本來可以放我們自己寫過 chunk 的段落。
-> 使用者不會看到錯誤答案，會看到一個**比較空洞的**答案，
-> 而且他不會知道原因。
+> Those 4 robot pages did not make the model say anything false; they merely
+> **occupied 4 slots** that could have held passages this repo wrote about
+> chunking. The user does not see a wrong answer, they see a **thinner** one, and
+> they will not know why.
 
-還有第二筆帳，接回 Lesson 26：那 4 筆的 token 你照付。
+There is a second bill, back to Lesson 26: you pay for those 4 results' tokens.
 
-### 不要把這次的 0/5 當成安全
+### Do not read this 0/5 as safety
 
 ```
 ○ 模型自己避開了：不相關的來源進了 context，但沒被引用
    注意這不是門檻在保護你，是模型剛好沒上當。
 ```
 
-程式碼裡刻意用 `○` 而不是 `✓`，因為這兩件事完全不同：
+The code deliberately prints `○` rather than `✓`, because the two are entirely
+different:
 
-- **✓ 有門檻**：垃圾根本進不了 context。這是結構保證
-- **○ 沒門檻**：垃圾進去了，這次模型沒上當
+- **✓ with the floor**: the garbage never enters context. That is a structural
+  guarantee
+- **○ without the floor**: the garbage got in and the model happened not to fall
+  for it
 
-Lesson 17 Step 3.5 才剛示範過同一種東西：模型會替爛基礎設施擦屁股，
-大部分時候成功，**但那個「大部分」不是你能倚賴的東西**。
-5 次全過只證明 5 次全過。
+Lesson 17 Step 3.5 demonstrated the same thing: a model papers over bad
+infrastructure, usually successfully, **but "usually" is not something you can rely
+on**. Five for five proves five for five.
 
 ---
 
-## Step 4：來源分佈本身就是訊號
+## Step 4: the source distribution is itself a signal
 
-三個示範查詢，各自代表一種情況：
+The three demo queries each represent a situation:
 
-| query | 本地 | 網頁 | 意思 |
+| Query | Local | Web | Meaning |
 |---|---|---|---|
-| `chunk 大小要怎麼選` | 6 | 0 | 網頁索引沒涵蓋這個主題 |
-| `unitree g1 retargeting deprecated` | 3 | 3 | 兩邊都有——而且它們**互相補充** |
-| `BM25 RRF 融合 排序` | 6 | 0 | 同上，這是我們自己的領域 |
+| `chunk 大小要怎麼選` | 6 | 0 | the web index does not cover this topic |
+| `unitree g1 retargeting deprecated` | 3 | 3 | both sides have it — and they **complement** each other |
+| `BM25 RRF 融合 排序` | 6 | 0 | as above; this is our own domain |
 
-第二列最有意思。本地那三筆是 Lesson 20 的 README（在講這個語料裡的陷阱），
-網頁那三筆是語料本身。**一個是「我們對這件事的理解」，
-一個是「原始資料」。**
+The second row is the interesting one. The three local hits are Lesson 20's README
+(discussing the traps inside this corpus), and the three web hits are the corpus
+itself. **One is "our understanding of this thing", the other is "the raw
+material".**
 
-實務上這正是混合檢索最有價值的形狀：
+In practice that is hybrid retrieval's most valuable shape:
 
 ```text
 本地  你的團隊對某件事的結論、決策紀錄、踩過的坑
 網頁  外面的原始資料、官方文件、最新變動
 ```
 
-而「只回本地」和「只回網頁」都是有用的資訊：前者代表外部索引沒涵蓋，
-後者代表**你的文件還沒寫到這件事**。
+And "local only" and "web only" are both useful information: the former says the
+external index does not cover it, the latter says **your documents have not
+written about it yet**.
 
 ---
 
-## Step 5：沒做的事（誠實清單）
+## Step 5: what is not done (an honest list)
 
-| 沒做 | 為什麼 |
+| Not done | Why |
 |---|---|
-| 本地 chunk 的 dense 檢索 | 214 個 chunk 全部 embedding 要花錢，而且檔案一改就要重算。純 BM25 對「自己的文件」其實夠用，因為你會用自己寫過的詞去查 |
-| PDF / docx / 投影片 | 那是格式解析問題，跟檢索無關。真要做就接 `pdf-parse` 之類的，chunk 策略不用變 |
-| 程式碼索引 | 程式碼的詞彙分佈跟散文差太多，混在一起檢索效果會變差。要做該用不同的 chunk 策略（按函式切） |
-| 本地文件的權威度訊號 | Lesson 22 的 `HOST_PRIOR` 對本地沒意義。要做的話得自己定義（例如 `docs/` > 草稿），而那是每個團隊自己的規則 |
-| 衝突偵測 | 本地說 A、網頁說 B 的時候自動標出來。這需要語義比對，不是這一課的範圍 |
+| dense retrieval over local chunks | embedding all 214 chunks costs money, and every file edit means recomputing. Pure BM25 is in fact adequate for your own documents, because you search with words you wrote |
+| PDF / docx / slides | a format-parsing problem with nothing to do with retrieval. Wire up something like `pdf-parse` and the chunking strategy stays the same |
+| code indexing | code's vocabulary distribution is too far from prose, and mixing them degrades retrieval. Doing it properly needs a different chunking strategy (split by function) |
+| an authority signal for local documents | Lesson 22's `HOST_PRIOR` means nothing locally. Doing it means defining your own (say `docs/` over drafts), and that is each team's own rule |
+| conflict detection | flagging when local says A and web says B. That needs semantic comparison, out of scope here |
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `本地索引是空的` | 還沒 ingest | `bun run lesson-27:ingest` |
-| 改了檔案但結果沒變 | 索引沒更新 | 重跑 ingest（它會告訴你重切了幾個） |
-| `⚠ dense 不可用` | 沒金鑰且 query 不在快取裡 | 正常，會自動退化成純關鍵字。要完整功能就設金鑰 |
-| 網頁結果全被擋掉 | 門檻 0.6 對你的 embedding 太高 | **量自己的分佈**再調，見 Step 3 |
-| 掃到 clone 下來的參考專案 | `SKIP_DIRS` 沒涵蓋 | 在 `ingest.ts` 加進去 |
+| `本地索引是空的` | not ingested yet | `bun run lesson-27:ingest` |
+| edited a file but the results did not change | the index is not updated | re-run ingest (it tells you how many were re-chunked) |
+| `dense 不可用` | no key and the query is not in the cache | normal; it degrades to pure keyword. Set a key for full function |
+| every web result is blocked | the 0.6 floor is too high for your embeddings | **measure your own distribution** before tuning, see Step 3 |
+| it scanned the cloned reference projects | `SKIP_DIRS` does not cover them | add them in `ingest.ts` |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：改一個檔案，看增量更新 ⭐
+### Exercise 1: edit one file and watch the incremental update ⭐
 
-隨便改一行 `docs/TODO.md`，重跑 `bun run lesson-27:ingest`。
+Change any line of `docs/TODO.md` and re-run `bun run lesson-27:ingest`.
 
-應該看到「沿用 21、重切 1」。**這一步是本地 RAG 能不能上線的分水嶺。**
+You should see "沿用 21、重切 1". This step is the watershed for whether local RAG
+can ship.
 
-### 練習 2：量出你自己模型的門檻 ⭐⭐
+### Exercise 2: measure your own model's threshold ⭐⭐
 
-Step 3 的 0.60 是量 `gemini-embedding-001` 得到的。換一個 embedding 模型
-（`EMBED_MODEL=text-embedding-3-small` 配 OpenAI 金鑰），重新量一次分佈。
+Step 3's 0.60 came from measuring `gemini-embedding-001`. Change embedding model
+(`EMBED_MODEL=text-embedding-3-small` with an OpenAI key) and measure the
+distribution again.
 
-**猜猜看會不會剛好是 0.35？**
+Care to guess whether it lands on 0.35?
 
-### 練習 3：把本地來源接進 Lesson 25 的引用驗證 ⭐⭐
+### Exercise 3: wire local sources into Lesson 25's citation verification ⭐⭐
 
-`verifyClaim` 現在只認 URL。加上本地來源：`docs/TODO.md#L120-L168`
-可以直接讀檔案的那幾行回來比對。
+`verifyClaim` currently only understands URLs. Add local sources:
+`docs/TODO.md#L120-L168` can read those exact lines back for comparison.
 
-這題做完，你的引用驗證就同時涵蓋兩種來源了。
+Finish this and your citation verification covers both source types.
 
-### 練習 4：讓 Lesson 24 的研究能用本地文件 ⭐⭐⭐
+### Exercise 4: let Lesson 24's research use local documents ⭐⭐⭐
 
-把 `hybridSearch` 換掉 `research.ts` 裡的 `retrieve`。
+Replace `retrieve` in `research.ts` with `hybridSearch`.
 
-然後想清楚兩件事：
+Then think two things through:
 
-1. 本地 chunk 沒有「網頁」可以 `fetch_page`，`runQuery` 那段要怎麼改？
-   （提示：chunk 本身就是內容，不需要再抓一次）
-2. 本地來源沒有發佈日期，Lesson 22 的新鮮度訊號要怎麼辦？
-   （提示：檔案有 mtime，但那是「改動時間」不是「內容新鮮度」）
+1. A local chunk has no "page" to `fetch_page`, so how does `runQuery` change?
+   (Hint: the chunk is the content; there is nothing to fetch again)
+2. Local sources have no publication date, so what happens to Lesson 22's
+   freshness signal? (Hint: a file has an mtime, but that is "modification time",
+   not "content freshness")
 
-### 練習 5：加衝突偵測 ⭐⭐⭐
+### Exercise 5: add conflict detection ⭐⭐⭐
 
-同一個查詢，本地和網頁都回了結果，但講的不一樣。
+Same query, both local and web return results, and they disagree.
 
-先想清楚**怎麼定義「不一樣」**——這比實作難得多。
-（提示：先從最窄的情況做起，例如同一個數字在兩邊不同。
-不要一開始就想做通用的語義矛盾偵測。）
+Work out **how to define "disagree"** first — much harder than implementing it.
+(Hint: start with the narrowest case, such as the same number differing on the two
+sides. Do not start by trying to build general semantic contradiction detection.)
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-| 這一課的概念 | 對照 |
+| Concept in this lesson | Reference |
 |---|---|
-| 本地文件載入 | `gpt-researcher/gpt_researcher/document/`（5 個檔案，含 Azure / LangChain loader） |
-| 本地向量庫 | `gpt-researcher/gpt_researcher/vector_store/` |
-| 相似度門檻而不是 top-k | `gpt-researcher/gpt_researcher/context/compression.py:123` |
-| RRF | 本系列 [Lesson 22](../lesson-22-retrieval/) |
+| local document loading | `gpt-researcher/gpt_researcher/document/` (5 files, including Azure and LangChain loaders) |
+| a local vector store | `gpt-researcher/gpt_researcher/vector_store/` |
+| a similarity threshold instead of top-k | `gpt-researcher/gpt_researcher/context/compression.py:123` |
+| RRF | this series' [Lesson 22](../lesson-22-retrieval/) |
 
-> gpt-researcher 支援本地文件的方式是「把它們當成另一個 retriever」，
-> 跟我們的做法形狀一樣。差別是它把本地文件也做了 embedding，
-> 我們只做 BM25——**因為我們的文件會一直改，而它們的使用情境是
-> 「一份固定的資料集配一次研究」。使用情境不同，取捨就不同。**
+> gpt-researcher supports local documents by treating them as another retriever,
+> the same shape as here. The difference is that it embeds local documents too
+> while this lesson only does BM25 — **because these documents keep changing,
+> while their use case is "one fixed dataset for one research run". Different use
+> case, different trade-off.**
 
 ---
 
-## AI Search 篇（Lesson 20-27）到這裡
+## The AI Search part (Lessons 20-27) ends here
 
 ```text
 20  snippet 不是網頁；query 決定你看到頁面的哪一面
@@ -348,16 +376,18 @@ Step 3 的 0.60 是量 `gemini-embedding-001` 得到的。換一個 embedding �
 27  本地文件會變；門檻是模型的性質不是通則
 ```
 
-八課裡有六課的結論跟開工前的預期不一樣。**那些差異才是內容。**
+Six of the eight lessons ended with a conclusion different from the prediction
+made before work started. Those differences are the content.
 
 ---
 
-## 下一課
+## Next lesson
 
-AI Search 篇到這裡結束。接下來的規劃在
-**[docs/TODO.md](../docs/TODO.md)**：Lesson 28-37 處理的是
-「loop 周圍那一圈」——執行的證據、schema 相容、durable 狀態機、沙箱。
+The AI Search part ends here. What comes next is planned in
+[docs/TODO.md](../docs/TODO.md): Lessons 28-37 handle "the ring around the loop" —
+evidence of execution, schema compatibility, durable state machines, sandboxing.
 
-其中優先度最高的是 **Lesson 29「完成的證據」**，因為它回答
-Lesson 8 留下來的那個問題：權限引擎擋下了所有操作、檔案一個 byte 沒動，
-**然後模型跟使用者說它做完了。**
+The highest priority among them is **Lesson 29, "evidence of completion"**,
+because it answers the question Lesson 8 left behind: the permission engine
+blocked every operation, not one byte of the file changed, and then the model told
+the user it was done.

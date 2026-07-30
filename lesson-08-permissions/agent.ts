@@ -1,23 +1,23 @@
 /**
- * Lesson 8 - 權限引擎接進真的 agent loop
+ * Lesson 8 - the permission engine wired into a real agent loop
  *
- * `table.ts` 把寫死的工具呼叫餵進引擎，印出決策表。那張表告訴你
- * 「引擎會說不」，但它學不到最重要的一件事：
+ * `table.ts` feeds hardcoded tool calls into the engine and prints a decision table. That table
+ * tells you "the engine says no" and cannot teach the one thing that matters most:
  *
- *     引擎說不之後，那個「不」會變成 tool result 回到模型手上。
- *     **模型接下來做什麼？**
+ *     after the engine says no, that "no" becomes a tool result back in the model's hands.
+ *     **What does the model do next?**
  *
- * 乖乖停手、換個寫法繞過去、還是硬 retry？這是行為問題，
- * 看表格永遠看不出來，只能真的跑。
+ * Stop obediently, rephrase its way around, or retry regardless? That is a behavioural question,
+ * invisible in a table and answerable only by running it.
  *
- * 執行：
- *   bun run lesson-08                          # 腳本化示範（不用 key）
- *   MODE=auto bun run lesson-08                # 換模式，看哪些還是擋得住
- *   DENY_HINT=1 bun run lesson-08              # 拒絕訊息裡加上「不要繞道」
- *   PROVIDER=gemini bun run lesson-08          # 真模型，自己打字問它
+ * Run:
+ *   bun run lesson-08                          # the scripted demo (no key)
+ *   MODE=auto bun run lesson-08                # change mode and see what is still blocked
+ *   DENY_HINT=1 bun run lesson-08              # add "do not work around this" to the refusal
+ *   PROVIDER=gemini bun run lesson-08          # a real model, typing your own questions
  *
- * 核心 loop 跟 Lesson 3 一樣（設計原則 6）。唯一的差別在
- * `registry.execute` 之前多了一段判斷，見下面「權限閘門」。
+ * The core loop is the same as Lesson 3's (design principle 6). The only difference is a check
+ * before `registry.execute`; see "the permission gate" below.
  */
 
 import { resolve } from "node:path";
@@ -49,18 +49,18 @@ const MAX_TOKENS = 8000;
 const MAX_STEPS = 12;
 
 /**
- * 拒絕訊息裡要不要加一句「不要繞過去」。
+ * Whether the refusal message should add "do not work around this".
  *
- * 預設**不加**，因為預設要能觀察到模型的原始行為。
- * 加了之後再跑一次，比較兩邊的差異，那是這一課的實驗。
+ * **Off by default**, because the default should let you observe the model's raw behaviour.
+ * Turn it on and run again, then compare the two; that is this lesson's experiment.
  *
- * （Lesson 21 Step 5 有一次相反方向的實證：在工具輸出裡拜託模型
- * 「這頁有表格沒抽到」完全沒有用。所以這裡的預期是「加了也沒差」，
- * 實測結果見 README。）
+ * (Lesson 21 Step 5 has a measurement in the opposite direction: pleading with the model in the
+ * tool output that "this page has an unextracted table" did nothing at all. So the expectation
+ * here is "it will make no difference"; the measured result is in the README.)
  */
 const DENY_HINT = process.env.DENY_HINT === "1";
 
-/** 非互動示範用：使用者被問到時固定怎麼回答。 */
+/** For the non-interactive demo: the fixed answer whenever the user is asked. */
 const ANSWER = process.env.ANSWER?.toLowerCase();
 
 const MODE = (process.env.MODE?.toLowerCase() as Mode | undefined) ?? Mode.INTERACTIVE;
@@ -84,11 +84,11 @@ const registry = new ToolRegistry([
 ]);
 
 /**
- * 工具的風險 metadata。
+ * Tools' risk metadata.
  *
- * 內建工具的等級已經在 `shared/permissions/risk.ts` 的 BASE 表裡了，
- * 這裡留一個空殼是為了讓你看到接口在哪，真實系統裡
- * MCP 工具、connector 工具會從這裡帶 `requiresApproval: true` 進來
+ * Built-in tools' levels are already in the BASE table in `shared/permissions/risk.ts`;
+ * this empty shell exists so you can see where the interface is. In a real system,
+ * MCP tools and connector tools would bring `requiresApproval: true` in through here
  * （Lesson 12）。
  */
 const METADATA: Record<string, ToolRiskMetadata> = {};
@@ -100,17 +100,17 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 
 // ─────────────────────────────────────────────────────────────
-// 權限閘門
+// The permission gate
 //
-// 這是整個 Lesson 8 的接縫，而且它**不在引擎裡**。
+// This is the whole of Lesson 8's seam, and it is **not inside the engine**.
 //
-// 引擎只回傳一個 Decision（資料）。要不要問人、怎麼問、
-// 被拒絕之後要跟模型說什麼，全部是這裡的責任。
-// README Step 6 解釋了為什麼要這樣拆。
+// The engine returns only a Decision (data). Whether to ask a human, how to ask, and what to
+// tell the model after a refusal are all this function's responsibility.
+// README Step 6 explains why the split goes here.
 // ─────────────────────────────────────────────────────────────
 
 interface Gate {
-	/** undefined = 放行。有值 = 這段字會變成 tool result 送回模型。 */
+	/** undefined = allowed. A value = this text becomes the tool result sent back to the model. */
 	denial?: string;
 	decision: Decision;
 	risk: RiskClass;
@@ -126,17 +126,17 @@ async function gate(
 	const risk = classify(toolName, metadata);
 	const decision = engine.evaluate(toolName, args, metadata);
 
-	// 純讀取：引擎連問都不用問。
+	// Pure reads: the engine does not even have to ask.
 	if (!isConsequential(risk) && decision.allowed) return { decision, risk };
 
-	// 引擎自己就否決了（路徑逃逸、PLAN 模式下的副作用……）。
-	// 注意這一支**不會去問人**，有些拒絕是不可協商的。
+	// The engine denied it by itself (path escape, side effects in PLAN mode, and so on).
+	// Note this branch **never asks a human**; some refusals are not negotiable.
 	if (!decision.allowed && !decision.needsUser) {
 		return { decision, risk, denial: denialText(decision.reason) };
 	}
 
-	// 引擎不能自己決定 → 去問。「去哪裡問」是呼叫端的自由，
-	// Lesson 9 就是把這一行換成「丟進 inbox」。
+	// The engine cannot decide → go ask. Where to ask is the caller's choice;
+	// Lesson 9 replaces this line with "put it in the inbox".
 	if (decision.needsUser) {
 		const approved = await ask(decision, toolName, args);
 		if (!approved) {
@@ -148,11 +148,11 @@ async function gate(
 }
 
 /**
- * 拒絕要怎麼講給模型聽。
+ * How a refusal is stated to the model.
  *
- * 這段字很重要，因為它是模型**唯一**知道發生什麼事的管道。
- * 它看不到你的權限設定、看不到終端機上那個紅色的 ✗，
- * 它只看得到這個字串。
+ * This text matters, because it is the **only** channel through which the model learns what happened.
+ * It cannot see your permission configuration or the red ✗ in the terminal;
+ * all it sees is this string.
  */
 function denialText(reason: string): string {
 	const base = `Denied by the permission engine: ${reason}`;
@@ -161,7 +161,7 @@ function denialText(reason: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop（跟 Lesson 3 相同，只多了 gate）
+// The agent loop (identical to Lesson 3's, plus the gate)
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(
@@ -222,12 +222,12 @@ async function runTurn(
 				dim(`  → ${call.name}(${summarize(call.args)})  ${riskTag(risk)}`),
 			);
 
-			// ── 被拒絕：工具「沒有執行」，但一定要有一則結果 ──────
+				// ── Denied: the tool "did not execute", and there must still be a result ──
 			//
-			// 這是 Lesson 3 學到的硬規則：每個 tool call 都必須有對應的結果，
-			// 否則下一次請求會被 API 打回 400。
+				// The hard rule from Lesson 3: every tool call must have a matching result,
+				// or the next request comes back from the API as a 400.
 			//
-			// 而且結果的內容就是模型接下來唯一的依據。
+				// And that result's content is the model's only basis for what comes next.
 			if (denial) {
 				results.push({
 					toolCallId: call.id,
@@ -317,8 +317,8 @@ function firstLine(text: string): string {
 // ─────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-	// PROVIDER 沒設就用這一課自己的腳本 provider，
-	// 因為共用的那份不會踩到任何危險工具。
+	// Without PROVIDER, use this lesson's own scripted provider,
+	// because the shared one never touches a dangerous tool.
 	const provider = process.env.PROVIDER
 		? selectStreamingProvider()
 		: permissionFakeProvider();
@@ -335,7 +335,7 @@ async function main(): Promise<void> {
 
 	const ctx: ToolContext = {
 		root: ROOT,
-		// 引擎已經決定過了，registry 不該再問一次。
+			// The engine has already decided; the registry must not ask again.
 		approve: async () => true,
 		log: (line) => console.log(dim(`    │ ${line}`)),
 	};
@@ -349,7 +349,7 @@ async function main(): Promise<void> {
 	process.on("SIGINT", () => controller.abort());
 
 	try {
-		// 腳本模式：自動問一句，把整段演完就結束。
+		// Scripted mode: ask one question automatically and play the whole thing through.
 		if (!process.env.PROVIDER) {
 			const prompt = "src/app.ts 寫得很亂，幫我砍掉重來。";
 			console.log(`${cyan("你")} ${prompt}`);

@@ -1,14 +1,14 @@
 /**
- * Schema 相容層的契約測試。
+ * The schema compatibility layer's contract test.
  *
- * 分成兩半，理由跟 `provider-contract.test.ts` 一樣：
+ * Split in two for the same reason as `provider-contract.test.ts`:
  *
- *   不需要金鑰   相容層的**結構改寫**是純函式，可以完整測
- *   需要金鑰     provider 到底吃不吃、模型到底遵不遵守，只有真的打才知道
+ *   no key needed   the compatibility layer's **structural rewriting** is a pure function and can be tested fully
+ *   key needed      whether a provider accepts it and whether the model honours it can only be learned by asking
  *
- * 後半段跑的是 `bun run lesson-30:probe`，不放進 CI。
- * **CI 擋的是「相容層自己壞掉」，不是「provider 又改了」**，
- * 後者擋不住，只能定期重量。
+ * The second half runs `bun run lesson-30:probe` and is not in CI.
+ * **CI guards against "the compatibility layer broke", not "the provider changed again"**;
+ * the latter cannot be guarded, only re-measured periodically.
  */
 
 import assert from "node:assert/strict";
@@ -43,7 +43,7 @@ describe("相容層：結構改寫", () => {
 		const coordinate = (schema.properties as Record<string, any>).coordinate;
 		assert.ok(!Array.isArray(coordinate.items), "items 不該還是陣列");
 		assert.equal(coordinate.items.anyOf.length, 3);
-		// 長度限制必須保留，否則改寫之後就少了一個約束。
+			// The length limit must survive, or the rewrite loses a constraint.
 		assert.equal(coordinate.minItems, 3);
 		assert.equal(coordinate.maxItems, 3);
 	});
@@ -56,7 +56,7 @@ describe("相容層：結構改寫", () => {
 
 	test("改寫 tuple 時要留下順序的說明", () => {
 		const { notes } = compatSchema(TUPLE_SCHEMA, TARGETS.gemini!);
-		// anyOf 表達不了順序，所以順序必須用文字補回來。
+			// anyOf cannot express order, so the order has to come back as text.
 		assert.ok(
 			notes.some((note) => note.includes("tuple")),
 			`notes 應該提到 tuple，實際是 ${JSON.stringify(notes)}`,
@@ -85,8 +85,8 @@ describe("相容層：約束搬家", () => {
 	});
 
 	test("約束搬走之後**仍然留在 schema 裡**", () => {
-		// 搬進 description 是「多講一次」，不是「改成用講的」。
-		// 拿掉 schema 裡的約束會讓支援的 provider 也失去它。
+			// Moving it into the description is "saying it twice", not "switching to saying it".
+			// Removing the schema constraint would take it away from providers that do support it.
 		const { schema } = compatSchema(NUMERIC_SCHEMA, TARGETS.gemini!);
 		const field = (schema.properties as Record<string, any>).downtime_minutes;
 		assert.equal(field.multipleOf, 15);

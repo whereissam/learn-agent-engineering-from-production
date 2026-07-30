@@ -1,15 +1,15 @@
 /**
- * Lesson 10 示範：斷線重連會掉什麼，以及為什麼。
+ * Lesson 10's demonstration: what a reconnect loses, and why.
  *
- * 不需要 API key（用 PROVIDER=fake）。三個情境都是真的跑出來的，
- * 兩個 server 進程、多個 client 連線，全部照 README 的順序演一遍：
+ * No API key needed (it uses PROVIDER=fake). All three scenarios were really run,
+ * with two server processes and several client connections, following the README's order:
  *
- *   1. NAIVE server：斷線 → 重連 → 那段話永久消失
- *   2. 修好的 server：斷線 → 重連 → 畫面補回來
- *   3. 兩個 client 看同一個 session：一個送訊息，兩個都看得到；
- *      一個按中斷，兩個都停
+ *   1. the NAIVE server: disconnect → reconnect → that passage is gone forever
+ *   2. the fixed server: disconnect → reconnect → the screen is restored
+ *   3. two clients on one session: one sends a message and both see it;
+ *      one interrupts and both stop
  *
- * 執行：bun run lesson-10-agent-server/demo.ts
+ * Run: bun run lesson-10-agent-server/demo.ts
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -29,20 +29,20 @@ const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ─────────────────────────────────────────────────────────────
-// 一個極簡的 client，只收文字，方便比對「看到了多少」
+// A minimal client that receives only text, for comparing "how much did it see"
 // ─────────────────────────────────────────────────────────────
 
 interface Watcher {
-	/** 畫面上的全部文字 = 連上時補送的歷史 + 之後即時進來的 delta。 */
+	/** All the text on screen = the history resent on connect plus the deltas that arrived live. */
 	seen: string;
 	/**
-	 * 只算即時進來的 delta。
+		 * Only the deltas that arrived live.
 	 *
-	 * 要跟 seen 分開，不然兩個情境沒得比：修好的 server 一連上就補一段歷史，
-	 * 那段不是「這次連線看到的」，混在一起會讓 NAIVE 版看起來比較慘。
+		 * Kept separate from seen, or the two scenarios cannot be compared: the fixed server resends history
+		 * on connect, and that history is not "what this connection saw"; mixing them makes NAIVE look worse than it is.
 	 */
 	deltas: string;
-	/** 連上時 server 有沒有補送狀態（NAIVE 模式沒有）。 */
+	/** Did the server resend state on connect (NAIVE mode does not). */
 	resynced: boolean;
 	close(): void;
 }
@@ -102,7 +102,7 @@ function watch(port: number, session: string, label: string, echo = false): Watc
 			}
 		}
 	})().catch(() => {
-		/* abort 造成的中止是預期的 */
+			/* An abort-induced termination is expected */
 	});
 
 	return state;
@@ -151,10 +151,10 @@ async function interrupt(port: number, session: string): Promise<void> {
 }
 
 /**
- * 讓 agent 直接進到「講一段長話」那一段。
+ * Get the agent straight to the "say a long passage" part.
  *
- * fake provider 的前兩輪是工具呼叫（見 shared/streaming/fake.ts:48）。
- * 我們要示範的是「文字串到一半斷線」，所以先把那兩輪跑掉。
+ * The fake provider's first two turns are tool calls (see shared/streaming/fake.ts:48).
+ * What is being demonstrated is "disconnecting mid-text", so those two turns run first.
  */
 async function warmUp(port: number, session: string): Promise<void> {
 	for (let i = 0; i < 2; i++) {
@@ -175,7 +175,7 @@ async function waitIdle(port: number, session: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 情境 1 + 2：同一段劇本，跑在兩種 server 上
+// Scenarios 1 and 2: the same script on two kinds of server
 // ─────────────────────────────────────────────────────────────
 
 async function reconnectScenario(naive: boolean): Promise<void> {
@@ -186,7 +186,7 @@ async function reconnectScenario(naive: boolean): Promise<void> {
 	try {
 		await warmUp(port, session);
 
-		// 連上、送訊息、看著它講
+			// Connect, send a message, watch it talk
 		const before = watch(port, session, "client");
 		await sleep(100);
 		await send(port, session, "講一段長的");
@@ -199,7 +199,7 @@ async function reconnectScenario(naive: boolean): Promise<void> {
 		await waitIdle(port, session); // turn 在背景繼續跑完
 		console.log(dim("  斷線期間 turn 在 server 上跑完了"));
 
-		// 重新連上
+			// Reconnect
 		const after = watch(port, session, "client");
 		await sleep(200);
 
@@ -239,7 +239,7 @@ async function totalText(port: number, session: string): Promise<number> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 情境 3：兩個視窗
+// Scenario 3: two windows
 // ─────────────────────────────────────────────────────────────
 
 async function twoWindowsScenario(): Promise<void> {
@@ -278,7 +278,7 @@ async function twoWindowsScenario(): Promise<void> {
 		);
 		console.log(`  ${green("✓")} 中斷是 session 的事，不是視窗的事`);
 
-		// 送訊息的人不能同時送兩次
+			// The sender cannot send twice at once
 		console.log(dim("\n  連按兩次送出："));
 		const first = fetch(`http://127.0.0.1:${port}/session/${session}/message`, {
 			method: "POST",

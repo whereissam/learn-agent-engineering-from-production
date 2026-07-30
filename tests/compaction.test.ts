@@ -1,9 +1,9 @@
 /**
- * Context 壓縮（Lesson 5）。
+ * Context compaction (Lesson 5).
  *
- * 兩個關鍵不變條件：
- *   1. 切點不能拆散 tool call 跟它的 result（拆了下一次請求就 400）
- *   2. 壓縮如果沒讓 context 變小，就不要壓
+ * Two key invariants:
+ *   1. the cut must not separate a tool call from its result (separating them 400s the next request)
+ *   2. if compaction does not make the context smaller, do not compact
  */
 
 import assert from "node:assert/strict";
@@ -28,7 +28,7 @@ const toolResult = (id: string, content = "file contents"): Message => ({
 	results: [{ toolCallId: id, toolName: "read_file", content }],
 });
 
-/** 回傳固定摘要的假 provider。 */
+/** A fake provider returning a fixed summary. */
 function fakeProvider(summary: string): StreamingProvider {
 	const provider: StreamingProvider = {
 		name: "fake",
@@ -77,7 +77,7 @@ describe("觸發條件（Lesson 5）", () => {
 
 describe("切點不能拆散 tool call/result（Lesson 5 Step 5）", () => {
 	test("保留的第一則不會是 toolResult", async () => {
-		// 刻意讓理想切點正好落在 toolResult 上
+			// Deliberately place the ideal cut point exactly on a toolResult
 		const messages: Message[] = [
 			user("start"),
 			assistantText("thinking"),
@@ -96,7 +96,7 @@ describe("切點不能拆散 tool call/result（Lesson 5 Step 5）", () => {
 				messages,
 				{ ...DEFAULT_COMPACTION, keepRecent },
 			);
-			// compactedCount 為 0 代表沒壓（摘要不划算），那就沒有切點問題
+				// compactedCount of 0 means nothing was compacted (not worth it), so there is no cut point to worry about
 			if (result.compactedCount === 0) continue;
 
 			const firstKept = result.messages[1]; // [0] 是摘要

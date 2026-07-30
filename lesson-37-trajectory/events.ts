@@ -1,26 +1,26 @@
 /**
- * 事件模型：**誰說的，寫在型別裡。**
+ * The event model: **who said it, written into the type.**
  *
- * Lesson 1 到 28，history 都是這三種角色的陣列：
+ * From Lesson 1 to 28, history has been an array of these three roles:
  *
  *   user / assistant / toolResult
  *
- * **那是聊天記錄。** 它能表達「有人說了什麼」，表達不了
- * 「agent 想做什麼」跟「世界回了什麼」是兩種不同性質的事實。
+ * **That is a chat log.** It can express "somebody said something" and cannot express that
+ * "what the agent wants to do" and "what the world answered" are facts of different natures.
  *
- * OpenHands 記的是另一種東西（`openhands/src/types/agent-server/core/events/`）：
+ * OpenHands records something else (`openhands/src/types/agent-server/core/events/`):
  *
- *   ActionEvent       agent 想做什麼（thought + tool_call + 誰發的）
- *   ObservationEvent  環境回了什麼    source 永遠是 "environment"
+ *   ActionEvent       what the agent wants to do (thought + tool_call + who emitted it)
+ *   ObservationEvent  what the environment returned; source is always "environment"
  *
- * ⚠️ **`observation-event.ts:10` 那個 `source: "environment"` 是整課的重點。**
- * 它是型別上的硬性規定，不是慣例。翻譯成人話：
+ * ⚠️ **`source: "environment"` at `observation-event.ts:10` is the whole point of the lesson.**
+ * It is a hard rule in the type system, not a convention. In plain words:
  *
- * > **observation 不是 agent 說的，是世界說的。**
+ * > **An observation is not what the agent said, it is what the world said.**
  *
- * 對照 `base/common.ts:56`：`SourceType = "agent" | "user" | "environment" | "hook"`。
- * 四個來源，而**每一種事件都把自己的 source 釘死**，
- * 所以「模型宣稱的事」跟「量測到的事」在型別上就進不了同一個欄位。
+ * Against `base/common.ts:56`: `SourceType = "agent" | "user" | "environment" | "hook"`.
+ * Four sources, and **every event pins its own source down**,
+ * so "what the model claimed" and "what was measured" cannot enter the same field.
  */
 
 export type Source = "agent" | "user" | "environment";
@@ -31,7 +31,7 @@ export interface BaseEvent {
 	source: Source;
 }
 
-/** 使用者說的話。 */
+/** What the user said. */
 export interface MessageEvent extends BaseEvent {
 	kind: "message";
 	source: "user" | "agent";
@@ -39,11 +39,11 @@ export interface MessageEvent extends BaseEvent {
 }
 
 /**
- * agent 想做一件事。
+ * The agent wants to do something.
  *
- * 注意 `thought` 跟 `action` 是分開的欄位：**想法不是動作**。
- * 我們的 `blocks: [{text}, {toolCall}]` 也算分開了，
- * 但下面兩個欄位是我們沒有的。
+ * Note that `thought` and `action` are separate fields: **a thought is not an action**.
+ * Our `blocks: [{text}, {toolCall}]` separates them too,
+ * but the two fields below are ones we do not have.
  */
 export interface ActionEvent extends BaseEvent {
 	kind: "action";
@@ -53,57 +53,57 @@ export interface ActionEvent extends BaseEvent {
 	toolCallId: string;
 	args: Record<string, unknown>;
 	/**
-	 * 同一次 LLM 回應發出的動作共用一個 id（`action-event.ts:56`）。
+	 * Actions emitted by the same LLM response share an id (`action-event.ts:56`).
 	 *
-	 * ⚠️ **這正是 Lesson 23 那個潛伏三課的 bug 的資料模型解。**
-	 * 那次 Gemini 的 OpenAI 相容層不送 `index`，平行工具呼叫的 arguments
-	 * 被串成一個壞字串。我們是靠 `index ?? id` 修的；
-	 * OpenHands **在資料模型裡就有「同一次回應」這個概念**。
+	 * ⚠️ **This is the data-model answer to Lesson 23's bug that lay latent for three lessons.**
+	 * There, Gemini's OpenAI-compatible layer did not send `index`, and parallel tool calls'
+	 * arguments were concatenated into one broken string. We fixed it with `index ?? id`;
+	 * OpenHands **has the concept of "the same response" in its data model**.
 	 *
-	 * 而且它不只修 bug：有了它才分得出
-	 * 「一次回應叫了三個工具」和「三次回應各叫一個工具」——
-	 * 那對 doom-loop 偵測（Lesson 28 提到的 opencode 規則）是兩種完全不同的情況。
+	 * And it does more than fix a bug: with it you can distinguish
+	 * "one response called three tools" from "three responses each called one" —
+	 * two completely different situations for doom-loop detection (the opencode rule mentioned in Lesson 28).
 	 */
 	llmResponseId: string;
 	/**
-	 * ⚠️ **這個欄位是反面教材，而且原始碼自己講明了。**
+	 * ⚠️ **This field is a counter-example, and the source says so itself.**
 	 *
-	 * `action-event.ts:61` 的 `security_risk` 是 **LLM 預測的**風險等級。
-	 * 而 `:44-47` 的註解說明了他們怎麼處理它：
+	 * `security_risk` at `action-event.ts:61` is a risk level **predicted by the LLM**.
+	 * And the comment at `:44-47` explains how they handle it:
 	 *
 	 * > `tool_call` may contain `security_risk` field predicted by LLM when
 	 * > LLM risk analyzer is enabled, while `action` does not.
 	 *
-	 * **他們把「模型自評的風險」跟「動作本身」分開存。** 這個設計是對的，
-	 * 但它跟 Lesson 8 的立場正面衝突：風險分級應該是確定性的、由 harness 決定。
+	 * **They store "the model's self-assessed risk" separately from "the action itself".** That design is right,
+	 * and the field conflicts head-on with Lesson 8's position: risk classification should be deterministic and decided by the harness.
 	 *
-	 * 所以這裡保留它，然後用 `agent.ts` 去量它值不值得信。
+	 * So it is kept here, and `agent.ts` measures whether it is worth believing.
 	 */
 	selfAssessedRisk?: "UNKNOWN" | "LOW" | "MEDIUM" | "HIGH";
 }
 
-/** 環境回了什麼。**source 釘死成 "environment"。** */
+/** What the environment returned. **source is pinned to "environment".** */
 export interface ObservationEvent extends BaseEvent {
 	kind: "observation";
 	source: "environment";
 	toolName: string;
 	toolCallId: string;
-	/** 這是在回應哪一個 action。 */
+	/** Which action this responds to. */
 	actionId: string;
 	content: string;
-	/** 有 exit code 的工具才有。它是量測，不是敘述。 */
+	/** Only tools with an exit code have one. It is a measurement, not a narration. */
 	exitCode?: number;
 }
 
 /**
- * 使用者拒絕了這個動作（`observation-event.ts:39`）。
+ * The user rejected this action (`observation-event.ts:39`).
  *
- * ⚠️ **這是一個獨立的事件型別，帶 `rejection_reason`。**
+ * ⚠️ **This is its own event type, carrying `rejection_reason`.**
  *
- * 我們在 Lesson 8/9 把拒絕塞進 `ToolResult.isError` 的字串裡，
- * 於是「使用者說不」和「工具自己壞了」長得一模一樣。
- * 而它們的後續完全不同：工具壞了值得重試，使用者拒絕不值得
- * （Lesson 28 對 `interrupted` 也講了同一句話 —— 第三次出現了）。
+ * In Lessons 8/9 we stuffed rejections into `ToolResult.isError`'s string,
+ * so "the user said no" and "the tool broke" look identical.
+ * And their consequences differ completely: a broken tool is worth retrying and a user rejection is not
+ * (Lesson 28 says the same about `interrupted` — the third appearance).
  */
 export interface UserRejectEvent extends BaseEvent {
 	kind: "user-reject";
@@ -115,15 +115,15 @@ export interface UserRejectEvent extends BaseEvent {
 }
 
 /**
- * **我們自己的鷹架壞了**（`observation-event.ts:52`，`source: "agent"`）。
+ * **Our own harness broke** (`observation-event.ts:52`, `source: "agent"`).
  *
- * 第三種失敗，跟上面兩種都不同：
+ * A third kind of failure, different from both above:
  *
- *   observation + exitCode≠0   環境說這件事失敗了
- *   user-reject                人說不要做
- *   agent-error                **我們的程式有 bug**
+ *   observation + exitCode≠0   the world says this failed
+ *   user-reject                a person says do not do it
+ *   agent-error                **our program has a bug**
  *
- * 混在一起的代價很具體：你會拿著自己的 bug 去調 prompt。
+ * The cost of mixing them is concrete: you end up tuning prompts to work around your own bug.
  */
 export interface AgentErrorEvent extends BaseEvent {
 	kind: "agent-error";
@@ -134,23 +134,23 @@ export interface AgentErrorEvent extends BaseEvent {
 }
 
 /**
- * 壓縮本身是 trajectory 裡的一個事件（`condensation-event.ts`）。
+ * Compaction is itself an event in the trajectory (`condensation-event.ts`).
  *
- * Lesson 5 是直接改寫訊息陣列，所以**壓縮完之後看不出壓縮過**。
- * 當成事件之後，「哪些事件被忘掉了」是資料，不是副作用：
+ * Lesson 5 rewrites the message array directly, so **afterwards you cannot tell compaction happened**.
+ * As an event, "which events were forgotten" is data rather than a side effect:
  *
- *   forgottenIds  被移出 LLM view 的事件
- *   summary       取代它們的摘要
+ *   forgottenIds  the events removed from the LLM's view
+ *   summary       the summary replacing them
  *
- * 而原始碼的註解點出了關鍵字：`removed from the View given to the LLM`。
- * **trajectory 是 append-only 的，view 是算出來的**，見 `trajectory.ts`。
+ * And the source's comment names the key term: `removed from the View given to the LLM`.
+ * **The trajectory is append-only and the view is computed**; see `trajectory.ts`.
  */
 export interface CondensationEvent extends BaseEvent {
 	kind: "condensation";
 	source: "environment";
 	forgottenIds: string[];
 	summary: string;
-	/** 摘要要插在 view 的哪個位置。 */
+	/** Where in the view the summary is inserted. */
 	summaryOffset?: number;
 }
 
@@ -162,7 +162,7 @@ export type TrajectoryEvent =
 	| AgentErrorEvent
 	| CondensationEvent;
 
-/** 這個事件是不是「世界說的」。 */
+/** Whether this event is "what the world said". */
 export function isFromEnvironment(event: TrajectoryEvent): boolean {
 	return event.source === "environment";
 }

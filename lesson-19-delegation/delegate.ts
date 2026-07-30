@@ -1,7 +1,7 @@
 /**
- * 委派：把一件事交給一個**看不到你的 context** 的子 agent。
+ * Delegation: handing something to a subagent that **cannot see your context**.
  *
- * Hermes 的 `tools/delegate_tool.py`（3697 行）開頭把契約寫得很清楚：
+ * The top of Hermes's `tools/delegate_tool.py` (3697 lines) states the contract clearly:
  *
  *   > Each child gets:
  *   >   - A fresh conversation (no parent history)
@@ -12,12 +12,12 @@
  *   > The parent's context only sees the delegation call and the summary
  *   > result, never the child's intermediate tool calls or reasoning.
  *
- * **最後一句是整個機制的目的，也是它的代價。**
- * 父 agent 的 context 不會被子 agent 的十次工具呼叫塞爆；
- * 交換條件是父 agent **只看得到摘要**，摘要裡沒有的東西就是沒有了。
+ * **The last sentence is the mechanism's purpose and its cost.**
+ * The parent's context does not get flooded by the child's ten tool calls;
+ * in exchange the parent **sees only the summary**, and what is not in the summary is gone.
  *
- * 所以委派不是「多幾個腦袋一起想」。它是一條**資訊邊界**，
- * 而邊界的兩邊都要付代價：這邊省 context，那邊掉細節。
+ * So delegation is not "more brains thinking together". It is an **information boundary**,
+ * and both sides pay: this side saves context, that side loses detail.
  */
 
 import type {
@@ -29,10 +29,10 @@ import type {
 } from "../shared/streaming/types.ts";
 
 /**
- * 子 agent 一律不准用的工具。
+ * Tools a subagent may never use.
  *
- * 直接對照 `tools/delegate_tool.py:46-54`，連理由都照抄，
- * 因為那五行註解就是這一課的一半內容：
+ * Copied directly from `tools/delegate_tool.py:46-54`, reasons included,
+ * because those five comment lines are half this lesson's content:
  *
  *   delegate_task  no recursive delegation
  *   clarify        no user interaction
@@ -40,16 +40,16 @@ import type {
  *   send_message   no cross-platform side effects
  *   cronjob        no scheduling more work in the parent's name
  *
- * ⚠️ **五個理由是五種不同的東西，不是同一條規則的五個例子**：
+ * ⚠️ **The five reasons are five different things, not five examples of one rule**:
  *
- *   delegate_task  資源（會指數展開）
- *   clarify        通道（子 agent 那一側根本沒有使用者）
- *   memory         共用狀態（誰都能寫的話，隔離就是假的）
- *   send_message   外部副作用（收不回來，而且父 agent 不知情）
- *   cronjob        身分（用父 agent 的名義排未來的工作）
+ *   delegate_task  resources (it expands exponentially)
+ *   clarify        the channel (there is no user on the child's side at all)
+ *   memory         shared state (if anyone can write it, the isolation is fake)
+ *   send_message   external side effects (unrecallable, and the parent does not know)
+ *   cronjob        identity (scheduling future work in the parent's name)
  *
- * 最後一個最容易漏。它不是「現在會發生什麼」，
- * 是**「以後會用誰的名義發生什麼」**。
+ * The last is the easiest to miss. It is not about what happens now
+ * but **whose name something later happens under**.
  */
 export const BLOCKED_FOR_CHILDREN = new Set([
 	"delegate_task",
@@ -60,42 +60,42 @@ export const BLOCKED_FOR_CHILDREN = new Set([
 ]);
 
 export interface DelegationRequest {
-	/** 要子 agent 做什麼。 */
+	/** What the subagent should do. */
 	goal: string;
-	/** 父 agent 決定要傳過去的背景。**這就是那條資訊邊界。** */
+	/** The background the parent chose to pass along. **This is the information boundary.** */
 	context?: string;
 }
 
 export interface ChildResult {
 	goal: string;
-	/** 回給父 agent 的**只有這個**。 */
+	/** **All** the parent gets back. */
 	summary: string;
 	steps: number;
 	toolCalls: string[];
 	usage: { input: number; output: number; total: number };
-	/** 子 agent 想用但被擋下來的工具。 */
+	/** Tools the subagent tried to use and was blocked from. */
 	blockedAttempts: string[];
 	error?: string;
 }
 
 export interface ChildOptions {
 	provider: StreamingProvider;
-	/** 父 agent 有的工具。子 agent 拿到的是這個減掉 blocklist。 */
+	/** The tools the parent has. The child receives these minus the blocklist. */
 	tools: ToolSpec[];
 	execute: (name: string, args: Record<string, unknown>) => Promise<string>;
 	maxSteps?: number;
 	/**
-	 * blocklist 要不要生效。**false 是這一課要示範的錯誤版本。**
+		 * Whether the blocklist applies. **false is the broken version this lesson demonstrates.**
 	 */
 	blocklist?: boolean;
 	/**
-	 * 子 agent 碰到需要批准的操作時怎麼辦。
+		 * What a subagent does when it meets an operation needing approval.
 	 *
-	 * Hermes 的預設是 `deny`，理由在 `delegate_tool.py:60-76`：
-	 * 子 agent 跑在 worker thread 裡，**拿不到互動式的批准 callback**，
-	 * 掉回 `input()` 會跟父進程的 TUI 搶 stdin 然後死鎖。
+		 * Hermes defaults to `deny`, with the reason at `delegate_tool.py:60-76`:
+		 * a subagent runs in a worker thread and **cannot reach the interactive approval callback**,
+		 * and falling back to `input()` fights the parent process's TUI for stdin and deadlocks.
 	 *
-	 * 所以「子 agent 自動拒絕」不只是保守，它同時是一個**活性**問題的解。
+		 * So "a subagent denies automatically" is not merely conservative; it also solves a **liveness** problem.
 	 */
 	approval?: "deny" | "auto-approve";
 	log?: (line: string) => void;
@@ -110,10 +110,10 @@ of what you found. Your summary is the ONLY thing the parent will see: any
 detail you leave out is lost.`;
 
 /**
- * 跑一個子 agent。
+ * Run a subagent.
  *
- * 注意它有多短。**委派的難處不在「怎麼跑一個子 agent」**
- * （那就是一個 loop），而在於決定哪些東西不准跨過那條邊界。
+ * Note how short this is. **Delegation's difficulty is not "how do you run a subagent"**
+ * (that is a loop) but deciding what may not cross that boundary.
  */
 export async function runChild(
 	request: DelegationRequest,
@@ -126,7 +126,7 @@ export async function runChild(
 		? tools.filter((tool) => !BLOCKED_FOR_CHILDREN.has(tool.name))
 		: tools;
 
-	// ⚠️ 全新的對話。父 agent 的歷史一句都沒有帶過來。
+	// ⚠️ A brand new conversation. Not one line of the parent's history comes across.
 	const messages: Message[] = [
 		{
 			role: "user",
@@ -185,9 +185,9 @@ export async function runChild(
 			result.toolCalls.push(call.name);
 			log?.(`      ↳ ${call.name}(${JSON.stringify(call.args).slice(0, 60)})`);
 
-			// blocklist 是在**工具清單**就拿掉的，所以正常情況模型不會叫到它。
-			// 這一段擋的是「模型憑記憶叫了一個沒給它的工具」——
-			// 而那件事真的會發生（Lesson 20 那次它搜了語料裡不存在的專案名）。
+				// The blocklist removes tools from the **tool list**, so normally the model cannot call them.
+				// This branch blocks "the model called a tool it was never given from memory" —
+				// and that really happens (in Lesson 20 it searched for a project name absent from the corpus).
 			if (blocklist && BLOCKED_FOR_CHILDREN.has(call.name)) {
 				result.blockedAttempts.push(call.name);
 				results.push({
@@ -235,10 +235,10 @@ export async function runChild(
 	return result;
 }
 
-/** 這一課用得到的、有副作用的工具。真實系統會接 Lesson 8 的風險分級。 */
+/** The tools with side effects that this lesson needs. A real system would attach Lesson 8's risk levels. */
 const MUTATING = new Set(["write_file", "edit_file", "run_command", "send_email"]);
 
-/** 父 agent 看到的那個工具。 */
+/** The tool as the parent agent sees it. */
 export const DELEGATE_TOOL: ToolSpec = {
 	name: "delegate_task",
 	description:

@@ -1,20 +1,20 @@
 /**
- * 要被檢查的報告。
+ * The reports to be checked.
  *
- * 第一份是**真的**：Lesson 24 用 Gemini 3.6 Flash 跑出來的原始輸出，
- * 一個字都沒改（設計原則 3）。
+ * The first is **real**: Lesson 24's raw output from Gemini 3.6 Flash,
+ * unchanged to the character (design principle 3).
  *
- * 另外三份是從第一份**故意改壞的**，每一種對應一類引用錯誤。
- * 改壞的方式寫在程式碼裡而不是散文裡，所以你可以自己核對我改了什麼——
- * 這跟 Lesson 6 的 telemetry 產生器是同一個道理：
- * **要驗證一個檢查器，你得先有一份你知道答案的資料。**
+ * The other three are **deliberately corrupted** versions of the first, one per class of citation error.
+ * How they are corrupted is written in code rather than prose, so you can check the corruptions yourself —
+ * the same principle as Lesson 6's telemetry generator:
+ * **to verify a checker you first need data whose answer you know.**
  */
 
 /**
- * Lesson 24 的真實輸出。
+ * Lesson 24's real output.
  *
- * 我在肉眼讀這份報告時就發現一處可疑的引用（授權那條掛了三個網址，
- * 其中論壇那篇根本沒提授權）。這一課的檢查器要能自己找出來。
+ * Reading this report by eye already turned up one suspicious citation (the licensing line carries three URLs,
+ * and the forum one never mentions licensing). This lesson's checker has to find it by itself.
  */
 export const REAL_REPORT = `### 核心答案
 
@@ -42,26 +42,26 @@ export interface Fixture {
 	id: string;
 	label: string;
 	report: string;
-	/** 這份報告裡我埋了什麼，檢查器至少要抓到這些。 */
+	/** What was planted in this report; the checker must catch at least these. */
 	expect: {
-		/** 至少要抓到幾條被嫁接的引用 */
+		/** At least this many grafted citations must be caught */
 		graftedAtLeast?: number;
-		/** 至少要抓到幾個沒有來源支持的原子 */
+		/** At least this many unsupported atoms must be caught */
 		unsupportedAtomsAtLeast?: number;
-		/** 至少要抓到幾條完全沒引用的事實句 */
+		/** At least this many uncited factual sentences must be caught */
 		uncitedAtLeast?: number;
 	};
-	/** 我到底改了什麼。寫出來，讀者才驗得了我。 */
+	/** Exactly what was changed. Written out so the reader can check it. */
 	injected?: string;
 }
 
-/** 數字漂移：來源說 0.8x、18 ms，報告寫成別的。 */
+/** Number drift: the source says 0.8x and 18 ms, and the report says something else. */
 const DRIFTED = REAL_REPORT.replace("0.8x", "0.5x").replace("18 ms", "8 ms").replace(
 	"50 Hz",
 	"120 Hz",
 );
 
-/** 引用嫁接：把一條正確的句子掛到一個完全無關的來源上。 */
+/** Citation grafting: attach a correct sentence to a wholly unrelated source. */
 const GRAFTED = REAL_REPORT.replace(
 	"(https://www.unitree.com/g1/developer)",
 	"(https://www.unitree.com/g1/developer, https://cookingwith.example.com/sous-vide-guide)",
@@ -70,7 +70,7 @@ const GRAFTED = REAL_REPORT.replace(
 	"若執行快速腳步動作（fast footwork）會出現腳部滑動（foot sliding）的現象；開發者在展示時透過將播放速度降低至 0.8x 來緩解此問題 (https://technews.example.com/2026/07/humanoid-robot-funding-round)",
 );
 
-/** 裸露斷言：把引用整個拔掉，句子照留。 */
+/** A bare assertion: strip the citations entirely and keep the sentence. */
 const BARE = REAL_REPORT.split("\n")
 	.map((line, index) =>
 		index % 2 === 0 ? line : line.replace(/\s*\(https?:\/\/[^)]*\)/g, ""),
@@ -82,8 +82,8 @@ export const FIXTURES: Fixture[] = [
 		id: "real",
 		label: "Lesson 24 的真實輸出（一個字沒改）",
 		report: REAL_REPORT,
-		// 這裡不寫 expect，因為我不知道正確答案是幾——
-		// **這份的用途是「檢查器對真實輸出說了什麼」，不是通過測試。**
+			// No expect here, because the right answer is unknown —
+			// **this one's purpose is "what the checker says about real output", not passing a test.**
 		expect: {},
 	},
 	{

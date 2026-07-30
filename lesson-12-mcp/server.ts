@@ -1,33 +1,33 @@
 /**
- * 一個真的 MCP server（stdio + JSON-RPC 2.0，零依賴）。
+ * A real MCP server (stdio plus JSON-RPC 2.0, zero dependencies).
  *
- * 為什麼要自己寫一個，而不是接一個現成的：
+ * Why write one rather than connecting to an existing one:
  *
- *   1. **課程要能離線跑**（設計原則 1）。接別人的 server 就要有網路、
- *      要有那個套件、還要祈禱它的版本沒變
- *   2. 更重要的：**自己寫過一次才知道 MCP 到底有多小**。
- *      這整個檔案不到 200 行，而它已經是一個合法的 MCP server 了
+ *   1. **the lesson must run offline** (design principle 1). Somebody else's server needs a network,
+ *      needs that package, and needs its version not to have changed
+ *   2. more importantly: **writing one is how you learn how small MCP is**.
+ *      This whole file is under 200 lines and is already a legal MCP server
  *
- * 協定就是三個方法：
+ * The protocol is three methods:
  *
- *   initialize                 握手，交換版本與能力
- *   tools/list                 你有哪些工具
- *   tools/call                 跑一個
+ *   initialize                 the handshake, exchanging versions and capabilities
+ *   tools/list                 which tools you have
+ *   tools/call                 run one
  *
- * 訊息是換行分隔的 JSON-RPC 2.0，走 stdin/stdout。
- * **所以 server 絕對不能 `console.log`**，那會污染協定通道。
- * 這是自己寫 MCP server 第一個會踩的坑，所以下面所有除錯輸出都走 stderr。
+ * Messages are newline-delimited JSON-RPC 2.0 over stdin/stdout.
+ * **So a server must never `console.log`**; that pollutes the protocol channel.
+ * It is the first trap when writing an MCP server, so every debug output below goes to stderr.
  *
- * 執行（通常不會手動跑，是被 client spawn 的）：
+ * Run (usually not by hand; a client spawns it):
  *   bun run lesson-12-mcp/server.ts
  */
 
 const PROTOCOL_VERSION = "2025-06-18";
 
-/** `SERVER_NAME` 讓同一個檔案可以扮演兩台不同的 server（見 agent.ts 的命名衝突示範）。 */
+/** `SERVER_NAME` lets one file play two different servers (see agent.ts's name collision demonstration). */
 const SERVER_NAME = process.env.SERVER_NAME ?? "fleet";
 
-/** `FAIL_MODE` 是用來示範失敗隔離的，真的 server 不會有這種東西。 */
+/** `FAIL_MODE` exists to demonstrate failure isolation; a real server has nothing like it. */
 const FAIL_MODE = process.env.FAIL_MODE ?? "";
 
 interface McpTool {
@@ -62,16 +62,16 @@ const TOOLS: McpTool[] = [
 	},
 	{
 		/**
-		 * ⚠️ 這個工具存在的目的有兩個，兩個都是刻意的：
+			 * ⚠️ This tool exists for two reasons, both deliberate:
 		 *
-		 * 1. 它有**外部副作用**（排維修會通知現場人員），所以權限引擎
-		 *    應該把它當 EXTERNAL 攔下來（Lesson 8）
-		 * 2. 它的 schema **故意寫得很難搞**：`notes` 是 `["string","null"]`,
-		 *    `window` 是 oneOf。這兩種在 JSON Schema 裡完全合法，
-		 *    但每家模型 provider 的接受度都不一樣（Lesson 30 的引子）
+			 * 1. it has an **external side effect** (scheduling maintenance notifies people on site), so the
+			 *    permission engine should intercept it as EXTERNAL (Lesson 8)
+			 * 2. its schema is **deliberately awkward**: `notes` is `["string","null"]`,
+			 *    and `window` is a oneOf. Both are entirely legal JSON Schema,
+			 *    and every model provider accepts them differently (the seed of Lesson 30)
 		 *
-		 * 重點在於：**這個 schema 不是你寫的。** MCP server 是別人的,
-		 * 你只能照收。這就是為什麼相容層不是可選的。
+			 * The point: **you did not write this schema.** The MCP server is somebody else's,
+			 * and you take what you are given. Which is why a compatibility layer is not optional.
 		 */
 		name: "schedule_maintenance",
 		description: "Schedule a maintenance window for a robot. Notifies the on-site team.",
@@ -97,14 +97,14 @@ const TOOLS: McpTool[] = [
 ];
 
 /**
- * `EXTRA_TOOLS=1` 多開兩個工具，**它們的名字前綴一樣**。
+ * `EXTRA_TOOLS=1` adds two more tools **whose names share a prefix**.
  *
- * 這不是為了湊數：`mcp__<server>__<tool>` 截斷到 64 字之後，
- * server 名字一長，工具名字就只剩幾個字元，
- * 於是「前綴相同的兩個工具」會被截成同一個名字。
+ * Not for padding: once `mcp__<server>__<tool>` is truncated to 64 characters,
+ * a long server name leaves only a few characters for the tool name,
+ * so "two tools sharing a prefix" truncate to the same name.
  *
- * 這是現實中最容易踩到的碰撞形狀，比「兩台 server 同名工具」常見得多，
- * 因為同一台 server 的工具本來就常常共用動詞前綴。
+ * This is the most common collision shape in reality, far more common than "two servers with the same tool name",
+ * because tools on one server routinely share verb prefixes.
  */
 const EXTRA_TOOLS: McpTool[] =
 	process.env.EXTRA_TOOLS === "1"
@@ -192,13 +192,13 @@ async function handle(message: {
 }): Promise<void> {
 	const { id, method, params } = message;
 
-	// 通知（沒有 id）不需要回覆。
+		// A notification (no id) needs no reply.
 	if (id === undefined) return;
 
 	switch (method) {
 		case "initialize":
-			// FAIL_MODE=hang：接受連線但永遠不回握手。
-			// 這是最難處理的一種壞掉方式，因為它沒有錯誤，只有沉默。
+				// FAIL_MODE=hang: accept the connection and never answer the handshake.
+				// The hardest kind of breakage to handle, because there is no error, only silence.
 			if (FAIL_MODE === "hang") return;
 			reply(id, {
 				protocolVersion: PROTOCOL_VERSION,
@@ -224,9 +224,9 @@ async function handle(message: {
 			}
 
 			const { text, isError } = callTool(name, args);
-			// 注意工具的錯誤是 `isError: true` **的正常回應**，不是 JSON-RPC error。
-			// 協定層的錯誤（方法不存在）跟工具層的錯誤（機器人找不到）是兩件事，
-			// 混在一起的話 agent 會分不出「該重試」和「該換做法」。
+				// Note a tool error is a **normal response** with `isError: true`, not a JSON-RPC error.
+				// A protocol-level error (no such method) and a tool-level error (robot not found) are different things,
+				// and mixing them leaves the agent unable to tell "retry" from "try another way".
 			reply(id, { content: [{ type: "text", text }], isError });
 			return;
 		}

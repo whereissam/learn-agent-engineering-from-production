@@ -1,16 +1,16 @@
 /**
- * 檢索管線：把每一個階段串起來，而且每一個都可以單獨關掉。
+ * The retrieval pipeline: every stage strung together, and every stage individually switchable.
  *
- *   BM25            關鍵字，便宜、精確、看不懂同義詞
- *   Dense           語義，跨語言，但精確字串會被稀釋
- *   RRF             把兩份名次合成一份
- *   Dedupe          近似重複只留一個
- *   Signals         新鮮度、權威度、關鍵字堆砌
- *   Diversity       同一個網域最多兩筆
+ *   BM25            keywords: cheap, precise, blind to synonyms
+ *   Dense           semantics: cross-language, and precise strings get diluted
+ *   RRF             combine two rankings into one
+ *   Dedupe          keep one of each near-duplicate
+ *   Signals         freshness, authority, keyword stuffing
+ *   Diversity       at most two results per domain
  *
- * **每個階段都能關掉**，這不是為了做設定檔，是為了做評估：
- * 你要能回答「加這個階段之後，nDCG 到底有沒有變好」。
- * 沒有這個開關，你只能一次改一堆然後憑感覺。
+ * **Every stage can be switched off**, which is not for configurability but for evaluation:
+ * you have to be able to answer "did nDCG actually improve after adding this stage".
+ * Without that switch, all you can do is change several things and go by feel.
  */
 
 import { search as bm25Search } from "../../lesson-20-search-agent/search/engine.ts";
@@ -25,7 +25,7 @@ export interface Stages {
 	dedupe: boolean;
 	signals: boolean;
 	diversity: boolean;
-	/** 最後讓模型重排前幾筆。要金鑰，預設關閉，見 rerank.ts。 */
+		/** Have the model re-rank the top few at the end. Needs a key, off by default, see rerank.ts. */
 	rerank?: boolean;
 }
 
@@ -45,20 +45,20 @@ export interface RetrievedHit {
 	title: string;
 	published: string;
 	score: number;
-	/** 這一筆在各階段的名次，用來解釋「為什麼它在這裡」。 */
+		/** This result's rank at each stage, for explaining "why is it here". */
 	bm25Rank?: number;
 	denseRank?: number;
 	/**
-	 * 跟 query 的 cosine 相似度（0-1）。
+		 * The cosine similarity to the query (0-1).
 	 *
-	 * ⚠️ 這是整個回傳值裡**唯一有絕對意義**的分數。
+		 * ⚠️ This is the **only score in the whole return value with absolute meaning**.
 	 *
-	 * `score` 是候選集內 min-max 正規化過的，所以最高分永遠接近 1，
-	 * **不管那一批候選到底相不相關**。單一來源的時候沒差（使用者自己會
-	 * 看出來前五名都是垃圾），但要跟另一個來源融合的時候就會出事：
-	 * 一個完全不相關的來源，它的「第 1 名」還是會被當成第 1 名。
+		 * `score` is min-max normalised within the candidate set, so the top is always near 1
+		 * **regardless of whether that batch is relevant at all**. Within one source that does not matter (the user
+		 * sees for themselves that the top five are rubbish), and it goes wrong the moment you fuse with another source:
+		 * a wholly irrelevant source's "rank 1" is still treated as rank 1.
 	 *
-	 * Lesson 27 就是因此被一篇 sous vide 烹飪指南汙染的。
+		 * That is how Lesson 27 got contaminated by a sous vide cooking guide.
 	 */
 	denseScore?: number;
 	signals?: Signals;
@@ -67,14 +67,14 @@ export interface RetrievedHit {
 export interface RetrieveResult {
 	hits: RetrievedHit[];
 	duplicates: DuplicateGroup[];
-	/** BM25 有沒有完全沒東西（例如中文 query）。 */
+		/** Did BM25 return nothing at all (a Chinese query, say). */
 	bm25Empty: boolean;
 }
 
-/** 每一路各取幾筆進融合。取太少會漏，取太多會讓後面的階段做白工。 */
+/** How many each path contributes to the fusion. Too few misses things; too many makes later stages work for nothing. */
 const CANDIDATES = 10;
 
-/** rerank 只看前幾筆。這個數字直接決定那一步的成本。 */
+/** rerank only sees the top few. This number directly decides that step's cost. */
 const RERANK_DEPTH = 8;
 
 export async function retrieve(
@@ -108,7 +108,7 @@ export async function retrieve(
 
 	const bm25Empty = stages.bm25 && bm25Position.size === 0;
 
-	// 兩路都沒有東西：直接回空，不要假裝有結果
+	// Neither path has anything: return empty rather than pretending there are results
 	if (lists.length === 0) return { hits: [], duplicates: [], bm25Empty };
 
 	const fused = rrf(lists);
@@ -119,8 +119,8 @@ export async function retrieve(
 
 	let duplicates: DuplicateGroup[] = [];
 	if (stages.dedupe) {
-		// 去重要在加訊號**之前**做。
-		// 反過來的話，你可能會留下鏡像站而砍掉原始 repo，只因為鏡像站比較新。
+		// Dedup must happen **before** the signals.
+		// The other way round, you may keep a mirror site and cut the original repo, purely because the mirror is newer.
 		const result = dedupe(ordered, byId);
 		ordered = result.ids;
 		duplicates = result.groups;
@@ -136,8 +136,8 @@ export async function retrieve(
 
 	if (stages.diversity) scored = diversify(scored, byId);
 
-	// rerank 只看前面幾筆。這是整條管線最貴的一步，
-	// 所以它要在候選已經被縮到很小之後才出場。
+	// rerank only sees the top few. It is the most expensive step in the pipeline,
+	// so it appears only once the candidates have been narrowed a lot.
 	if (stages.rerank) {
 		const head = scored.slice(0, RERANK_DEPTH);
 		const llmScores = await llmRerank(
@@ -152,8 +152,8 @@ export async function retrieve(
 				};
 			}),
 		);
-		// 模型沒給分的當 0。排序時 LLM 分數優先，同分時保留原本的順序，
-		// 這樣模型只需要「修正明顯錯的」，不需要重新發明整個排序。
+			// An unscored result counts as 0. Sorting puts the LLM score first and keeps the original order on ties,
+			// so the model only has to "fix what is obviously wrong" rather than reinventing the whole ranking.
 		const rescored = head
 			.map((item, i) => ({ item, llm: llmScores.get(item.id) ?? 0, original: i }))
 			.sort((a, b) => b.llm - a.llm || a.original - b.original)

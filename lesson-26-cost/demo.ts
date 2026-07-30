@@ -1,12 +1,12 @@
 /**
- * 把成本計量接到 Lesson 24 的研究上。
+ * Attach cost metering to Lesson 24's research.
  *
- *   bun run lesson-26                          預設形狀
- *   bun run lesson-26 -- --shapes              跑兩種形狀比成本
- *   PRICE_INPUT=0.3 PRICE_OUTPUT=2.5 bun run lesson-26     加上金額
- *   PROVIDER=fake bun run lesson-26            離線跑（沒有 usage，只看結構）
+ *   bun run lesson-26                          the default shape
+ *   bun run lesson-26 -- --shapes              run two shapes and compare cost
+ *   PRICE_INPUT=0.3 PRICE_OUTPUT=2.5 bun run lesson-26     with amounts
+ *   PROVIDER=fake bun run lesson-26            offline (no usage; structure only)
  *
- * ⚠️ **Lesson 24 的程式碼一行都沒改。** 這裡只是把它的 provider 包了一層。
+ * ⚠️ **Not one line of Lesson 24's code changed.** This merely wraps its provider.
  */
 
 import { research } from "../lesson-24-research-loop/research.ts";
@@ -24,13 +24,13 @@ const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 /**
- * 把一次呼叫歸到哪個步驟。
+ * Which step a call belongs to.
  *
- * 裝飾器只看得到 request，看不到是誰呼叫的，所以只能從 prompt 認。
- * 這有點土，但**代價是零**：Lesson 24 完全不用知道有人在旁邊記帳。
+ * The decorator sees only the request and not who called, so it can only recognise from the prompt.
+ * Slightly crude, and **it costs nothing**: Lesson 24 need not know anybody is keeping books beside it.
  *
- * 換成在每個函式簽章加一個 label 參數也行（gpt-researcher 就是那樣），
- * 那樣比較精確，但每加一個步驟就要記得傳。兩種都是合理的取捨。
+ * Adding a label parameter to every function signature also works (gpt-researcher does that),
+ * which is more precise and requires remembering to pass it for every new step. Both are reasonable trade-offs.
  */
 function classify(request: ModelRequest): string {
 	const prompt = request.messages.map((m) => (m.role === "user" ? m.text : "")).join("\n");
@@ -117,7 +117,7 @@ async function main(): Promise<void> {
 	}
 
 	if (process.argv.includes("--shapes")) {
-		// 「深度旋鈕就是成本旋鈕」——用兩個形狀把它變成數字
+			// "The depth knob is the cost knob" — two shapes turn it into numbers
 		const shapes: Array<[number, number]> = [
 			[2, 1],
 			[3, 2],

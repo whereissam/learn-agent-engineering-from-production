@@ -1,22 +1,22 @@
 /**
- * 驗證這一課引用的每一行原始碼還在不在。
+ * Verify that every line of source this lesson cites is still there.
  *
- * 為什麼要寫這個？因為**行號一定會過期**。前面幾課對照 Pi 的時候，
- * 我就寫錯過一次（設計原則 4 那條就是那次留下的）。
+ * Why write this? Because **line numbers certainly go stale**. While comparing against Pi in earlier lessons
+ * one was written wrongly (design principle 4 is what that left behind).
  *
- * 與其寫一份「看起來很精確、其實已經對不上」的文件，
- * 不如讓文件自己可以被檢查：
+ * Rather than a document that looks precise and no longer matches,
+ * let the document check itself:
  *
  *   bun run lesson-23:check
  *
- * 它會去你本機的 clone 找每一條引用，回報三種狀態：
+ * It looks for every citation in your local clones and reports three states:
  *
- *   ✓  行號正確
- *   ~  內容還在，但行號漂了（會告訴你新行號）
- *   ✗  找不到了（上游刪掉或大改）
+ *   ✓  the line number is right
+ *   ~  the content is there and the line number drifted (it tells you the new one)
+ *   ✗  gone (deleted or heavily rewritten upstream)
  *
- * 參考專案不進版控（在 `.git/info/exclude` 裡），所以沒 clone 的人
- * 會看到一份 clone 指令，而不是一堆錯誤。
+ * The reference projects are not in version control (they are in `.git/info/exclude`), so somebody without clones
+ * sees a list of clone commands rather than a pile of errors.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -46,9 +46,9 @@ function check(citation: Citation): { status: Status; actualLine?: number } {
 
 	const lines = readFileSync(file, "utf8").split("\n");
 
-	// 先看引用的那一行，不對再看附近，都不對就全檔搜。
-	// 「附近」的容忍範圍刻意設小：漂 20 行以內算行號沒更新，
-	// 漂更多通常代表那段程式碼被搬走或重寫了，值得你自己去看一眼。
+		// Look at the cited line first, then nearby, and only then search the whole file.
+		// The "nearby" tolerance is deliberately small: drifting within 20 lines means the line number was not updated,
+		// and drifting further usually means that code moved or was rewritten, which is worth looking at yourself.
 	const target = lines[citation.line - 1] ?? "";
 	if (target.includes(citation.contains)) return { status: "ok" };
 

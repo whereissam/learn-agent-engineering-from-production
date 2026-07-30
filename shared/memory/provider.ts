@@ -1,66 +1,66 @@
 /**
- * 記憶 provider 介面。
+ * The memory provider interface.
  *
- * Hermes 的 memory_provider.py 開頭那段 lifecycle 註解，
- * 幾乎是照抄下來就能用的設計：
+ * The lifecycle comment at the top of Hermes's memory_provider.py
+ * is a design you can copy almost verbatim:
  *
- *   initialize()          連線、建資源、暖機
- *   system_prompt_block()  放進 system prompt 的靜態文字
- *   prefetch(query)        每一輪之前的回想
- *   sync_turn(user, asst)  每一輪之後的寫入
- *   get_tool_schemas()     要不要給模型記憶相關的工具
- *   shutdown()             收尾
+ *   initialize()           connect, create resources, warm up
+ *   system_prompt_block()  static text for the system prompt
+ *   prefetch(query)        recall before each turn
+ *   sync_turn(user, asst)  the write after each turn
+ *   get_tool_schemas()     whether to give the model memory-related tools
+ *   shutdown()             cleanup
  *
- * 重點是這三個掛勾點**剛好對應我們 loop 的三個位置**：
+ * The point is that those three hook points **map exactly onto three positions in our loop**:
  *
- *   systemPromptBlock()  → loop 開始之前，只做一次
- *   prefetch(query)      → 每次呼叫 LLM 之前（就是 Lesson 5 的 transformContext 位置）
- *   syncTurn(u, a)       → 每一輪結束之後
+ *   systemPromptBlock()  → before the loop starts, once
+ *   prefetch(query)      → before every LLM call (Lesson 5's transformContext position)
+ *   syncTurn(u, a)       → after every turn
  *
- * 換句話說，「長期記憶」不是一個新的迴圈，是掛在舊迴圈上的三個 hook。
+ * In other words, "long-term memory" is not a new loop but three hooks on the old one.
  *
- * 對照：hermes-agent/agent/memory_provider.py
+ * Source: hermes-agent/agent/memory_provider.py
  */
 
 import type { ToolSpec } from "../providers/types.ts";
 
 export interface MemoryProvider {
-	/** 短識別名，例如 "file"、"honcho"。 */
+	/** A short identifier, "file" or "honcho" for example. */
 	readonly name: string;
 
 	/**
-	 * 這個 provider 現在可以用嗎？
+		 * Is this provider usable right now?
 	 *
-	 * Hermes 的註解特別說：**不要在這裡打網路**，只檢查設定跟相依。
-	 * 因為它是在 agent 啟動時同步呼叫的，網路請求會拖慢啟動。
+		 * Hermes's comment says specifically: **do not touch the network here**, only check configuration and dependencies.
+		 * Because it is called synchronously at agent startup, and a network request slows startup down.
 	 */
 	isAvailable(): boolean;
 
 	initialize?(): Promise<void>;
 
 	/**
-	 * 放進 system prompt 的靜態文字。
+		 * Static text for the system prompt.
 	 *
-	 * 「靜態」是關鍵：這段內容在整個 session 裡不會變，
-	 * 所以它可以被 prompt cache 快取。會變的東西要走 prefetch。
+		 * "Static" is the key: this content does not change during a session,
+		 * so it can be prompt-cached. Anything that changes goes through prefetch.
 	 */
 	systemPromptBlock(): string;
 
 	/**
-	 * 依照這一輪的輸入回想相關記憶。
+		 * Recall memories relevant to this turn's input.
 	 *
-	 * 回傳原始文字就好，**不要自己加圍欄**。
-	 * 圍欄由 manager 統一加，理由見 manager.ts。
+		 * Return the raw text; **do not add a fence yourself**.
+		 * The manager adds the fence uniformly; the reason is in manager.ts.
 	 */
 	prefetch(query: string): Promise<string>;
 
-	/** 一輪結束後寫入。 */
+	/** The write after a turn ends. */
 	syncTurn(userMessage: string, assistantMessage: string): Promise<void>;
 
-	/** 要給模型的記憶工具（例如「記住這件事」）。 */
+	/** Memory tools for the model ("remember this", say). */
 	toolSpecs?(): ToolSpec[];
 
-	/** 執行記憶工具。 */
+	/** Execute a memory tool. */
 	handleToolCall?(name: string, args: Record<string, unknown>): Promise<string>;
 
 	shutdown?(): Promise<void>;

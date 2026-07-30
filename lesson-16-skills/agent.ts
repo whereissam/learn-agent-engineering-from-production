@@ -1,26 +1,26 @@
 /**
- * Lesson 16 - 路由實驗：description 被切掉之後，模型還找得到嗎？
+ * Lesson 16 - the routing experiment: once a description is truncated, can the model still find it?
  *
- * 這一課 Step 2 引了 Hermes 的 authoring standard，斷言非常強：
+ * This lesson's Step 2 quotes Hermes's authoring standard, whose assertion is very strong:
  *
  *     anything past char 60 is silently cut and never routes
- *     → 模型永遠不會知道這個 skill 能做什麼，於是永遠不會叫用它
+ *     → the model will never know what this skill does, so it will never invoke it
  *
- * 這是一個關於**模型行為**的斷言。`demo.ts` 只能證明字串被 `truncate()`
- * 切掉了，證明不了「模型因此找不到它」。
+ * That is an assertion about **model behaviour**. `demo.ts` can only prove `truncate()`
+ * cut the string; it cannot prove "and therefore the model cannot find it".
  *
- * 而且這個斷言有理由懷疑：`replay-fall-window` 這個**名字本身**
- * 就帶了很多路由訊息。所以描述被切掉，模型也許照樣找得到。
+ * And there is reason to doubt the assertion: the **name** `replay-fall-window`
+ * itself carries plenty of routing information. So a truncated description may not matter.
  *
- * 這支程式量測它：同一個問題、同一組 skill，只有目標 skill 的
- * description 不同，看模型有沒有 load 對的那一個。
+ * This program measures it: the same question and the same skill set, with only the target
+ * skill's description differing, checking whether the model loads the right one.
  *
- * 執行：
- *   PROVIDER=gemini bun run lesson-16:route              # 描述合格（≤60）
- *   DESC=bloated PROVIDER=gemini bun run lesson-16:route # 描述 129 字，被切
- *   DESC=useless PROVIDER=gemini bun run lesson-16:route # 描述被切成完全沒資訊
+ * Run:
+ *   PROVIDER=gemini bun run lesson-16:route              # a compliant description (≤60)
+ *   DESC=bloated PROVIDER=gemini bun run lesson-16:route # a 129-character description, truncated
+ *   DESC=useless PROVIDER=gemini bun run lesson-16:route # truncated to carry no information at all
  *
- * 判定是確定性的：模型有沒有呼叫 load_skill("replay-fall-window")。
+ * The verdict is deterministic: did the model call load_skill("replay-fall-window").
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -31,26 +31,26 @@ import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { Message, StreamingProvider, ToolSpec } from "../shared/streaming/types.ts";
 
 /**
- * skill 的名字。
+ * The skill's name.
  *
- * `NAME=opaque` 會換成一個不帶任何語意的名字。
+ * `NAME=opaque` swaps in a name with no meaning at all.
  *
- * 這是這個實驗的**關鍵控制變因**，而且是跑完第一輪才發現需要的：
- * 用 `replay-fall-window` 這個名字時，description 不管怎麼被切,
- * 模型都照樣找得到，因為名字自己就把路由訊息講完了。
- * 要驗證「description 被切會不會壞掉」，必須先把名字的訊息拿掉。
+ * This is the experiment's **key control variable**, and the need for it only became clear after the first round:
+ * with the name `replay-fall-window`, however the description is truncated,
+ * the model still finds it, because the name states the routing information by itself.
+ * Verifying "does a truncated description break it" requires removing the name's information first.
  */
 const OPAQUE_NAME = process.env.NAME?.toLowerCase() === "opaque";
 const TARGET = OPAQUE_NAME ? "sk-0472" : "replay-fall-window";
 
 /**
- * 三種描述，同一個 skill。
+ * Three descriptions for one skill.
  *
- * - good：合格，60 字以內，講「能做什麼」
- * - bloated：129 字的行銷詞。切到 60 字之後剩下一句沒講完的廢話,
- *   **但 skill 的名字還在**，這正是要測的變因
- * - useless：切到 60 字之後連主題都看不出來。這是「最壞情況」,
- *   用來確認實驗本身有鑑別度（如果連這個都能路由，那就是名字在起作用）
+ * - good: compliant, within 60 characters, stating what it can do
+ * - bloated: 129 characters of marketing. Truncated to 60 it leaves an unfinished platitude,
+ *   **and the skill's name is still there**, which is exactly the variable under test
+ * - useless: truncated to 60 it does not even reveal the topic. This is the worst case,
+ *   used to confirm the experiment can discriminate (if even this routes, the name is doing the work)
  */
 const DESCRIPTIONS: Record<string, string> = {
 	good: "Replay a robot session around a detected fall.",
@@ -66,15 +66,15 @@ const DESCRIPTIONS: Record<string, string> = {
 const VARIANT = (process.env.DESC ?? "good").toLowerCase();
 
 /**
- * 干擾用的 skill。它們的描述一律合格，所以描述長度不是變因。
+ * Distractor skills. Their descriptions are all compliant, so description length is not a variable.
  *
- * 兩組的差別是**難度**，而這件事是跑完第一輪才發現必須區分的：
+ * The two groups differ in **difficulty**, and the need to distinguish them only became clear after the first round:
  *
- * - easy：四個都跟問題明顯無關。這組有一個嚴重的混淆變因,
- *   模型可以用**排除法**選出唯一不明顯錯誤的那個,
- *   根本不需要讀目標的描述。第一版就是這樣，所以測不出東西
- * - hard：四個都是機器人遙測、而且都跟「跌倒前後的感測器數值」沾邊。
- *   排除法在這裡沒有用，模型必須真的讀懂描述才選得對
+ * - easy: all four are obviously unrelated to the question. This group has a serious confound:
+ *   the model can pick the only not-obviously-wrong one by **elimination**,
+ *   without reading the target's description at all. The first version did this and measured nothing
+ * - hard: all four are robot telemetry and all touch "sensor values around a fall".
+ *   Elimination does not help here, and the model has to actually read the descriptions to choose
  */
 const DISTRACTOR_SETS: Record<string, Array<[string, string, string]>> = {
 	easy: [
@@ -95,7 +95,7 @@ const DISTRACTOR_MODE = (process.env.DISTRACTORS ?? "hard").toLowerCase();
 const DISTRACTORS =
 	DISTRACTOR_SETS[DISTRACTOR_MODE] ?? (DISTRACTOR_SETS.hard as Array<[string, string, string]>);
 
-/** 問題刻意**不含** skill 名字裡的字，避免直接字面比對就中。 */
+/** The question deliberately **excludes** the words in the skill's name, so literal matching alone cannot succeed. */
 const QUESTION =
 	"機器人 R-204 昨天在倉庫跌倒了，我想看看牠倒下去前後那段時間的感測器數值。該怎麼做？";
 
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
 		if (event.type === "done") stopReason = event.response.stopReason;
 	}
 
-	// ── 確定性判定 ──────────────────────────────────────────
+	// ── the deterministic verdict ───────────────────────────────
 	const hit = loaded.includes(TARGET);
 
 	console.log(bold(`\n\n判定`));
@@ -195,7 +195,7 @@ async function main(): Promise<void> {
 	);
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
-	// Lesson 15 的教訓：沒有正常結束的話，「沒發生」不能當結論。
+	// Lesson 15's lesson: without a normal finish, "it did not happen" is not a conclusion.
 	if (!hit && stopReason !== "tool_use" && stopReason !== "end") {
 		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
 	}
@@ -203,7 +203,7 @@ async function main(): Promise<void> {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-/** 沒有 key 時的腳本 provider：只示範畫面長相，不能當證據。 */
+/** The scripted provider used without a key: it shows what the output looks like and is not evidence. */
 function scriptedProvider(): StreamingProvider {
 	const call = { id: "s1", name: "load_skill", args: { name: TARGET } };
 	const response = {

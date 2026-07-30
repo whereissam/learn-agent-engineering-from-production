@@ -1,14 +1,14 @@
 /**
- * 跑一次完整研究。
+ * Run one complete research pass.
  *
- *   bun run lesson-24                            用預設 breadth=3 depth=2
- *   bun run lesson-24 -- --breadth 2 --depth 1   便宜版
- *   bun run lesson-24 -- --ask                   先看模型想澄清什麼
- *   bun run lesson-24 -- "你的問題"
- *   PROVIDER=fake bun run lesson-24              不需要金鑰
+ *   bun run lesson-24                            with the default breadth=3 depth=2
+ *   bun run lesson-24 -- --breadth 2 --depth 1   the cheap version
+ *   bun run lesson-24 -- --ask                   see what the model wants clarified first
+ *   bun run lesson-24 -- "your question"
+ *   PROVIDER=fake bun run lesson-24              no key needed
  *
- * 這不是 REPL。研究是一個**跑完就結束**的任務，不是一段對話——
- * 這件事本身就是這一課想說的。
+ * This is not a REPL. Research is a task that **ends when it finishes** rather than a conversation —
+ * and that fact is itself what this lesson wants to say.
  */
 
 import { fakeResearchProvider } from "./fake-provider.ts";

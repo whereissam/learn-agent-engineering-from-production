@@ -1,20 +1,20 @@
 /**
- * Lesson 19 - 一個 agent 做三件事 vs 三個 agent 各做一件
+ * Lesson 19 - one agent doing three things vs three agents doing one each
  *
- * 這是 CrewAI 那類框架真正該被問的問題，而且**先把預期寫下來再跑**
- * （`docs/TODO.md` 那一列原話）：
+ * The question frameworks like CrewAI really deserve, and **the prediction is written down before running**
+ * (that row's exact words in `docs/TODO.md`):
  *
- *   > 多 agent 不會比較聰明，它是把狀態邊界變明確；
- *   > 沒有真的隔離需求時只是多付溝通成本。
+ *   > Multi-agent is not smarter; it makes state boundaries explicit.
+ *   > Without a genuine isolation requirement it only adds communication cost.
  *
- * 量四件事，全部是確定性判定：
+ * Four things measured, all deterministic:
  *
- *   正確   三個服務的最常見錯誤碼有沒有答對（includes）
- *   遺失   那個「舊編號方案」的但書有沒有活著跨過邊界
- *   成本   token（父 + 所有子）
- *   定位   出錯的時候看不看得出是哪一步
+ *   correctness  did it get the three services' most frequent error codes right (includes)
+ *   loss         did the "old numbering scheme" caveat survive across the boundary
+ *   cost         tokens (parent plus every child)
+ *   location     when something breaks, can you tell which step
  *
- * 執行：
+ * Run:
  *   PROVIDER=gemini bun run lesson-19:agent            # solo
  *   MODE=delegate PROVIDER=gemini bun run lesson-19:agent
  *   RUNS=3 MODE=delegate PROVIDER=gemini bun run lesson-19:agent
@@ -93,7 +93,7 @@ interface RunResult {
 	children: number;
 	usage: { input: number; output: number; total: number };
 	toolCalls: string[];
-	/** 子 agent 的摘要，用來看資訊在哪一層掉的。 */
+		/** The subagents' summaries, for seeing which layer lost the information. */
 	summaries: string[];
 	steps: number;
 }
@@ -179,7 +179,7 @@ async function runOnce(provider: StreamingProvider): Promise<RunResult> {
 				results.push({
 					toolCallId: call.id,
 					toolName: call.name,
-					// ⚠️ 父 agent 拿到的**只有這個字串**。
+						// ⚠️ **This string is all the parent gets.**
 					content: child.error ? `Sub-agent failed: ${child.error}` : child.summary,
 					isError: Boolean(child.error),
 				});

@@ -1,33 +1,40 @@
-# Lesson 10: Agent server 與 GUI 通訊
+# Lesson 10: The Agent Server and the GUI Protocol
 
-> 前置：[Lesson 3](../lesson-03-streaming/)（streaming 與中斷）。
+> [繁體中文](README.zh-TW.md)
 >
-> 把 Lesson 3 的 agent 從終端機裡搬出來，讓另一個進程去畫畫面。
-> 核心 loop 一行都不用改，但會冒出四個原本不存在的問題。
+> Prerequisites: [Lesson 3](../lesson-03-streaming/) (streaming and
+> interruption).
 >
-> 對照原始碼：`openworker/coworker/server/app.py`、`server/manager.py`
+> Move Lesson 3's agent out of the terminal and let another process draw the
+> screen. The core loop needs no changes at all, and four problems appear that
+> did not exist before.
+>
+> Source: `openworker/coworker/server/app.py`, `server/manager.py`
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 為什麼 agent 不能直接住在 GUI 進程裡？
-2. 同一個 session 有兩個視窗在看，事件要送給誰？
-3. 終端機有 Ctrl+C，瀏覽器沒有。中斷從哪裡進來？
-4. 使用者關掉視窗再打開，斷線那段時間的東西去哪了？
+1. Why can the agent not just live inside the GUI process?
+2. Two windows are watching the same session; who gets the events?
+3. A terminal has Ctrl+C and a browser does not. Where does interruption come
+   from?
+4. The user closes the window and reopens it. Where did the disconnected
+   stretch go?
 
-第 4 題是這課的主軸，因為它是一個**安靜的失敗**（設計原則 7）：
-沒有錯誤、沒有例外、沒有警告，只是使用者的畫面少了一段，而且補不回來。
+Question 4 is the spine of the lesson, because it is a silent failure (design
+principle 7): no error, no exception, no warning, just a user whose screen is
+missing a section that cannot be recovered.
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
-不需要 API key：
+No API key needed:
 
 ```bash
 bun run lesson-10
 ```
 
-三個情境會自動跑完（下面是真的跑出來的輸出）：
+Three scenarios run end to end. This is the real output:
 
 ```
 情境 1：NAIVE server ， 事件流從「現在」開始
@@ -63,9 +70,9 @@ bun run lesson-10
   ✓ 一個 session 一次只跑一輪，第二個被 409 擋掉
 ```
 
-### 想自己動手
+### Driving it yourself
 
-開兩個終端機：
+Two terminals:
 
 ```bash
 # 終端機 1
@@ -75,29 +82,32 @@ PROVIDER=fake bun run lesson-10:server
 bun run lesson-10:client
 ```
 
-隨便問一句。想看第二個視窗的話，**再開第三個終端機**跑同一行
-`bun run lesson-10:client`，兩邊會同步。
+Ask anything. For a second window, open a third terminal and run the same
+`bun run lesson-10:client`; the two stay in sync.
 
-要看壞掉的版本：終端機 1 改成 `NAIVE=1 PROVIDER=fake bun run lesson-10:server`。
+To see the broken version, make terminal 1
+`NAIVE=1 PROVIDER=fake bun run lesson-10:server`.
 
 ---
 
-## Step 1：為什麼不能把 agent 塞進 GUI 進程
+## Step 1: why the agent cannot live in the GUI process
 
-最直覺的做法是：GUI 啟動的時候把 agent loop 跑在同一個進程裡，
-反正 Lesson 3 已經能跑了。這個做法會在三個地方壞掉，而且都不是效能問題。
+The obvious approach is to run the agent loop in the same process the GUI
+starts, since Lesson 3 already works. It breaks in three places, none of them
+about performance.
 
-| 情況 | agent 在 GUI 進程裡 | agent 在 server 裡 |
+| Situation | agent inside the GUI | agent in a server |
 |---|---|---|
-| 使用者關掉視窗 | turn 被殺，工具做到一半 | turn 繼續跑完 |
-| 前端熱重載 / 崩潰 | 對話沒了 | 重連就回來了 |
-| 開第二個視窗 | 兩份各跑各的 | 同一個 session |
-| 排程半夜三點跑（Lesson 9） | 沒有 GUI，就沒有 agent | server 一直在 |
+| the user closes the window | the turn is killed mid-tool | the turn finishes |
+| frontend hot reload or crash | the conversation is gone | reconnect and it is back |
+| a second window opens | two independent runs | one session |
+| a 3am scheduled job (Lesson 9) | no GUI means no agent | the server is always there |
 
-第一列是最關鍵的。**「使用者關掉視窗」跟「使用者要停止工作」是兩件事**，
-但如果 agent 住在 GUI 裡，這兩件事在實作上是同一件事，你沒得選。
+The first row is the crucial one. Closing a window and wanting to stop work are
+two different things, and an agent living inside the GUI makes them the same
+thing in the implementation. You do not get to choose.
 
-程式碼裡對應的地方是這個 cleanup，它**故意不 abort**：
+The corresponding code is this cleanup, which deliberately does not abort:
 
 ```ts
 const cleanup = (): void => {
@@ -108,37 +118,40 @@ const cleanup = (): void => {
 };
 ```
 
-還有 `startTurn` 裡刻意不 await 的那一行：
+Plus the deliberately un-awaited line in `startTurn`:
 
 ```ts
 // HTTP 請求要立刻回，turn 在背景跑，進度靠 SSE 推。
 void runTurn(session, controller.signal)
 ```
 
-**turn 的生命週期屬於 session，不屬於送出它的那個請求。**
-這一句是整課的地基，後面三個 Step 都是它的推論。
+A turn's lifetime belongs to the session, not to the request that started it.
+That sentence is the foundation of the lesson, and the next three steps are its
+consequences.
 
 ---
 
-## Step 2：事件要送給誰
+## Step 2: who gets the events
 
-答案是「所有正在看這個 session 的連線」，**包含剛剛送出訊息的那一個**。
+The answer is every connection watching this session, including the one that
+just sent the message.
 
-直覺會想讓送訊息的 client 自己把訊息畫上去（樂觀更新，反正它知道自己送了什麼），
-但那樣畫面就有兩個來源：一個是自己畫的，一個是 server 推的。
-第二個視窗打開的那一刻，兩邊就開始不一致。
+The instinct is to let the sending client paint its own message (optimistic
+update; it knows what it sent), but then the screen has two sources of truth,
+one drawn locally and one pushed by the server. The moment a second window
+opens, they diverge.
 
-所以 client 送出去之後**什麼都不畫**：
+So after sending, the client draws nothing:
 
 ```ts
 // 送出去之後什麼都不畫。等 turn_start 事件回來才畫。
 await post("message", { text: input });
 ```
 
-> **一個畫面只能有一個真相來源。**
-> 讓自己的訊息也繞一圈回來，是用一點延遲換掉一整類的同步 bug。
+> A screen may have exactly one source of truth. Letting your own message take
+> the round trip trades a little latency for an entire class of sync bugs.
 
-OpenWorker 的註解寫的是同一件事（`app.py:1721`）：
+OpenWorker's comment says the same thing (`app.py:1721`):
 
 ```python
 # Broadcast to every socket viewing this session (this socket included — it's a
@@ -146,14 +159,14 @@ OpenWorker 的註解寫的是同一件事（`app.py:1721`）：
 await manager.broadcast_session(...)
 ```
 
-### 順帶解決的：連按兩次送出
+### Solved along the way: double-clicking send
 
-終端機是同步的，你按 enter 之後要等 prompt 回來才能打下一句。HTTP 不是。
-使用者可以連點兩下，兩個視窗也可以同時送。兩個 turn 同時 push 同一個
-`messages` 陣列，歷史就爛了。
+A terminal is synchronous; after Enter you wait for the prompt before typing
+again. HTTP is not. A user can double-click, and two windows can send at once.
+Two turns pushing the same `messages` array corrupts the history.
 
-所以要有一個「一次只跑一輪」的閘門，而且**claim 要在開 turn 之前做完，
-中間不能有 await**：
+So there has to be a one-turn-at-a-time gate, and the claim must complete
+before the turn opens, with no `await` in between:
 
 ```ts
 if (!tryMarkRunning(session)) {
@@ -164,38 +177,39 @@ if (!tryMarkRunning(session)) {
 startTurn(session, text);
 ```
 
-OpenWorker 在 `app.py:1744` 做同一件事，註解解釋了為什麼順序不能反：
+OpenWorker does the same at `app.py:1744`, and its comment explains why the
+order cannot be reversed:
 
 ```python
 # The receive loop atomically claims this session before scheduling the task.
 # Keeping the claim outside prevents two back-to-back frames from both starting.
 ```
 
-先開 task 再檢查的話，兩個請求會在檢查之前都通過。
+Open the task first and check after, and both requests pass the check.
 
 ---
 
-## Step 3：中斷從哪裡進來
+## Step 3: where interruption comes from
 
-Lesson 3 的中斷是這樣：
+Lesson 3's interruption:
 
 ```
 Ctrl+C  →  SIGINT  →  handleInterrupt()  →  controller.abort()
 ```
 
-拆成兩個進程之後，只有中間那段變了：
+Split into two processes, only the middle changes:
 
 ```
 Ctrl+C  →  SIGINT  →  POST /interrupt  →  controller.abort()
       （client 進程）              （server 進程）
 ```
 
-**`controller.abort()` 那一端一個字都沒改。** Lesson 3 寫的三個中斷點
-（模型講到一半、工具跑到一半、工具跑完才停）在 `server.ts` 的 `runTurn`
-裡逐行都在，包含補齊 tool result 那段。
+The `controller.abort()` end is unchanged. Lesson 3's three interruption points
+(mid-sentence, mid-tool, tools finished) are all in `server.ts`'s `runTurn`
+line for line, including filling in the tool results.
 
-client 這邊的 Ctrl+C 也保留了 Lesson 3 的分岔，有東西在跑就中斷，
-閒著才離開：
+The client's Ctrl+C keeps Lesson 3's fork too: interrupt if something is
+running, exit if idle:
 
 ```ts
 const onInterrupt = (): void => {
@@ -208,23 +222,26 @@ const onInterrupt = (): void => {
 };
 ```
 
-注意最後那句括號。client 離開了，server 上的 session 還在，
-下次連回來對話還在。這在終端機版本是做不到的。
+Note the parenthetical. The client left and the session on the server is still
+there, so the conversation is waiting next time you connect. The terminal
+version cannot do that.
 
-### 中斷是 session 的事，不是視窗的事
+### Interruption belongs to the session, not the window
 
-情境 3 演的就是這個：視窗 A 送訊息、視窗 B 按中斷，兩邊同時停。
-因為中斷改的是 session 的 `controller`，不是某個連線的狀態。
+Scenario 3 demonstrates it: window A sends, window B interrupts, and both stop.
+Because interruption changes the session's `controller`, not any connection's
+state.
 
 ---
 
-## Step 4：斷線重連（這課的核心）
+## Step 4: disconnect and reconnect, the core of this lesson
 
-現在來看那個安靜的失敗。
+Now for the silent failure.
 
-### 錯誤的直覺
+### The wrong intuition
 
-「事件流」聽起來就該從連上的那一刻開始推。NAIVE 版本就是這樣寫的：
+An "event stream" sounds like it should start pushing from the moment you
+connect. The NAIVE version does exactly that:
 
 ```ts
 session.clients.add(send);
@@ -232,9 +249,9 @@ send({ type: "ready", ... });
 // 然後就等下一個事件
 ```
 
-看起來很合理，而且**跑起來完全正常**，只要你不斷線。
+It looks reasonable, and it works perfectly as long as you never disconnect.
 
-### 實際發生的事
+### What actually happens
 
 ```
 t=0    使用者送出訊息，模型開始講
@@ -245,28 +262,29 @@ t=5.0  使用者切回來，前端重連
        → 收到 ready，然後……什麼都沒有
 ```
 
-使用者看到的是一個講到一半就停住的回覆。沒有錯誤訊息，
-沒有「連線中斷」的提示，因為**從程式的角度看，什麼都沒有失敗**。
-SSE 正常關閉、turn 正常完成、重連正常建立。
+The user sees a reply that stopped mid-sentence. No error message, no
+"connection lost" notice, because from the program's point of view nothing
+failed. The SSE closed cleanly, the turn completed, the reconnect succeeded.
 
-> 這是 Lesson 21 那個「抽取器丟掉 `<table>`」的同一種病：
-> 每一步都成功了，只有結果是錯的。
+> This is the same disease as Lesson 21's extractor dropping a `<table>`: every
+> step succeeded and only the result is wrong.
 
-### 為什麼「重播事件」是錯的方向
+### Why replaying events is the wrong direction
 
-SSE 協定本身就提供了重播機制（`Last-Event-ID`），所以第一個念頭通常是
-在 server 上放一個環狀 buffer，重連時把漏掉的事件補送。
+SSE offers a replay mechanism itself (`Last-Event-ID`), so the first thought is
+usually a ring buffer on the server, resending missed events on reconnect.
 
-這條路會立刻遇到四個沒有好答案的問題：
+That road hits four questions with no good answers:
 
-1. buffer 要多大？一個 turn 可能吐幾萬個 `text_delta`
-2. 多久過期？使用者可能三天後才打開
-3. 使用者換了一台裝置，`Last-Event-ID` 從哪來？
-4. 兩次斷線之間發生了壓縮（Lesson 5），舊事件還有意義嗎？
+1. how big is the buffer? One turn can emit tens of thousands of `text_delta`s
+2. how long until it expires? The user might come back in three days
+3. the user switched devices; where does `Last-Event-ID` come from?
+4. a compaction happened between the two disconnects (Lesson 5); do the old
+   events still mean anything?
 
-這四題都很難，但它們難是因為**問錯了問題**。
+All four are hard, and they are hard because the question is wrong.
 
-### 正確的做法：重連 = 重新拿一次狀態
+### The right approach: reconnecting means fetching state again
 
 ```ts
 if (!NAIVE) {
@@ -274,15 +292,16 @@ if (!NAIVE) {
 }
 ```
 
-整個修法就是這一個 `if`。
+The entire fix is that one `if`.
 
-> **事件是狀態變化的通知，狀態才是真相。**
+> An event is a notification that state changed. The state is the truth.
 >
-> `text_delta` 是過程，不是狀態。存過程沒有意義，存結果才有。
-> 一旦接受這件事，上面四個問題全部消失，不需要 buffer、不需要過期策略、
-> 不需要游標，因為 client 從來不需要知道自己漏了什麼。
+> A `text_delta` is process, not state. Storing process is pointless; storing
+> the result is not. Accept that and all four questions above disappear: no
+> buffer, no expiry policy, no cursor, because the client never needs to know
+> what it missed.
 
-client 那邊也因此變得很笨，收到 `state` 就整個重畫：
+The client gets correspondingly dumber, repainting on `state`:
 
 ```ts
 case "state":
@@ -290,12 +309,12 @@ case "state":
 	running = event.running;
 ```
 
-### 但狀態要先存得住
+### But the state has to survive first
 
-重送狀態的前提是 server 手上有正確的狀態。如果 turn 跑到一半 server 掛了，
-記憶體裡那半截也一起沒了。
+Resending state assumes the server holds correct state. If the server dies
+mid-turn, the half in memory dies with it.
 
-所以要在 turn 進行中存檔，而不是等 turn 結束。哪些時刻該存？
+So it saves during the turn rather than at the end. Which moments?
 
 ```ts
 const CHECKPOINTS: ReadonlySet<ServerEvent["type"]> = new Set([
@@ -305,10 +324,11 @@ const CHECKPOINTS: ReadonlySet<ServerEvent["type"]> = new Set([
 ]);
 ```
 
-不是每個事件都存，`text_delta` 一秒鐘幾十個，而且它們不是狀態。
-選 checkpoint 的規則是：**要嘛是一段完成了，要嘛是停下來等人。**
+Not every event. `text_delta` arrives dozens of times a second and is not
+state. The rule for choosing a checkpoint: either a stage completed, or it
+stopped to wait for a human.
 
-OpenWorker 的清單（`app.py:1705`）比我們多兩個，但形狀一樣：
+OpenWorker's list (`app.py:1705`) has two more and the same shape:
 
 ```python
 _CHECKPOINTS = {
@@ -320,29 +340,32 @@ _CHECKPOINTS = {
 }
 ```
 
-它上面那行註解直接寫了原因：
+The comment above it states the reason:
 
 ```python
 # Checkpoint events: persist mid-turn so a crash/quit can't eat the conversation.
 ```
 
-`permission_required` 特別值得注意：**批准是無限期的等待**（Lesson 9），
-不存檔的話，使用者去睡覺、server 重開，那個 turn 就永遠卡在那裡了。
+`permission_required` deserves attention: approval is an unbounded wait
+(Lesson 9), so without persisting it, the user goes to sleep, the server
+restarts, and that turn is stuck forever.
 
 ---
 
-## Step 5：一個開在 localhost 的 server 是公開的
+## Step 5: a server on localhost is a public server
 
-這件事我原本沒想到，是讀 `app.py` 開頭那段註解才發現的。
+This one was not anticipated; it came out of reading the comment at the top of
+`app.py`.
 
-使用者瀏覽的**任何一個網站**，都可以用一段 JavaScript
-`fetch("http://127.0.0.1:7010/session/x/message", {method:"POST", ...})`。
-而這個 server 手上有 `run_command`。
+Any website the user visits can run
+`fetch("http://127.0.0.1:7010/session/x/message", {method:"POST", ...})`. And
+this server holds `run_command`.
 
-CORS 擋得住「讀回應」，但擋不住「請求送達」，而送達就足夠讓 agent 開始跑東西了。
-（WebSocket 更徹底，CORS 根本不管 WS。）
+CORS stops the site reading the response; it does not stop the request
+arriving, and arriving is enough to make the agent start doing things.
+(WebSockets are worse: CORS does not cover WS at all.)
 
-所以 origin 要當**白名單來檢查**，不是當 CORS 標頭來設定：
+So origin must be checked as an allowlist, not configured as a CORS header:
 
 ```ts
 const ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
@@ -352,10 +375,10 @@ function originAllowed(origin: string | undefined): boolean {
 }
 ```
 
-沒有 `Origin` 標頭的放行（curl、原生 client、測試），這個閘門針對的是瀏覽器，
-而瀏覽器一定會帶 `Origin` 且無法偽造。
+A missing `Origin` header passes (curl, native clients, tests). This gate is
+aimed at browsers, and a browser always sends `Origin` and cannot forge it.
 
-驗證一下：
+Verify:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" -H "Origin: https://evil.example.com" \
@@ -365,7 +388,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Origin: http://localhost:5173" \
   http://127.0.0.1:7010/session/x     # → 200
 ```
 
-OpenWorker 的原文（`app.py:26-46`）解釋得更完整，值得整段讀：
+OpenWorker's original text (`app.py:26-46`) explains it more fully and is worth
+reading whole:
 
 ```python
 # user's own browser can still reach loopback — so without an origin gate, any website they
@@ -373,10 +397,12 @@ OpenWorker 的原文（`app.py:26-46`）解釋得更完整，值得整段讀：
 # CORS never covers) into shell/file tools.
 ```
 
-括號裡的 `(CORS was *)` 是說這是一個**改過的 bug**，不是假想的威脅。
+That parenthetical `(CORS was *)` says this was a fixed bug, not a hypothetical
+threat.
 
-另外還有一層：loopback 是不認證的，**任何本機程序**都打得到，
-所以上行請求要有上限（`app.py:43-52` 那組常數）。我們這裡放了最粗暴的版本：
+There is another layer: loopback is unauthenticated, so any local process can
+reach it, which means upstream requests need limits (the constants at
+`app.py:43-52`). This lesson has the crudest version:
 
 ```ts
 const RATE_LIMIT_COUNT = 30;
@@ -386,12 +412,13 @@ const MAX_TEXT_CHARS = 200_000;
 
 ---
 
-## 為什麼這課用 SSE，OpenWorker 用 WebSocket
+## Why this lesson uses SSE and OpenWorker uses WebSockets
 
-這課的上行只有兩種：送訊息、中斷。兩個 POST 就夠了，所以下行用 SSE，
-純文字、`curl` 看得到、零依賴。
+Upstream traffic here is two kinds: send a message, interrupt. Two POSTs
+suffice, so downstream is SSE: plain text, visible to `curl`, zero
+dependencies.
 
-OpenWorker 的上行不只兩種（`app.py:1767` 之後那一串）：
+OpenWorker's upstream is more than two (the chain after `app.py:1767`):
 
 ```python
 if   kind == "approval":            # Lesson 8 的批准
@@ -401,126 +428,137 @@ elif kind == "question_response":   # agent 反問使用者
 elif kind == "interrupt":
 ```
 
-> **上行一旦從「幾個動作」變成「一個協定」，就該用雙向通道。**
+> Once upstream stops being a few actions and becomes a protocol, it deserves a
+> bidirectional channel.
 
-判斷點不是「要不要即時」（SSE 也很即時），是「上行的訊息種類會不會長」。
-接 Lesson 8-9 之後這裡一定會長，所以 OpenWorker 選 WS 是對的。
+The deciding factor is not whether you need real time, since SSE is real time
+too, but whether the kinds of upstream message will grow. Wire in Lessons 8-9
+and they certainly will, so OpenWorker's choice of WS is right.
 
 ---
 
-## 這課刻意不做的事
+## What this lesson deliberately skips
 
-| 沒做 | 為什麼 |
+| Skipped | Why |
 |---|---|
-| 真的 GUI（Tauri / React） | 那是前端工程。這課的可移植部分是**協定**，不是畫面 |
-| 批准流程走上行 | 那是 Lesson 8-9 的主題。這裡的 `approve` 直接回 `false` |
-| 多使用者 / 認證 | 這是**本機**單人 server。加認證會蓋掉 Step 5 想講的事 |
-| 事件重播 buffer | Step 4 說明了為什麼那是錯的方向 |
-| session 列表、刪除、改名 | CRUD，沒有 agent 特有的東西 |
+| a real GUI (Tauri, React) | that is frontend work. The portable part here is the protocol, not the screen |
+| approval over the upstream channel | that is Lessons 8-9's subject. `approve` here returns `false` |
+| multi-user or authentication | this is a local single-user server. Adding auth would bury Step 5's point |
+| an event replay buffer | Step 4 explains why that is the wrong direction |
+| session list, delete, rename | CRUD, with nothing agent-specific in it |
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 |
+| Symptom | Cause |
 |---|---|
-| `[事件流斷了] fetch failed` | server 沒開。先跑 `bun run lesson-10:server` |
-| `EADDRINUSE` | 7010 被佔了。`PORT=7020 bun run lesson-10:server`，client 也要帶同一個 `PORT` |
-| demo 卡在 `turn 沒有結束` | 上一次的 server 進程沒死乾淨。`pkill -f lesson-10-agent-server` |
-| client 什麼都收不到但沒報錯 | 檢查 server 是不是 `NAIVE=1`，那是刻意的 |
-| 重連後畫面重複 | 你的 client 在收到 `state` 之前就先畫了東西。`state` 應該覆蓋畫面，不是附加 |
+| `[事件流斷了] fetch failed` | the server is not running. Start `bun run lesson-10:server` |
+| `EADDRINUSE` | 7010 is taken. `PORT=7020 bun run lesson-10:server`, and give the client the same `PORT` |
+| the demo hangs at `turn 沒有結束` | a previous server process did not die. `pkill -f lesson-10-agent-server` |
+| the client receives nothing and reports no error | check whether the server is `NAIVE=1`, which is deliberate |
+| the screen duplicates after reconnecting | your client drew something before receiving `state`. `state` should replace the screen, not append to it |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：讓 client 顯示「有另一個視窗正在看」⭐
+### Exercise 1: show "another window is watching" ⭐
 
-`session.clients.size` 已經在 server 手上了。連線數變化時廣播一個事件，
-client 顯示「2 個視窗」。
+`session.clients.size` is already on the server. Broadcast an event when the
+count changes and have the client display "2 windows".
 
-做完會發現一件事：這個數字要在 `add` 和 `delete` **兩邊**都廣播，
-少一邊就會有殭屍計數。
+Doing it reveals something: the number has to be broadcast on both `add` and
+`delete`, and missing one gives you a zombie count.
 
-### 練習 2：`turn_done` 之後 client 沒有回到提示符號 ⭐
+### Exercise 2: the client does not return to the prompt after `turn_done` ⭐
 
-現在 client 的 prompt 跟事件輸出會互相蓋掉（Step 0 的輸出裡看得到，
-`> ` 出現在文字中間）。修好它。
+Right now the client's prompt and the event output overwrite each other; you
+can see it in Step 0's output, where `> ` appears in the middle of the text.
+Fix it.
 
-這題比看起來難，因為 readline 的游標跟 `process.stdout.write` 是兩套東西。
-這正是「終端機當 UI」的極限，也是真的 GUI 存在的理由之一。
+This is harder than it looks, because readline's cursor and
+`process.stdout.write` are two different systems. That is the limit of using a
+terminal as a UI, and one of the reasons real GUIs exist.
 
-### 練習 3：加一個 `GET /sessions` 列出所有 session ⭐⭐
+### Exercise 3: add `GET /sessions` ⭐⭐
 
-然後讓 client 用 `/switch <id>` 換 session。
+Then let the client switch with `/switch <id>`.
 
-注意：換 session 要把舊的 SSE 連線關掉，不然你會同時收到兩個 session 的事件，
-而畫面上分不出來。
+Note: switching sessions has to close the old SSE connection, or you receive
+events from two sessions at once and the screen cannot distinguish them.
 
-### 練習 4：把 checkpoint 存檔改成 append-only ⭐⭐
+### Exercise 4: make checkpoint saving append-only ⭐⭐
 
-現在的 `save()` 每次都覆寫整個 JSON。turn 很長的時候這會變慢，
-而且寫到一半斷電會得到一個壞掉的檔案。
+`save()` currently rewrites the whole JSON. That gets slow on long turns, and
+losing power mid-write leaves a corrupt file.
 
-改成 JSONL append（Lesson 4 已經做過這件事）。做完之後問自己：
-**壓縮（Lesson 5）發生的時候，append-only 要怎麼處理？**
+Switch to JSONL append, which Lesson 4 already did. Then ask yourself: what
+should append-only do when compaction (Lesson 5) happens?
 
-### 練習 5：讓重連能區分「turn 還在跑」跟「turn 已經結束」⭐⭐
+### Exercise 5: let a reconnect distinguish running from finished ⭐⭐
 
-`state` 事件已經帶了 `running`，但 client 現在只印一行提示。
+The `state` event already carries `running`, and the client only prints one
+line with it.
 
-真的 GUI 要用它決定：輸入框要不要變灰、要不要顯示「停止」按鈕、
-要不要顯示打字游標。**重連之後這三個狀態都必須正確**，
-否則使用者會看到一個「可以輸入但送不出去」的框。
+A real GUI uses it to decide whether the input box greys out, whether a stop
+button shows, whether a typing cursor blinks. All three have to be right after
+a reconnect, or the user gets a box they can type into and cannot send from.
 
-### 練習 6：模擬 server 在 turn 中途 crash ⭐⭐⭐
+### Exercise 6: simulate the server crashing mid-turn ⭐⭐⭐
 
-在 `iteration_end` 之後隨機 `process.exit(1)`，然後重開 server、重連 client。
+`process.exit(1)` at random after `iteration_end`, then restart the server and
+reconnect the client.
 
-會發現三件事：
+Three things become apparent:
 
-1. checkpoint 之前的東西活下來了
-2. checkpoint 之後、crash 之前的 `text_delta` 沒了（**這是可以接受的**，
-   因為那段文字沒有進 `messages`）
-3. 但如果 crash 發生在「模型講完、tool result 還沒補齊」的中間，
-   存下來的歷史是**不合法的**，下次請求會被 API 打回 400
+1. everything before the checkpoint survived
+2. the `text_delta`s between the checkpoint and the crash are gone, which is
+   acceptable, because that text never entered `messages`
+3. but if the crash lands between the model finishing and the tool results
+   being filled in, the stored history is illegal and the next request gets a
+   400 from the API
 
-第 3 點是真正的練習：要怎麼讓 checkpoint 只發生在合法狀態上？
-（提示：看 Lesson 3 為什麼要「補完所有 tool result 之後才 push」。）
+Point 3 is the real exercise: how do you make checkpoints happen only on legal
+states? (Hint: look at why Lesson 3 pushes only after filling in every tool
+result.)
 
 ---
 
-## 對照 OpenWorker 原始碼
+## Compared with OpenWorker's source
 
-行號對應 `openworker/coworker/server/`，全部驗證過。
+Line numbers refer to `openworker/coworker/server/` and were all verified.
 
-| 這課的概念 | OpenWorker |
+| Concept in this lesson | OpenWorker |
 |---|---|
-| 每個 session 一條事件通道 | `app.py:1459` `@app.websocket("/ws/session/{session_id}")` |
-| 跨 session 的全域事件 | `app.py:1913` `@app.websocket("/ws/events")` |
-| 連上時先送狀態，不是重播事件 | `app.py:1680` 的 `ready` frame |
-| checkpoint 清單 | `app.py:1705` `_CHECKPOINTS` |
-| 廣播給所有視窗（含送出者） | `app.py:1721`、`manager.py:2428` `broadcast_session` |
-| 註冊 / 註銷一個視窗 | `app.py:1735`、`manager.py:2418` `register_session_client` |
-| 一次只跑一輪的 claim | `app.py:1744`、`manager.py:2721` `try_mark_running` |
-| turn 結束後放開 | `manager.py:2728` `mark_idle` |
-| 中斷是上行訊息 | `app.py:1802` `elif kind == "interrupt"` |
-| 存檔 | `manager.py:3231` `save` |
-| Origin 白名單 | `app.py:26-46` `_ALLOWED_ORIGIN_RE` |
-| 上行流量上限 | `app.py:43-52` `_WS_*` 常數 |
+| one event channel per session | `app.py:1459` `@app.websocket("/ws/session/{session_id}")` |
+| global cross-session events | `app.py:1913` `@app.websocket("/ws/events")` |
+| send state on connect, do not replay events | the `ready` frame at `app.py:1680` |
+| the checkpoint list | `app.py:1705` `_CHECKPOINTS` |
+| broadcast to every window, sender included | `app.py:1721`, `manager.py:2428` `broadcast_session` |
+| registering and deregistering a window | `app.py:1735`, `manager.py:2418` `register_session_client` |
+| the one-turn-at-a-time claim | `app.py:1744`, `manager.py:2721` `try_mark_running` |
+| releasing after a turn | `manager.py:2728` `mark_idle` |
+| interruption as an upstream message | `app.py:1802` `elif kind == "interrupt"` |
+| persistence | `manager.py:3231` `save` |
+| the origin allowlist | `app.py:26-46` `_ALLOWED_ORIGIN_RE` |
+| upstream rate limits | `app.py:43-52`, the `_WS_*` constants |
 
-規模參考：`server/` 共 5909 行（`app.py` 1968、`manager.py` 3762、`run.py` 175），
-GUI 那邊 151 個 `.ts`/`.tsx`。這課大約是前者的 5%，而且**沒有碰 GUI**。
+For scale: `server/` totals 5909 lines (`app.py` 1968, `manager.py` 3762,
+`run.py` 175), and the GUI side has 151 `.ts`/`.tsx` files. This lesson is
+about 5% of the former and does not touch the GUI at all.
 
 ---
 
-## 下一課
+## Next lesson
 
-[Lesson 12: MCP client 進產品](../lesson-12-mcp/) — 把別人寫的工具接進來。
+[Lesson 12: an MCP client in a product](../lesson-12-mcp/): connecting tools
+somebody else wrote.
 
-那一課會用到這一課的兩個東西：MCP server 的連線狀態要能推給 UI，
-而 MCP 工具預設是 EXTERNAL 風險（Lesson 8），批准要走上行，
-也就是本課「刻意不做的事」裡那一列。
+That lesson uses two things from this one: an MCP server's connection state has
+to be pushed to the UI, and MCP tools default to EXTERNAL risk (Lesson 8), so
+approval travels over the upstream channel, which is one of the rows in this
+lesson's deliberately-skipped table.
 
-> Lesson 11（Connector 與 OAuth）的 token 生命週期併進 Lesson 12 了，
-> 剩下的部分見 [docs/TODO.md](../docs/TODO.md)。
+> Lesson 11 (connectors and OAuth) had its token lifetime folded into Lesson
+> 12; the rest is in [docs/TODO.md](../docs/TODO.md).

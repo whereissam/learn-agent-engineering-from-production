@@ -1,19 +1,24 @@
-# Lesson 20: 最小的 search agent
+# Lesson 20: The Smallest Search Agent
 
-> 前置：[Lesson 3](../lesson-03-streaming/)（streaming）。看過 [Lesson 6](../lesson-06-domain-tools/) 會更有感。
+> [繁體中文](README.zh-TW.md)
 >
-> 這是 **AI Search 篇**的第一課。
+> Prerequisite: [Lesson 3](../lesson-03-streaming/) (streaming). Having read
+> [Lesson 6](../lesson-06-domain-tools/) helps.
+>
+> This is the first lesson of the **AI Search part**.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 為什麼不從「怎麼呼叫 Tavily API」開始？
-2. 搜尋引擎回給 agent 的到底是什麼東西？
-3. query 是誰生的？為什麼 query 的品質就是搜尋的品質？
-4. 一個只有搜尋、不能開網頁的 agent，會錯成什麼樣子？
+1. Why not start with "how to call the Tavily API"?
+2. What exactly does a search engine hand back to an agent?
+3. Who generates the query, and why is query quality the same thing as search
+   quality?
+4. What kinds of mistakes does an agent make when it can search but cannot open
+   a page?
 
 ---
 
-## 先講這一課的結論
+## The conclusion first
 
 ```text
 搜尋回來的不是網頁，是 snippet。
@@ -21,30 +26,34 @@ snippet 是「跟你的 query 最像的那一段」，不是「這一頁的結�
 所以：換一個 query，同一個頁面可以給你相反的答案。
 ```
 
-這句話等一下會有兩次實測佐證，**同一個模型、同一份語料、相反的結論**。
+Two measured runs back that sentence up shortly: **same model, same corpus,
+opposite conclusions**.
 
 ---
 
-## 為什麼不直接教 Tavily
+## Why not just teach Tavily
 
-因為那只會學到「怎麼使用一個搜尋工具」，學不到 AI Search。
+Because that only teaches how to use one search tool, not AI search.
 
-Tavily 這類產品把六件事包成一個 API：發現網頁、抓取、清理、索引、
-檢索排序、回傳給 LLM。你如果從 API 開始學，這六件事會永遠是一個黑盒子，
-之後遇到「為什麼它找不到我要的東西」就只能換一家試試看。
+Products like Tavily wrap six things into one API: discovering pages, fetching,
+cleaning, indexing, retrieval ranking, and returning to the LLM. Start from the
+API and those six stay a black box forever, so the next time you wonder "why
+can't it find what I want" the only move left is trying a different vendor.
 
-所以這一篇反過來做：**先把每一層拆開自己寫一次**，最後才組回去
-（Lesson 23 會把 20-22 組成一個 Tavily-lite 服務）。
+So this part works backwards: **take every layer apart and write it once**, then
+reassemble at the end (Lesson 23 combines 20-22 into a Tavily-lite service).
 
-這一課只做最上面那一層：**一個 agent + 一個搜尋工具**，
-而且刻意不給它開網頁的能力。你要先看到「缺什麼」。
+This lesson does only the topmost layer: **one agent plus one search tool**, and
+deliberately without the ability to open a page. You need to see what is missing
+first.
 
 ---
 
-## 這一課的「網際網路」
+## This lesson's "internet"
 
-真的去打 Google 有三個問題：要金鑰、排序天天在變、你不知道正確答案。
-所以這裡自己造了一個 14 頁的假 web，跟 Lesson 6 自己產 telemetry 是同一個理由。
+Hitting Google for real has three problems: it needs a key, the ranking changes
+daily, and you do not know the right answer. So there is a fake 14-page web
+here, for the same reason Lesson 6 generated its own telemetry.
 
 ```bash
 bun run lesson-20:corpus
@@ -55,14 +64,15 @@ bun run lesson-20:corpus
 索引：lesson-20-search-agent/corpus/index.json（正文共 8688 字元）
 ```
 
-產生出來的東西有兩份，這個分法就是 Lesson 20 和 21 的分界：
+It produces two things, and that split is exactly the boundary between Lesson 20
+and 21:
 
-| 產出 | 是什麼 | 誰用 |
+| Output | What it is | Who uses it |
 |---|---|---|
-| `corpus/index.json` | 已經清乾淨的純文字 | **這一課**（假裝有人幫你清好了） |
-| `corpus/pages/*.html` | 有導覽列、廣告、cookie 橫幅、footer 的原始 HTML | Lesson 21（自己抽正文） |
+| `corpus/index.json` | already-cleaned plain text | **this lesson** (pretending someone cleaned it for you) |
+| `corpus/pages/*.html` | raw HTML with nav bars, ads, cookie banners, footers | Lesson 21 (extract the body yourself) |
 
-語料是**刻意有病**的，真實 web 有的毛病它都有：
+The corpus is **deliberately diseased**, carrying every ailment the real web has:
 
 ```text
 snippet 講的跟正文不一樣（而且兩個方向都有）
@@ -73,22 +83,23 @@ snippet 講的跟正文不一樣（而且兩個方向都有）
 提到關鍵字很多次但其實無關的新聞
 ```
 
-**一份乾淨的語料學不到排序。** Lesson 22 就是要處理這些。
+A clean corpus teaches you nothing about ranking. Lesson 22 deals with these.
 
-> 每一頁的「真正的事實」寫在 `corpus/pages.ts` 的 `groundTruth` 欄位。
-> 跟 Lesson 6 一樣，它**不會**寫進產生出來的資料，agent 看不到答案。
+> Each page's "actual fact" lives in the `groundTruth` field of
+> `corpus/pages.ts`. As in Lesson 6, it is **not** written into the generated
+> data; the agent cannot see the answer.
 
 ---
 
-## Step 0：先玩排序，不需要模型
+## Step 0: play with ranking first, no model needed
 
-搜尋引擎本身可以單獨跑，不用 API key、不用網路：
+The search engine runs on its own, no API key and no network:
 
 ```bash
 bun run lesson-20:search "unitree g1 retargeting"
 ```
 
-真的跑出來的前四名：
+The real top four:
 
 ```
 query: unitree g1 retargeting
@@ -112,29 +123,31 @@ query: unitree g1 retargeting
    https://github.com/openmotion/retarget-anything  2026-05-12  score=1.859
 ```
 
-三件事值得停下來看：
+Three things are worth stopping on:
 
-| 名次 | 是什麼 | 問題 |
+| Rank | What it is | The problem |
 |---|---|---|
-| **1** | SEO 農場 | 關鍵字密度最高，所以 BM25 給它最高分。整頁沒有任何資訊 |
-| **2** | 2025 年的懶人包 | 內容已經過時（它說 humanoid-mimic 不支援 G1，錯的） |
-| **8** | `humanoid-mimic 0.7` 發佈公告 | **這才是正確答案**，排在第八 |
+| **1** | SEO farm | highest keyword density, so BM25 scores it highest. The page contains no information at all |
+| **2** | a 2025 listicle | the content is stale (it says humanoid-mimic does not support the G1, which is wrong) |
+| **8** | the `humanoid-mimic 0.7` release announcement | **this is the correct answer**, ranked eighth |
 
-而 `github.com/kinelabs/humanoid-mimic` 這個真正該給使用者的 repo，
-**前八名裡根本沒有。**
+And `github.com/kinelabs/humanoid-mimic`, the repo that should actually be given
+to the user, is not in the top eight at all.
 
-> 這不是我把排序寫壞了，這就是純關鍵字檢索的樣子。
-> BM25 只知道「哪些字出現幾次」，它不知道誰可信、誰是新的、誰是廣告。
-> **Lesson 22 要補的就是這些。**
+> This is not a broken ranker. This is what pure keyword retrieval looks like.
+> BM25 only knows which words appear how often; it does not know who is
+> trustworthy, who is recent, who is an advertisement. Lesson 22 is what fills
+> those in.
 
-排序的程式碼在 `search/engine.ts`，含註解 229 行，BM25 的核心大概 20 行。
+The ranking code is in `search/engine.ts`, 229 lines with comments, of which the
+BM25 core is about 20.
 
 ---
 
-## Step 1：loop 一行都沒改
+## Step 1: not one line of the loop changed
 
-跟 Lesson 6 一樣，先講最重要的一件事：`agent.ts` 的 `runTurn`
-跟 Lesson 3、Lesson 6 **完全相同**。
+As in Lesson 6, the most important thing first: `agent.ts`'s `runTurn` is
+**identical** to Lesson 3's and Lesson 6's.
 
 ```diff
 - const registry = new ToolRegistry([listSessionsTool, queryTelemetryTool, ...]);
@@ -144,12 +157,12 @@ query: unitree g1 retargeting
 + const SYSTEM_PROMPT = "You are a research assistant. You answer questions using web search...";
 ```
 
-從 Lesson 1 到現在第 20 課，那個 while 迴圈還是沒變。
-換工具 + 換 prompt = 換領域，搜尋也不例外。
+From Lesson 1 to this, the 20th, that while loop still has not changed.
+New tools plus a new prompt equals a new domain, and search is no exception.
 
 ---
 
-## Step 2：搜尋回來的不是網頁
+## Step 2: what comes back is not the page
 
 ```bash
 bun run lesson-20
@@ -159,7 +172,7 @@ bun run lesson-20
 > 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
 ```
 
-實際跑出來的（Gemini 3.6 Flash）。它搜了 **11 次**：
+What actually ran (Gemini 3.6 Flash). It searched **11 times**:
 
 ```
 → web_search(Unitree G1 motion retargeting open source github)
@@ -175,7 +188,7 @@ bun run lesson-20
 → web_search(github "dex-retargeting" OR "dex_retargeting" "unitree")
 ```
 
-然後給出答案（節錄）：
+Then it answered (excerpted):
 
 ```markdown
 ### 1. openmotion/retarget-anything
@@ -192,11 +205,12 @@ bun run lesson-20
    [CONFIRMED: https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211]
 ```
 
-看起來非常專業。有分類、有連結、每一條都標了 `CONFIRMED`。
+It looks extremely professional. Categorised, linked, every line tagged
+`CONFIRMED`.
 
-**但第一條是錯的。**
+But the first item is wrong.
 
-`retarget-anything` 那一頁的第四段寫著：
+The fourth paragraph of the `retarget-anything` page says:
 
 ```text
 Deprecation notice, v2.0, March 2026: the G1 profile is deprecated and no longer
@@ -204,35 +218,37 @@ maintained. … trajectories produced by the G1 profile will not load on current
 We are not planning to fix it.
 ```
 
-模型沒有看到這一段，因為 **snippet 只截到第一段**。
+The model never saw that paragraph, because **the snippet only reached the first
+one**.
 
-更糟的是最後那條：ROS 論壇那篇的標題是
-「G1 retargeting: foot sliding with retarget-anything, **switched to** humanoid-mimic」，
-內容是「我們花兩週試不出來，最後放棄」。模型把它引用成
-「記得檢查關節順序」——一則「這東西不能用」的證據，
-被轉述成一個溫和的操作提醒。
+Worse is the last line. The title of that ROS forum thread is "G1 retargeting:
+foot sliding with retarget-anything, **switched to** humanoid-mimic", and the
+content is "we spent two weeks failing and gave up". The model cited it as
+"remember to check joint ordering" — a piece of evidence saying "this does not
+work" turned into a mild operational reminder.
 
-> **`CONFIRMED` 這個標籤的真正意思是「snippet 這樣說」，不是「這是真的」。**
-> 這兩件事在只有 snippet 的時候沒辦法區分。
+> What the `CONFIRMED` tag actually means is "the snippet said so", not "this is
+> true". With only snippets, those two cannot be told apart.
 
 ---
 
-## Step 3：同一頁，換個 query，相反的結論
+## Step 3: same page, different query, opposite conclusion
 
-這是這一課最值得記住的一段。同一個模型、同一份語料，換一個問法：
+This is the part of the lesson most worth remembering. Same model, same corpus,
+a different phrasing:
 
 ```
 > retarget-anything 的 G1 profile 現在還能用在 2026 SDK 上嗎？
 ```
 
-它只搜了兩次：
+It searched only twice:
 
 ```
 → web_search("retarget-anything" "G1")
 → web_search(site:github.com/openmotion/retarget-anything "2026 SDK" OR "G1 profile")
 ```
 
-答案（節錄）：
+The answer (excerpted):
 
 ```markdown
 **無法直接正常使用**。
@@ -244,12 +260,12 @@ We are not planning to fix it.
 * 替代方案：humanoid-mimic 在 v0.7 已新增支援 2026 SDK 關節順序的 G1 profile。
 ```
 
-**完全正確。**
+Entirely correct.
 
-同一頁、同一個模型，一次說「開箱即用支援 G1」，一次說「已棄用不能用」。
-差別只有 query。
+Same page, same model: once it says "supports the G1 out of the box", once it
+says "deprecated, unusable". The only difference is the query.
 
-原因在 `search/engine.ts` 的 `makeSnippet`：
+The cause is `makeSnippet` in `search/engine.ts`:
 
 ```ts
 // 挑一段最像「有回答到 query」的文字當 snippet
@@ -258,23 +274,24 @@ for (let start = 0; start + SNIPPET_WORDS <= words.length; start += 4) {
 }
 ```
 
-真的搜尋引擎也是這樣做的。所以：
+Real search engines do the same. Therefore:
 
 ```text
 query 決定 snippet，snippet 決定模型看到頁面的哪一面。
 ```
 
-第一個問題問的是「有哪些專案」，命中的是介紹段落；
-第二個問題問的是「2026 SDK 還能用嗎」，`2026 SDK` 這幾個字命中了棄用公告那一段。
+The first question asked "which projects exist", which matched the introductory
+paragraph. The second asked "does it still work on the 2026 SDK", and the words
+`2026 SDK` matched the deprecation notice.
 
-> 這就是為什麼 Lesson 21 要把整頁抓下來。
-> **不是因為 snippet 太短，是因為 snippet 的內容取決於你問了什麼。**
+> Which is why Lesson 21 fetches the whole page. Not because snippets are too
+> short, but because a snippet's content depends on what you asked.
 
 ---
 
-## Step 4：query 是模型生的
+## Step 4: the query is generated by the model
 
-回頭看 Step 2 那 11 個 query，裡面有這些：
+Look again at those 11 queries in Step 2. Among them:
 
 ```
 github "dex-retargeting" unitree g1
@@ -282,21 +299,23 @@ github Open-TeleVision Unitree G1
 github Human2Humanoid unitree
 ```
 
-`dex-retargeting`、`Open-TeleVision`、`Human2Humanoid` **在這份語料裡完全不存在**。
-它們是模型從訓練資料裡撈出來的真實專案名，然後拿去搜一個根本沒有它們的索引。
+`dex-retargeting`, `Open-TeleVision` and `Human2Humanoid` **do not exist
+anywhere in this corpus**. They are real project names dredged from training
+data, then searched against an index that has never heard of them.
 
-三件事同時發生：
+Three things happen at once:
 
-| 現象 | 為什麼 |
+| What you see | Why |
 |---|---|
-| 模型用記憶裡的名字生 query | 它以為自己知道答案，只是要找連結 |
-| 有些 query 語法對這個引擎沒意義 | `site:`、`OR`、引號在 BM25 裡只是普通的字 |
-| 11 次搜尋，重複性很高 | 沒有東西告訴它「這個角度已經試過了」 |
+| the model builds queries from remembered names | it thinks it already knows the answer and just needs the link |
+| some query syntax means nothing to this engine | `site:`, `OR` and quotes are ordinary words to BM25 |
+| 11 searches with heavy repetition | nothing tells it "this angle was already tried" |
 
-**這三件事都不是模型的錯，是 harness 沒做。** 到 Lesson 24 會補上
-「已經搜過什麼」的狀態，這也是 Deep Research 的核心之一。
+None of the three is the model's fault; they are things the harness did not do.
+Lesson 24 adds the "what has been searched" state, which is also one of the
+cores of Deep Research.
 
-### 中文 query 會直接歸零
+### A Chinese query goes straight to zero
 
 ```bash
 bun run lesson-20:search "把影片動作轉到人形機器人"
@@ -307,8 +326,8 @@ bun run lesson-20:search "把影片動作轉到人形機器人"
 0 筆結果
 ```
 
-不是「找不到相關內容」，是**這個檢索方式看不懂這個 query**。
-`engine.ts` 的斷詞只認得 `a-z0-9`：
+Not "no relevant content found" but **this retrieval method cannot read this
+query**. `engine.ts`'s tokeniser only recognises `a-z0-9`:
 
 ```ts
 // 中文、日文、韓文丟進來會得到空陣列——
@@ -318,7 +337,8 @@ export function tokenize(text: string): string[] {
 }
 ```
 
-那為什麼上面用中文問，agent 還是查得到？因為有三層防線在幫它：
+So why does the agent still find things when asked in Chinese above? Because
+three lines of defence help it:
 
 ```text
 1. tool description：  "The index is keyword-based and English-only,
@@ -327,7 +347,8 @@ export function tokenize(text: string): string[] {
 3. 空結果的錯誤訊息：   "rewrite the query in English … and search again"
 ```
 
-第 3 層值得特別看（`tools/search.ts`）。查不到東西的時候不要只回 `no results`：
+The third deserves a look (`tools/search.ts`). When nothing is found, do not
+just return `no results`:
 
 ```ts
 return (
@@ -337,15 +358,17 @@ return (
 );
 ```
 
-這是 Lesson 6 Step 5 那條原則的搜尋版：**每一個錯誤訊息都該告訴模型下一步該做什麼。**
+This is the search-flavoured version of Lesson 6 Step 5's principle: every error
+message should tell the model what to do next.
 
-真正的解法當然是讓檢索本身聽得懂中文（dense retrieval），那是 Lesson 22。
+The real fix is of course making retrieval itself understand Chinese (dense
+retrieval), which is Lesson 22.
 
 ---
 
-## Step 5：工具集決定 agent 能不能誠實
+## Step 5: the tool set decides whether an agent can be honest
 
-system prompt 裡有一條規則寫得很用力：
+One rule in the system prompt is written emphatically:
 
 ```text
 4. Label every claim you make:
@@ -354,45 +377,47 @@ system prompt 裡有一條規則寫得很用力：
    Never present UNVERIFIED as fact.
 ```
 
-而且 `web_search` 的 description 自己就先說了實話：
+And `web_search`'s own description tells the truth up front:
 
 ```text
 IMPORTANT: a snippet is not the page. It is the passage that best matches your query,
 so it can omit or even contradict what the page actually concludes.
 ```
 
-結果呢？Step 2 那個答案裡，**每一條都標了 `CONFIRMED`**，沒有半條 `UNVERIFIED`。
+The result? In Step 2's answer **every line is tagged `CONFIRMED`**, with not a
+single `UNVERIFIED`.
 
-為什麼？因為從模型的角度看，它說的每一句話**確實**都是某個 snippet 講的。
-它沒有說謊，它只是沒有辦法知道自己漏掉了什麼。
+Why? Because from the model's point of view, every sentence it wrote **was**
+said by some snippet. It did not lie; it has no way to know what it missed.
 
-> **在只有 `web_search` 的世界裡，「我沒辦法確認」是一個模型永遠到不了的狀態。**
-> 它手上沒有任何工具可以把不確定變成確定，所以那個標籤永遠不會被用到。
+> In a world with only `web_search`, "I cannot confirm this" is a state the
+> model can never reach. It holds no tool that turns uncertainty into certainty,
+> so that label never gets used.
 
-這就是這一課想讓你先體驗、下一課才解決的事：
+Which is the thing this lesson wants you to feel and the next one fixes:
 
 ```text
 prompt 可以要求誠實，
 但只有工具能讓誠實變得可能。
 ```
 
-Lesson 21 加上 `fetch_page` 之後，同樣的 prompt 才會開始有效——
-因為到那時候，「去把那一頁打開來看」變成了一個真的可以做的動作。
+Once Lesson 21 adds `fetch_page`, the same prompt starts to work — because by
+then "go open that page and look" is an action that can actually be taken.
 
 ---
 
-## Step 6：不用金鑰也能看到這個失敗
+## Step 6: seeing the failure without a key
 
 ```bash
 PROVIDER=fake bun run lesson-20
 ```
 
-這一課有自己的假 provider（`fake-provider.ts`），
-因為 `shared/streaming/fake.ts` 那支是寫給 Lesson 1-5 的 coding agent 的，
-它會去呼叫 `list_files` / `read_file`，在這裡只會換來兩次 `Unknown tool`，
-然後吐一段跟搜尋完全無關的罐頭文字。
+This lesson has its own fake provider (`fake-provider.ts`), because
+`shared/streaming/fake.ts` was written for the Lesson 1-5 coding agent: it calls
+`list_files` and `read_file`, which here earns two `Unknown tool` results
+followed by a canned paragraph with nothing to do with search.
 
-假 provider 演的是**一次搜尋 + 直接下結論**的軌跡：
+The fake provider acts out a **one-search-then-conclude** trajectory:
 
 ```
 我先搜尋一下有哪些相關專案。
@@ -404,99 +429,112 @@ PROVIDER=fake bun run lesson-20
 結論：你要 G1 的話用 retarget-anything。
 ```
 
-兩條結論都錯：第一個已經棄用，第二個從 v0.7 開始就支援 G1 了。
+Both conclusions are wrong: the first is deprecated, and the second has
+supported the G1 since v0.7.
 
-> 這段是**寫死的腳本**，不是模型的判斷，README 裡不會拿它當「模型的行為」的證據。
-> 它的用途是讓沒有 API key 的人也能看到這一課在講什麼。
-> 真模型的實際軌跡在 Step 2 和 Step 3，那兩段都是真的跑出來的。
+> That passage is a **hardcoded script**, not a model's judgement, and this
+> README never cites it as evidence of "model behaviour". Its purpose is letting
+> people without an API key see what the lesson is about. The real model
+> trajectories are in Step 2 and Step 3, both of which were actually run.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `找不到語料索引 …/corpus/index.json` | 語料還沒產生 | `bun run lesson-20:corpus` |
-| 中文 query 回 0 筆 | 關鍵字檢索看不懂 CJK | 這是設計，見 Step 4 |
-| `Unknown tool "list_files"` | 用到了 `shared` 的 fake provider | 這一課用自己的：`PROVIDER=fake bun run lesson-20` |
-| 模型搜了十幾次還在繞 | 沒有「已經搜過什麼」的狀態 | 這是 Lesson 24 的題目 |
-| 答案每一條都是 `CONFIRMED` | 沒有工具能驗證，見 Step 5 | Lesson 21 |
-| `400 status code (no body)`（Gemini） | tool call 的 `extra_content` 被丟掉 | 見 Lesson 6 Step 7，已修 |
+| `找不到語料索引 …/corpus/index.json` | the corpus has not been generated | `bun run lesson-20:corpus` |
+| a Chinese query returns 0 results | keyword retrieval cannot read CJK | by design, see Step 4 |
+| `Unknown tool "list_files"` | you got `shared`'s fake provider | this lesson has its own: `PROVIDER=fake bun run lesson-20` |
+| the model searched a dozen times and is still circling | there is no "what has been searched" state | that is Lesson 24's subject |
+| every line of the answer is `CONFIRMED` | no tool can verify anything, see Step 5 | Lesson 21 |
+| `400 status code (no body)` (Gemini) | the tool call's `extra_content` was dropped | see Lesson 6 Step 7, fixed |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 max_results 調到 8 ⭐
+### Exercise 1: raise max_results to 8 ⭐
 
-`tools/search.ts` 的預設是 5。改成 8 再問一次 Step 2 的問題。
+`tools/search.ts` defaults to 5. Make it 8 and ask Step 2's question again.
 
-`humanoid-mimic 0.7` 的發佈公告排第 8，進了視野之後答案會不會變？
-**這題想讓你體會：召回率的一個小改動，可能比換模型影響更大。**
+The `humanoid-mimic 0.7` release announcement ranks 8th; does the answer change
+once it comes into view? The point is to feel that a small change in recall can
+matter more than changing model.
 
-### 練習 2：把 SEO 農場拿掉 ⭐
+### Exercise 2: delete the SEO farm ⭐
 
-在 `corpus/pages.ts` 把 `top-robotics-tools.example.net` 那一頁註解掉，
-重新產生語料，再跑一次。
+Comment out the `top-robotics-tools.example.net` page in `corpus/pages.ts`,
+regenerate the corpus, and run again.
 
-觀察：其他頁面的名次怎麼變？答案品質有沒有變好？
-**一個純粹的垃圾頁面，佔掉的不只是第一名，是模型有限的注意力。**
+Observe: how do the other rankings move? Does answer quality improve? A pure
+junk page occupies more than the top slot; it occupies the model's finite
+attention.
 
-### 練習 3：讓工具回傳排序分數 ⭐⭐
+### Exercise 3: return the ranking score from the tool ⭐⭐
 
-現在 `web_search` 回給模型的結果沒有 `score`。加上去，
-然後在 description 裡說明分數的意義。
+Right now `web_search` returns no `score` to the model. Add it, then explain in
+the description what the score means.
 
-觀察：模型會不會開始「只看第一名」？這是好事還是壞事？
-（提示：分數是 BM25 分數，不是可信度分數。你要怎麼在 description 裡講清楚，
-才不會讓模型把「關鍵字很多」誤解成「比較可信」？）
+Observe: does the model start looking only at the first result? Is that good or
+bad? (Hint: it is a BM25 score, not a credibility score. How do you word the
+description so the model does not read "lots of keywords" as "more
+trustworthy"?)
 
-### 練習 4：加一個 `search_site` 工具 ⭐⭐
+### Exercise 4: add a `search_site` tool ⭐⭐
 
-限定只搜某個網站（例如 `site=github.com`）。
+Restrict search to one site (for example `site=github.com`).
 
-思考題：這該是一個新工具，還是 `web_search` 的一個參數？
-（回想 Lesson 6：工具太多會稀釋模型的注意力，工具太胖參數會被亂填。）
+To think about: should that be a new tool, or a parameter of `web_search`?
+(Recall Lesson 6: too many tools dilute attention, and an overweight tool gets
+its parameters filled in carelessly.)
 
-### 練習 5：先別看 Lesson 21，自己設計 `fetch_page` ⭐⭐⭐
+### Exercise 5: design `fetch_page` before reading Lesson 21 ⭐⭐⭐
 
-在寫任何程式碼之前，先回答四個問題：
+Before writing any code, answer four questions:
 
-1. 回傳整頁還是一部分？一頁一萬字怎麼辦？
-2. 模型該用什麼指定要抓哪一頁？URL 還是搜尋結果的編號？
-3. 抓失敗（404、逾時、被擋）的錯誤訊息要寫什麼，模型才知道下一步？
-4. 抓回來的內容要不要保留 HTML 結構？標題、清單、程式碼區塊怎麼辦？
+1. Return the whole page or part of it? What about a ten-thousand-word page?
+2. What should the model use to name the page — a URL, or the number of a search
+   result?
+3. What should a failure message say (404, timeout, blocked) so the model knows
+   what to do next?
+4. Should the fetched content keep its HTML structure? What about headings,
+   lists, code blocks?
 
-寫下你的答案，再去看 Lesson 21 的實作。**不一樣的地方才是你真正學到的東西。**
+Write your answers down, then read Lesson 21's implementation. The differences
+are what you actually learned.
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-這一課的形狀對應到幾個開源專案的哪一塊：
+Where this lesson's shape sits in several open-source projects:
 
-| 這一課的概念 | 對照 |
+| Concept in this lesson | Reference |
 |---|---|
-| agent + 一個 search 工具的 loop | [dzhng/deep-research](https://github.com/dzhng/deep-research) 的最內圈 |
-| 「搜尋 → 抓頁 → 清理 → 回傳」整包 | Tavily / [Firecrawl](https://github.com/firecrawl/firecrawl) 的產品範圍（Lesson 23 會自己做一個） |
-| 多來源聚合、結果 normalization | [SearXNG](https://github.com/searxng/searxng)（Lesson 23） |
-| BM25 / hybrid retrieval | [txtai](https://github.com/neuml/txtai)（Lesson 22） |
-| Tool 介面本身 | Pi `packages/agent/src/types.ts:380`（`AgentTool`） |
+| the loop of agent plus one search tool | the innermost circle of [dzhng/deep-research](https://github.com/dzhng/deep-research) |
+| the whole "search → fetch → clean → return" bundle | the product scope of Tavily and [Firecrawl](https://github.com/firecrawl/firecrawl) (Lesson 23 builds one) |
+| multi-source aggregation and result normalisation | [SearXNG](https://github.com/searxng/searxng) (Lesson 23) |
+| BM25 and hybrid retrieval | [txtai](https://github.com/neuml/txtai) (Lesson 22) |
+| the Tool interface itself | Pi `packages/agent/src/types.ts:380` (`AgentTool`) |
 
-> ⚠️ 這幾個專案我還沒逐一讀過原始碼，上面只標「概念對應到哪個專案」，
-> 沒有標行號。等實際讀過再補（設計原則 4）。
+> The source of these projects has not been read line by line, so the table
+> above only says which project a concept corresponds to, without line numbers.
+> They get added once the code has actually been read (design principle 4).
 
-值得先記住的一件事：**Tavily 和 SearXNG 不在同一層**。
-SearXNG 是把多個搜尋引擎的結果聚合起來，Tavily 是聚合完之後還幫你抓頁、
-清理、排序、裁成 LLM 吃得下的大小。這一課做的是後者的最小版本，
-而且刻意少了「抓頁」那一步。
+One thing worth knowing up front: **Tavily and SearXNG are not at the same
+layer**. SearXNG aggregates results from several search engines; Tavily
+aggregates and then fetches, cleans, ranks, and trims to a size an LLM can
+swallow. This lesson builds the minimal version of the latter, deliberately
+missing the fetch step.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 21: Crawl 與內容抽取](../lesson-21-crawl/)**：這一課的 agent 看不到整頁。
-下一課給它 `fetch_page`，然後你會發現真正的問題才開始：
+[Lesson 21: crawling and content extraction](../lesson-21-crawl/): this lesson's
+agent cannot see a whole page. The next one gives it `fetch_page`, and then the
+real problems begin:
 
 ```text
 一頁 HTML 有 8 成是導覽列、廣告、訂閱表單
@@ -505,5 +543,5 @@ SearXNG 是把多個搜尋引擎的結果聚合起來，Tavily 是聚合完之�
 抓回來的內容要不要保留結構？
 ```
 
-語料的 `corpus/pages/*.html` 已經先產生好了，就是為了下一課。
-先打開一個看看，數數看正文佔多少比例。
+The corpus's `corpus/pages/*.html` was generated in advance for exactly that.
+Open one and count what fraction of it is body text.

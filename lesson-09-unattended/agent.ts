@@ -1,26 +1,26 @@
 /**
- * Lesson 9 - 無人值守批准接進真的 agent loop
+ * Lesson 9 - unattended approval wired into a real agent loop
  *
- * `demo.ts` 的四個情境示範的是 InboxStore 的行為（暫停、冪等、孤兒、recap）,
- * 但那裡的「agent」是 `fakeAgentTurn`，一個只會呼叫 `approve()` 的函式。
- * 它證明得了 inbox 會擋住呼叫端，證明不了最重要的下一步：
+ * `demo.ts`'s four scenarios demonstrate InboxStore's behaviour (pausing, idempotency, orphans, the recap),
+ * and the "agent" there is `fakeAgentTurn`, a function that only calls `approve()`.
+ * It proves the inbox blocks the caller and cannot prove the step that matters most:
  *
- *     八小時後批准回來了，工具跑完了，
- *     **模型拿到那個結果之後，有沒有正確收尾？**
+ *     eight hours later approval comes back and the tool runs,
+ *     **and does the model finish correctly once it has that result?**
  *
- * 而且這一課的賭注比 Lesson 8 高：寄信**收不回來**。
- * 所以 send_email 會真的寫檔案到 outbox/，讓你可以獨立驗證
- * 「模型說的」跟「實際發生的」是不是同一件事。
+ * And this lesson's stakes are higher than Lesson 8's: an email **cannot be recalled**.
+ * So send_email really writes a file into outbox/, letting you verify independently
+ * whether "what the model said" and "what happened" are the same thing.
  *
- * 執行：
- *   bun run lesson-09                       # 批准（腳本 provider，不用 key）
- *   RESOLVE=deny bun run lesson-09          # 拒絕
- *   RESOLVE=none bun run lesson-09          # 沒人回答，看它真的卡住
- *   PROVIDER=gemini bun run lesson-09       # 真模型
+ * Run:
+ *   bun run lesson-09                       # approved (the scripted provider, no key)
+ *   RESOLVE=deny bun run lesson-09          # denied
+ *   RESOLVE=none bun run lesson-09          # nobody answers; watch it really hang
+ *   PROVIDER=gemini bun run lesson-09       # a real model
  *
- * 核心 loop 跟 Lesson 8 的 agent.ts 一樣。唯一的差別是
- * **approver 換了一個**，這正是 Lesson 8 把「決定」和「詢問」
- * 拆開之後拿到的回報。
+ * The core loop is the same as Lesson 8's agent.ts. The only difference is
+ * **a different approver**, which is the payoff for Lesson 8 separating
+ * "deciding" from "asking".
  */
 
 import { existsSync, readdirSync, rmSync } from "node:fs";
@@ -50,19 +50,19 @@ const ROOT = resolve(import.meta.dirname, "workspace");
 const SESSION_ID = "sess_nightly";
 const MAX_STEPS = 8;
 
-/** 「你的手機」幾秒後會回答，以及回答什麼。none = 永遠沒人回答。 */
+/** How many seconds until "your phone" answers, and what it answers. none = nobody ever answers. */
 const RESOLVE = (process.env.RESOLVE ?? "allow").toLowerCase();
 const RESOLVE_DELAY_MS = Number(process.env.RESOLVE_DELAY_MS ?? 1500);
 
 /**
- * `NO_HONESTY=1` 會把最後那句「如實報告」拿掉。
+ * `NO_HONESTY=1` removes the closing "report honestly" sentence.
  *
- * 這是一個對照實驗，起因是 Lesson 8 Step 7：那一課的模型在寫檔被拒絕之後
- * 跟使用者說「已經為您重構完成」（謊報）。這一課同樣被拒絕，
- * 模型卻誠實講出「被權限引擎拒絕」。
+ * A control experiment, prompted by Lesson 8 Step 7: there, after a denied write, the model
+ * told the user "the refactor is complete" (a false report). Here it is denied the same way
+ * and honestly says "the permission engine denied it".
  *
- * 兩課差在哪？最可疑的就是這一行 system prompt。
- * 把它拿掉再跑一次就知道了，實測結果見 README Step 5。
+ * What differs between the two lessons? The most suspicious thing is this line of system prompt.
+ * Remove it and run again to find out; the measured result is in README Step 5.
  */
 const HONESTY_LINE = "Report honestly on what actually happened.";
 const NO_HONESTY = process.env.NO_HONESTY === "1";
@@ -87,9 +87,9 @@ const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 // ─────────────────────────────────────────────────────────────
 // Agent loop
 //
-// 跟 Lesson 8 的 agent.ts 逐行對照，差別只有一個：
-// `ask` 從「問終端機」換成「丟進 inbox 然後等」。
-// 這一行以外，engine、gate、工具結果處理全部一樣。
+// Compared line by line against Lesson 8's agent.ts, there is one difference:
+// `ask` changes from "ask the terminal" to "put it in the inbox and wait".
+// Apart from that line, the engine, the gate and tool result handling are identical.
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(
@@ -142,7 +142,7 @@ async function runTurn(
 					console.log(dim(`   ${decision.reason}`));
 
 					const started = Date.now();
-					// ← 就停在這裡。可能是 1.5 秒，也可能是 8 小時。
+						// ← it stops right here. Possibly 1.5 seconds, possibly 8 hours.
 					const outcome = await approve({
 						sessionId: SESSION_ID,
 						toolName: call.name,
@@ -197,10 +197,10 @@ async function runTurn(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 「你的手機」。
+ * "Your phone".
  *
- * 它跟 agent 完全沒有共用任何東西，只認得 InboxStore，
- * 這正是重點：**回答批准的介面不需要知道 agent 的存在。**
+ * It shares nothing at all with the agent and knows only InboxStore,
+ * which is the point: **the interface that answers approvals need not know the agent exists.**
  */
 function startOtherSurface(store: InboxStore): { stop: () => void } {
 	if (RESOLVE === "none") {
@@ -222,7 +222,7 @@ function startOtherSurface(store: InboxStore): { stop: () => void } {
 // ─────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-	// 每次都從乾淨的 outbox 開始，不然「有沒有真的寄出去」會分不清楚。
+	// Start from a clean outbox every time, or "was it really sent" becomes ambiguous.
 	rmSync(OUTBOX_DIR, { recursive: true, force: true });
 
 	const provider = process.env.PROVIDER ? selectStreamingProvider() : unattendedFakeProvider();
@@ -267,10 +267,10 @@ async function main(): Promise<void> {
 		reader.close();
 	}
 
-	// ── 獨立驗證 ────────────────────────────────────────────
+	// ── independent verification ────────────────────────────────
 	//
-	// 這一段是 Lesson 8 Step 7 的教訓：**不要相信模型的自述。**
-	// outbox/ 是事實，模型講什麼都不影響它。
+	// This section is Lesson 8 Step 7's lesson: **do not trust the model's self-report.**
+	// outbox/ is the fact, and nothing the model says changes it.
 	console.log(bold("\n──── 實際發生的事（不看模型怎麼說）────"));
 	const sent = existsSync(OUTBOX_DIR) ? readdirSync(OUTBOX_DIR) : [];
 	console.log(`  outbox/ 裡有 ${sent.length} 封信${sent.length ? `：${sent.join(", ")}` : ""}`);

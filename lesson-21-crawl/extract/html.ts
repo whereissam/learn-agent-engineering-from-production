@@ -1,64 +1,64 @@
 /**
- * HTML → 正文。
+ * HTML → body text.
  *
- * 這是 crawl 真正困難的地方。抓下來的 HTML 裡，正文常常只佔一到兩成，
- * 其他都是導覽列、廣告、訂閱表單、推薦閱讀、cookie 橫幅、footer。
+ * This is where crawling gets genuinely hard. In fetched HTML the body is often only ten to
+ * twenty percent; the rest is navigation, ads, subscription forms, related reading, cookie banners and footers.
  *
- * 這個檔案裡有兩個抽取器，**故意寫成一好一壞**：
+ * There are two extractors in this file, **deliberately one good and one bad**:
  *
- *   stripTags()    把標籤全部拿掉，剩下的都算正文。三行寫完，而且是錯的。
- *   extractMain()  先把 boilerplate 砍掉，再挑正文容器，最後才拿文字。
+ *   stripTags()    remove every tag and call the rest body text. Three lines, and wrong.
+ *   extractMain()  cut the boilerplate, pick the body container, and only then take the text.
  *
- * 為什麼要留著爛的那個？因為多數人第一次寫爬蟲都會寫成那樣，
- * 而且它「看起來會動」。`extract/measure.ts` 會用數字告訴你差多少。
+ * Why keep the bad one? Because most people's first crawler looks like that, and it "appears
+ * to work". `extract/measure.ts` tells you with numbers how far apart they are.
  *
- * 注意：這裡用正規表示式處理 HTML。正式產品應該用真的 parser
- * （cheerio、linkedom、jsdom，或 Readability / trafilatura 這類現成的抽取器）。
- * 這裡不用，是因為這一課的重點是**抽取策略**，不是 parser 的 API。
- * 語料的 HTML 是我們自己產的，結構固定，所以正規表示式夠用。
+ * Note: HTML is processed here with regular expressions. A real product should use a real parser
+ * (cheerio, linkedom, jsdom, or an off-the-shelf extractor like Readability or trafilatura).
+ * It is not used here because this lesson is about **extraction strategy**, not a parser's API.
+ * The corpus HTML is generated here with a fixed structure, so regular expressions suffice.
  */
 
-/** 抽取結果。標題、日期、正文分開，是因為它們的用途不一樣。 */
+/** The extraction result. Title, date and body are separate because their uses differ. */
 export interface Extracted {
 	title: string;
-	/** 發佈日期，抓不到就是空字串。排序和「這資料多舊」都要用到。 */
+	/** The publication date, or an empty string. Used by ranking and by "how old is this". */
 	published: string;
-	/** 正文純文字。 */
+	/** The body as plain text. */
 	text: string;
 	/**
-	 * 這一頁有哪些東西**被丟掉了**。
+	 * What on this page **was thrown away**.
 	 *
-	 * 這個欄位是實測之後才加的，而且它是這一課最重要的一段。
+	 * This field was added after a measurement, and it is this lesson's most important passage.
 	 *
-	 * 原本的抽取器只取 `<p>`，所以表格和清單會安靜地消失。「安靜」是關鍵：
-	 * 頁面抓到了、chunk 也讀完了，模型只是永遠找不到它要的那個數字，
-	 * 而且**不知道自己在找一個已經被丟掉的東西**。
-	 * 實測裡模型因此燒光了 16 步上限還答不出來（README Step 5）。
+	 * The original extractor took only `<p>`, so tables and lists vanished silently. "Silently" is the key:
+	 * the page was fetched, the chunks were read, and the model simply never finds the number it wants,
+	 * **without knowing it is looking for something that was already discarded**.
+	 * In the measurement the model burned the whole 16-step ceiling and still could not answer (README Step 5).
 	 *
-	 * 抓不到頁面至少有錯誤訊息。抽錯內容什麼都沒有。
-	 * 所以工具必須自己把這件事講出來——這就是 Lesson 6
-	 * 「工具要主動報告資料品質」在 crawl 這一層的樣子。
+	 * Failing to fetch at least has an error message. Wrong extraction has nothing.
+	 * So the tool has to say it itself — which is what Lesson 6's "tools should report data quality
+	 * unprompted" looks like at the crawl layer.
 	 */
 	dropped: { tables: number; lists: number };
 }
 
 // ─────────────────────────────────────────────────────────────
-// 反例：把標籤拿掉就好了吧？
+// The counter-example: surely stripping the tags is enough?
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 最直覺的做法：所有標籤換成空白，剩下的就是文字。
+ * The most intuitive approach: replace every tag with whitespace and the rest is the text.
  *
- * 這是錯的，但錯得很不明顯——你會拿到一大段「看起來像正文」的東西，
- * 裡面混著「Home Docs Blog Pricing Sign in」「Accept all」
+ * It is wrong, and wrong in a way that is hard to see — you get a large passage that "looks like
+ * body text" with "Home Docs Blog Pricing Sign in" and "Accept all" mixed into it.
  * 「Sponsored: …」「Subscribe」「© 2026 All rights reserved」。
  *
- * 模型不會抱怨。它會照單全收，然後在回答裡引用廣告文案。
+ * The model will not complain. It takes it all and then cites advertising copy in its answer.
  */
 export function stripTags(html: string): string {
 	return decodeEntities(
 		html
-			// script / style 的「內容」也要拿掉，不然會抽到一堆 JS
+			// script / style *contents* must go too, or you extract a pile of JS
 			.replace(/<script[\s\S]*?<\/script>/gi, " ")
 			.replace(/<style[\s\S]*?<\/style>/gi, " ")
 			.replace(/<[^>]+>/g, " "),
@@ -68,18 +68,18 @@ export function stripTags(html: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 正解：先砍 boilerplate，再挑正文容器
+// The fix: cut the boilerplate first, then pick the body container
 // ─────────────────────────────────────────────────────────────
 
-/** 這些標籤裡的東西，整塊都不是正文。 */
+/** Anything inside these tags is not body text, as a whole block. */
 const DROP_TAGS = ["script", "style", "noscript", "nav", "header", "footer", "aside", "form"];
 
 /**
- * 這些 class / id 出現時整塊丟掉。
+ * Blocks whose class or id matches are dropped entirely.
  *
- * 這份清單很土，但真實世界的抽取器（Readability、trafilatura）
- * 骨子裡也有一份差不多的東西，只是更長、還配上文字密度的統計。
- * **沒有一個抽取器是「原理上正確」的，全部都是啟發式規則。**
+ * This list is crude, and real-world extractors (Readability, trafilatura) have much the same
+ * thing underneath, only longer and paired with text-density statistics.
+ * **No extractor is "correct in principle"; they are all heuristics.**
  */
 const DROP_PATTERNS = [
 	"cookie",
@@ -98,10 +98,10 @@ const DROP_PATTERNS = [
 
 export interface ExtractOptions {
 	/**
-	 * 要不要把表格和清單也抽出來（預設不要）。
+		 * Whether to extract tables and lists too (off by default).
 	 *
-	 * 預設是 false，因為這一課要讓你先看到「只抽 `<p>`」的後果。
-	 * `tools/fetch.ts` 傳的是 true。兩個都留著，你可以自己切回去看差別。
+		 * The default is false, because this lesson wants you to see the consequences of taking only `<p>`.
+		 * `tools/fetch.ts` passes true. Both are kept so you can switch back and see the difference.
 	 */
 	includeStructures?: boolean;
 }
@@ -115,34 +115,34 @@ export function extractMain(html: string, options: ExtractOptions = {}): Extract
 
 	let body = html;
 
-	// 1. 整塊丟掉的標籤
+	// 1. Tags dropped as whole blocks
 	for (const tag of DROP_TAGS) {
 		body = body.replace(new RegExp(`<${tag}[\\s\\S]*?<\\/${tag}>`, "gi"), " ");
 	}
 
-	// 2. class / id 命中黑名單的區塊
-	//    只處理 div / section，因為那是這類容器最常用的標籤
+	// 2. Blocks whose class or id matches the blocklist
+	//    Only div / section are handled, because those are the tags such containers usually use
 	body = dropByAttribute(body, DROP_PATTERNS);
 
-	// 3. 挑正文容器：<article> 優先，其次 <main>，都沒有才退回整個 body
+	// 3. Pick the body container: <article> first, then <main>, and only then fall back to the whole body
 	//
-	//    這個順序不是隨便排的。<article> 是語意上最精確的容器，
-	//    而「退回整個 body」是最後手段——退到那一步，你的抽取品質就靠
-	//    上面兩步的黑名單撐著了。
+	//    The order is not arbitrary. <article> is the semantically most precise container,
+	//    and "fall back to the whole body" is the last resort — once there, extraction quality
+	//    rests entirely on the two blocklists above.
 	const container =
 		firstMatch(body, /<article[^>]*>([\s\S]*?)<\/article>/i) ??
 		firstMatch(body, /<main[^>]*>([\s\S]*?)<\/main>/i) ??
 		firstMatch(body, /<body[^>]*>([\s\S]*?)<\/body>/i) ??
 		body;
 
-	// 4. 依照原始順序取出區塊。
+	// 4. Take the blocks in their original order.
 	//
-	//    最直覺的寫法是「只取 <p>」，那也是這個檔案原本的樣子。
-	//    它抓得準，但會**安靜地**丟掉清單、表格、程式碼區塊——
-	//    而那正是「這個關節在新版是第幾號」這種問題的答案所在。
+	//    The intuitive version is "take only <p>", which is what this file used to do.
+	//    It is precise, and it **silently** drops lists, tables and code blocks —
+	//    which is exactly where the answer to "which index is this joint in the new SDK" lives.
 	//
-	//    順序很重要：表格如果被搬到全文最後面，
-	//    「上面那段講的就是下面這張表」的關係就斷了。
+	//    Order matters: move a table to the end of the document and the relation
+	//    "the paragraph above is talking about the table below" is severed.
 	const pattern = options.includeStructures
 		? /<(p|ul|ol|table)\b[^>]*>([\s\S]*?)<\/\1>/gi
 		: /<(p)\b[^>]*>([\s\S]*?)<\/\1>/gi;
@@ -156,12 +156,12 @@ export function extractMain(html: string, options: ExtractOptions = {}): Extract
 		if (rendered) blocks.push(rendered);
 	}
 
-	// 一個字都抽不到，通常代表這頁的內容是 JS 畫出來的（見 fetcher.ts）
+		// Extracting not a single character usually means the page's content is drawn by JS (see fetcher.ts)
 	const text = blocks.join("\n\n");
 
-	// 還是要數一下丟掉了什麼——**即使已經支援表格，也不代表抽得完整**。
-	// 只數容器（<table> / <ul> / <ol>），不數 <tr> / <li>，
-	// 因為要回報的是「有幾塊結構化內容」，不是「有幾行」。
+	// Still count what was dropped — **supporting tables does not mean extraction is complete**.
+	// Only containers are counted (<table> / <ul> / <ol>), not <tr> / <li>,
+	// because what is reported is "how many structured blocks", not "how many rows".
 	const dropped = options.includeStructures
 		? { tables: 0, lists: 0 }
 		: { tables: count(container, /<table[\s>]/gi), lists: count(container, /<[uo]l[\s>]/gi) };
@@ -172,8 +172,8 @@ export function extractMain(html: string, options: ExtractOptions = {}): Extract
 // ─────────────────────────────────────────────────────────────
 
 function dropByAttribute(html: string, patterns: string[]): string {
-	// 逐一掃過 div / section 開頭標籤，命中黑名單就連同它的內容一起丟。
-	// 這裡用最笨的方式做巢狀對應：從開頭標籤往後找對應的結束標籤。
+		// Scan the div / section opening tags one by one, and drop a match along with its contents.
+		// Nesting is matched in the dumbest way: search forwards from the opening tag for its closing tag.
 	let result = "";
 	let rest = html;
 
@@ -202,7 +202,7 @@ function dropByAttribute(html: string, patterns: string[]): string {
 	return result + rest;
 }
 
-/** 從 `from` 開始找 `<tag>` 對應的結束位置（回傳結束標籤之後的 index）。 */
+/** From `from`, find the matching close of `<tag>` (returns the index after the closing tag). */
 function findClosingTag(html: string, tag: string, from: number): number {
 	const pattern = new RegExp(`<${tag}\\b[^>]*>|<\\/${tag}>`, "gi");
 	pattern.lastIndex = from;
@@ -221,11 +221,11 @@ function plain(html: string): string {
 }
 
 /**
- * 表格 → 每列一行的純文字。
+ * Tables → plain text, one line per row.
  *
- * 為什麼不保留 HTML 給模型？因為 `<table><tr><td>` 這些標籤本身要花 token，
- * 而且模型讀 pipe 分隔的表格跟讀 HTML 表格一樣好。
- * **保留的是「哪些值在同一列」這個關係，不是標記語言。**
+ * Why not keep the HTML for the model? Because `<table><tr><td>` costs tokens by itself, and a
+ * model reads a pipe-separated table as well as an HTML one.
+ * **What is preserved is the relation "which values share a row", not the markup language.**
  */
 function renderTable(html: string): string {
 	const rows = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((row) =>

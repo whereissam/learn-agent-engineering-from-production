@@ -1,14 +1,14 @@
 /**
- * Lesson 3 - Streaming 與中斷
+ * Lesson 3 - streaming and interruption
  *
- * 兩個新東西：
- *   1. 文字逐字印出來，不用等整段講完
- *   2. Ctrl+C 可以喊停，而且停完之後對話還能繼續
+ * Two new things:
+ *   1. text is printed as it arrives, without waiting for the whole passage
+ *   2. Ctrl+C can stop it, and the conversation continues afterwards
  *
- * 第 2 點比看起來難很多。中斷可能發生在三個不同的時機，
- * 每一個都會讓對話歷史處於不同的半殘狀態。見 README。
+ * The second is much harder than it looks. An interruption can happen at three different moments,
+ * each leaving the conversation history in a different half-broken state. See the README.
  *
- * 執行：bun run lesson-03-streaming/agent.ts
+ * Run: bun run lesson-03-streaming/agent.ts
  */
 
 import { resolve } from "node:path";
@@ -59,35 +59,35 @@ const AUTO_APPROVE = process.env.AUTO_APPROVE === "1";
 const alwaysAllow = new Set<string>();
 
 // ─────────────────────────────────────────────────────────────
-// 中斷控制
+// Interruption control
 //
-// 每一輪對話建立一個新的 AbortController。Ctrl+C 觸發 abort，
-// 訊號會傳給「正在跑的模型請求」跟「正在跑的工具」。
+// Each turn creates a new AbortController. Ctrl+C triggers abort,
+// and the signal reaches both the running model request and any running tool.
 // ─────────────────────────────────────────────────────────────
 
 let currentRun: AbortController | undefined;
 
 function handleInterrupt(): void {
 	if (currentRun && !currentRun.signal.aborted) {
-		// 有東西在跑 → 中斷它，但不要結束程式
+		// Something is running → interrupt it without exiting the program
 		currentRun.abort();
 		return;
 	}
-	// 閒著的時候按 Ctrl+C → 真的離開
+	// Ctrl+C while idle → really leave
 	console.log(dim("\n再見。"));
 	process.exit(0);
 }
 
 /**
- * 中斷訊號要從「兩個地方」接。
+ * The interrupt signal has to be caught in **two** places.
  *
- * - rl.on("SIGINT")：stdin 是終端機、而且 readline 正在等你輸入時，
- *   readline 會攔截 SIGINT，process 層根本收不到。
- * - process.on("SIGINT")：其他所有情況，尤其是 runTurn 執行期間
- *   （readline 沒在等輸入），以及 stdin 不是 TTY 的時候（管線、CI）。
+ * - rl.on("SIGINT"): when stdin is a terminal and readline is waiting for input,
+ *   readline intercepts SIGINT and the process level never sees it.
+ * - process.on("SIGINT"): every other case, especially during runTurn
+ *   (readline is not waiting), and when stdin is not a TTY (pipes, CI).
  *
- * 只裝其中一個都會有 Ctrl+C 沒反應的情境。這是實測出來的，
- * 我第一版只裝了 rl 那個，結果串流中按 Ctrl+C 完全沒用。
+ * Installing only one leaves situations where Ctrl+C does nothing. This was found by measurement:
+ * the first version installed only the rl handler, and Ctrl+C during streaming did nothing at all.
  */
 function installSigintHandler(reader: LineReader): void {
 	reader.raw.on("SIGINT", handleInterrupt);
@@ -109,9 +109,9 @@ async function runTurn(
 	signal: AbortSignal,
 ): Promise<TurnOutcome> {
 	for (let step = 0; step < MAX_STEPS; step++) {
-		// ── 1. 串流模型回應 ──────────────────────────────────
+		// ── 1. Stream the model's response ───────────────────
 		//
-		// 一邊印字，一邊累積。中斷的話，累積到的部分仍然有效。
+		// Print and accumulate at once. On an interruption, what was accumulated is still valid.
 		let printedText = false;
 		let response: Awaited<ReturnType<StreamingProvider["call"]>> | undefined;
 		let streamError: { message: string; aborted: boolean } | undefined;
@@ -131,7 +131,7 @@ async function runTurn(
 
 				case "text_delta":
 					partialText += event.delta;
-					// 這一行就是「打字機效果」的全部。
+					// This one line is the entire typewriter effect.
 					process.stdout.write(event.delta);
 					break;
 
@@ -153,20 +153,20 @@ async function runTurn(
 			}
 		}
 
-		// ── 2. 處理串流失敗 / 中斷 ──────────────────────────
+		// ── 2. Handle a stream failure or interruption ──────
 		//
-		// 這是整課最重要的一段。
+		// This is the most important passage in the lesson.
 		if (streamError) {
 			if (streamError.aborted) {
 				console.log(yellow("\n\n[已中斷]"));
 
-				// 中斷點 A：模型講到一半。
+				// Interruption point A: the model is mid-sentence.
 				//
-				// 已經印出去的文字，使用者「看過了」。如果我們把它丟掉，
-				// 對話歷史就跟使用者看到的畫面對不上，之後模型會說出
-				// 前後矛盾的話。
+				// Text already printed has been **seen** by the user. Discarding it makes the
+				// conversation history disagree with what the user saw, and the model will later
+				// contradict itself.
 				//
-				// 所以：有講出東西就存起來，並且標記它是被截斷的。
+				// So: if anything was said, store it and mark it as truncated.
 				if (partialText.trim()) {
 					messages.push({
 						role: "assistant",
@@ -178,7 +178,7 @@ async function runTurn(
 						text: "[你上一則回覆被我中斷了。等我的下一個指示，不要自己接續。]",
 					});
 				}
-				// 什麼都還沒講就被中斷 → 歷史沒被弄髒，什麼都不用做。
+				// Interrupted before saying anything → the history is unpolluted and nothing needs doing.
 				return { aborted: true };
 			}
 
@@ -191,7 +191,7 @@ async function runTurn(
 			return { aborted: false };
 		}
 
-		// ── 3. 正常路徑，跟 Lesson 1-2 一樣 ─────────────────
+		// ── 3. The normal path, as in Lessons 1-2 ───────────
 		messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
 		if (response.stopReason === "refusal") {
@@ -206,20 +206,20 @@ async function runTurn(
 		const toolCalls = response.blocks.filter((b) => b.type === "toolCall");
 		if (toolCalls.length === 0) return { aborted: false };
 
-		// ── 4. 執行工具 ─────────────────────────────────────
+		// ── 4. Execute the tools ────────────────────────────
 		//
-		// 中斷點 B：工具跑到一半。
+		// Interruption point B: a tool is mid-execution.
 		//
-		// 這裡有個硬性規則：**每一個 tool call 都必須有一則對應的結果**，
-		// 否則下一次請求會被 API 打回 400。
+		// There is a hard rule here: **every tool call must have a matching result**,
+		// or the next request comes back from the API as a 400.
 		//
-		// 所以就算中途被中斷，剩下沒跑的工具也要補上「已取消」的結果。
+		// So even when interrupted, the tools that did not run still need a "cancelled" result.
 		const results: ToolResult[] = [];
 		let abortedDuringTools = false;
 
 		for (const call of toolCalls) {
 			if (abortedDuringTools || signal.aborted) {
-				// 已經中斷了 → 補一則取消結果，不要真的執行
+				// Already interrupted → append a cancellation result rather than executing
 				abortedDuringTools = true;
 				results.push({
 					toolCallId: call.id,
@@ -246,13 +246,13 @@ async function runTurn(
 			}
 		}
 
-		// 補完所有結果「之後」才 push，歷史永遠保持在合法狀態。
+		// Push only **after** every result is complete, so the history is always in a legal state.
 		messages.push({ role: "toolResult", results });
 
 		if (abortedDuringTools || signal.aborted) {
 			console.log(yellow("\n[已中斷]"));
-			// 中斷點 C：工具結果已經補齊了，歷史是合法的。
-			// 加一則使用者訊息說明狀況，模型下一輪才知道發生什麼事。
+			// Interruption point C: the tool results are complete and the history is legal.
+			// Add a user message describing what happened, so the model knows next round.
 			messages.push({
 				role: "user",
 				text: "[我中斷了你的工具執行。等我的下一個指示。]",
@@ -334,8 +334,8 @@ async function main(): Promise<void> {
 
 			messages.push({ role: "user", text: input });
 
-			// 每一輪一個新的 controller。中斷是「這一輪」的事，
-			// 不會影響下一輪。
+				// A new controller per turn. An interruption belongs to **this** turn
+				// and does not affect the next.
 			currentRun = new AbortController();
 			try {
 				await runTurn(provider, messages, ctx, currentRun.signal);

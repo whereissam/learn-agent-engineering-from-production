@@ -1,14 +1,14 @@
 /**
- * Lesson 6: 領域工具
+ * Lesson 6: domain tools
  *
- * 這一課的 loop 跟 Lesson 3 幾乎一模一樣。**唯一的差別是工具換了。**
+ * This lesson's loop is nearly identical to Lesson 3's. **The only difference is the tools.**
  *
- * 通用工具（read_file / write_file / bash）不見了，
- * 換成一組只在「機器人 telemetry 分析」這個領域有意義的工具。
+ * The general tools (read_file / write_file / bash) are gone,
+ * replaced by a set that only means anything in the domain of "robot telemetry analysis".
  *
- * 這正是重點：agent 的能力上限取決於它能操作什麼，不是 prompt 多漂亮。
+ * Which is the point: an agent's ceiling is set by what it can operate, not by how pretty the prompt is.
  *
- * 執行：bun run lesson-06-domain-tools/agent.ts
+ * Run: bun run lesson-06-domain-tools/agent.ts
  */
 
 import { resolve } from "node:path";
@@ -35,14 +35,14 @@ const MAX_TOKENS = 16000;
 const MAX_STEPS = 30;
 
 /**
- * 領域上下文。
+ * The domain context.
  *
- * 注意這裡寫的是「怎麼判斷」的規則，不是「答案」。
- * 這些是領域專家的知識，模型不可能自己知道 pitch 超過幾度算異常，
- * 也不知道你們公司對「跌倒」的定義是什麼。
+ * Note what is written here is the rules for **how to judge**, not the answers.
+ * This is a domain expert's knowledge; a model cannot know by itself how many degrees of pitch is anomalous,
+ * or what your company means by "a fall".
  *
- * 這段東西在真實產品裡通常會抽成一個檔案（AGENTS.md 之類的），
- * 由領域專家維護，而不是寫死在程式碼裡。
+ * In a real product this is usually extracted into a file (an AGENTS.md or similar),
+ * maintained by domain experts rather than hardcoded.
  */
 const SYSTEM_PROMPT = `You are an incident analyst for a quadruped robot fleet.
 
@@ -118,7 +118,7 @@ function handleInterrupt(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop: 跟 Lesson 3 完全相同，一行都沒改
+// The agent loop: identical to Lesson 3's, not one line changed
 // ─────────────────────────────────────────────────────────────
 
 export async function runTurn(
@@ -270,11 +270,11 @@ function firstLine(text: string): string {
 }
 
 /**
- * 這一課自備 fake provider。
+ * This lesson brings its own fake provider.
  *
- * `shared/streaming/fake.ts` 是寫給 Lesson 1-5 的 coding agent 的，
- * 它會呼叫 list_files / read_file，在這裡只會拿到 Unknown tool。
- * 設計原則 1 說每一課都要能不用金鑰跑，所以要自己準備一支。
+ * `shared/streaming/fake.ts` was written for the Lesson 1-5 coding agent;
+ * it calls list_files / read_file, which here only earns Unknown tool.
+ * Design principle 1 says every lesson must run without a key, so it needs its own.
  */
 function selectProvider(): StreamingProvider {
 	if (process.env.PROVIDER?.toLowerCase() === "fake") return fakeTelemetryProvider();
@@ -289,7 +289,7 @@ async function main(): Promise<void> {
 	process.on("SIGINT", handleInterrupt);
 
 	const ctx: ToolContext = {
-		// 這一課沒有檔案沙箱的概念，工具自己管資料存取
+			// This lesson has no file sandbox; the tools manage their own data access
 		root: resolve(import.meta.dirname, "data"),
 		approve: createApprover(reader),
 		log: (line) => console.log(dim(`    │ ${line}`)),
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
 	}
 }
 
-// 被 Lesson 7 當成模組 import 時不要啟動 REPL
+// Do not start a REPL when Lesson 7 imports this as a module
 if (import.meta.main) {
 	try {
 		await main();

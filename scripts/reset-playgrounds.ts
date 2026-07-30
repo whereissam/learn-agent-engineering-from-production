@@ -1,18 +1,18 @@
 /**
- * 把 playground 復原成「有 bug」的狀態。
+ * Restore the playgrounds to their buggy state.
  *
  *   bun run reset
  *
- * Lesson 2 之後的 agent 會真的改 playground 裡的檔案，所以每次示範完
- * 都要能復原。原本這是 package.json 裡一長串 sed，但那個做法有兩個問題：
+ * From Lesson 2 on, the agent really edits files in the playground, so every demonstration
+ * has to be restorable. This used to be a long chain of sed in package.json, and that had two problems:
  *
- *   1. 它只處理「agent 改了 store.ts 的 save」這一種修法。
- *      如果 agent 改的是 lookup（一樣正確），reset 就漏掉了。
- *   2. Lesson 5 的 playground 現在有第二個 bug（analytics.ts），
- *      一行 sed 塞不下。
+ *   1. It only handled one fix: "the agent changed store.ts's save".
+ *      If the agent changed lookup instead (equally correct), reset missed it.
+ *   2. Lesson 5's playground now has a second bug (analytics.ts),
+ *      which does not fit in one line of sed.
  *
- * 所以改成把「該長什麼樣」寫清楚，然後強制寫回去。
- * **復原腳本要處理的是「任何被改過的狀態」，不是「我預期的那一種修法」。**
+ * So it changed to stating what things should look like and force-writing them back.
+ * **A restore script has to handle any modified state, not "the fix I expected".**
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -22,7 +22,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 
 interface Fixup {
 	file: string;
-	/** 任何一種寫法都會被換成 `buggy`。 */
+	/** Any spelling of it is replaced by `buggy`. */
 	patterns: RegExp[];
 	buggy: string;
 	what: string;
@@ -36,7 +36,7 @@ const LESSONS = [
 	"lesson-10-agent-server",
 ];
 
-/** 每一課都有的：短碼大小寫不一致。 */
+/** Present in every lesson: inconsistent case in the short code. */
 const STORE_FIXUPS: Fixup[] = [
 	{
 		file: "src/store.ts",
@@ -52,7 +52,7 @@ const STORE_FIXUPS: Fixup[] = [
 	},
 ];
 
-/** 只有 Lesson 5 有的：分析用不同的 key。 */
+/** Only in Lesson 5: analytics uses a different key. */
 const ANALYTICS_FIXUPS: Fixup[] = [
 	{
 		file: "src/analytics.ts",

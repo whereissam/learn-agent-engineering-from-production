@@ -1,7 +1,7 @@
 /**
- * Anthropic 的 streaming 實作。
+ * Anthropic's streaming implementation.
  *
- * SDK 已經幫你把 SSE 解析成事件了，這裡的工作是把它翻譯成我們的 StreamEvent。
+ * The SDK already parses SSE into events; the work here is translating them into our StreamEvent.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -40,8 +40,8 @@ export function anthropicStreamingProvider(model: string): StreamingProvider {
 				let textOpen = false;
 
 				for await (const event of stream) {
-					// 每一個事件之間都檢查一次中斷。
-					// SDK 也會處理 signal，但我們自己檢查可以更快停下來。
+						// Check for an interruption between every event.
+						// The SDK handles the signal too, and checking ourselves stops sooner.
 					if (signal?.aborted) {
 						if (textOpen) yield { type: "text_end" };
 						yield { type: "error", message: "Aborted by user", aborted: true };
@@ -60,8 +60,8 @@ export function anthropicStreamingProvider(model: string): StreamingProvider {
 						textOpen = false;
 						yield { type: "text_end" };
 					}
-					// thinking / tool_use 的串流事件在這裡忽略，
-					// 工具呼叫等下面拿到完整訊息後統一發出。
+						// thinking / tool_use stream events are ignored here;
+						// tool calls are emitted together once the complete message arrives below.
 				}
 
 				const message = await stream.finalMessage();
@@ -86,8 +86,8 @@ export function anthropicStreamingProvider(model: string): StreamingProvider {
 					},
 				};
 			} catch (error) {
-				// 中斷會以 APIUserAbortError 的形式丟出來。
-				// 把它變成一個「事件」而不是繼續往上丟，loop 需要優雅地處理它。
+					// An interruption arrives as an APIUserAbortError.
+					// Turn it into an **event** rather than rethrowing; the loop needs to handle it gracefully.
 				const aborted =
 					signal?.aborted === true ||
 					(error instanceof Error && error.name === "APIUserAbortError");
@@ -109,7 +109,7 @@ export function anthropicStreamingProvider(model: string): StreamingProvider {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 轉換（跟非串流版一樣）
+// Conversion (identical to the non-streaming version)
 // ─────────────────────────────────────────────────────────────
 
 function toAnthropicTool(tool: ToolSpec): Anthropic.Tool {

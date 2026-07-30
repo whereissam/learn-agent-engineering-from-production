@@ -1,19 +1,19 @@
 /**
- * Lesson 37 - 聊天記錄不夠：action / observation
+ * Lesson 37 - chat history is not enough: action / observation
  *
- * 四個情境，每一個都是「同一段歷史，兩種記法」的對照：
+ * Four scenarios, each contrasting "the same history in two recordings":
  *
- *   conflict   模型說測試都過了，environment 說 exit code 1
- *   failures   三種失敗（環境拒絕 / 使用者拒絕 / 我們的 bug）
- *   batches    一次回應叫三個工具，還是三次回應各叫一個
- *   view       壓縮完之後看不看得出壓縮過
+ *   conflict   the model says the tests passed and the environment says exit code 1
+ *   failures   three failures (the environment refused / the user refused / our bug)
+ *   batches    one response calling three tools, or three responses calling one each
+ *   view       can you tell compaction happened afterwards
  *
- * 執行：
+ * Run:
  *   bun run lesson-37
  *   bun run lesson-37 conflict
  *
- * 這一課不需要模型：要證明的是**資料結構的性質**，不是模型行為。
- * 真模型的部分在 `bun run lesson-37:agent`（那個問的是完全不同的問題）。
+ * This lesson needs no model: what is proved is **a property of the data structure**, not model behaviour.
+ * The real-model part is `bun run lesson-37:agent` (which asks a completely different question).
  */
 
 import { Trajectory, conflictsFromChat } from "./trajectory.ts";
@@ -30,9 +30,9 @@ let clock = 1_700_000_000_000;
 const next = () => (clock += 1000);
 
 /**
- * 這段 trajectory 重現的是 **Lesson 8 真的量到的行為**：
- * 工具沒有成功，模型跟使用者說做完了。
- * 那次是權限拒絕，這次換成 exit code，因為要示範 `exitCode` 這個欄位。
+ * This trajectory reproduces **behaviour Lesson 8 really measured**:
+ * the tool did not succeed and the model told the user it was done.
+ * There it was a permission refusal; here it is an exit code, to demonstrate the `exitCode` field.
  */
 function conflictFixture(): Trajectory {
 	const trajectory = new Trajectory();
@@ -137,7 +137,7 @@ function failureFixture(): Trajectory {
 			thought: "先刪快取。", toolName: "run_command", toolCallId: "c1",
 			args: { command: "rm -rf .cache" }, llmResponseId: "r1",
 		},
-		// ① 使用者拒絕 —— 帶理由，而且是獨立的事件型別
+			// ① The user refused — with a reason, and as its own event type
 		{
 			kind: "user-reject", id: "f3", timestamp: next(), source: "environment",
 			toolName: "run_command", toolCallId: "c1", actionId: "f2",
@@ -148,7 +148,7 @@ function failureFixture(): Trajectory {
 			thought: "那我直接跑測試。", toolName: "run_command", toolCallId: "c2",
 			args: { command: "npm test" }, llmResponseId: "r2",
 		},
-		// ② 環境說失敗
+			// ② The environment says it failed
 		{
 			kind: "observation", id: "f5", timestamp: next(), source: "environment",
 			toolName: "run_command", toolCallId: "c2", actionId: "f4",
@@ -159,7 +159,7 @@ function failureFixture(): Trajectory {
 			thought: "看一下失敗的那個檔案。", toolName: "read_file", toolCallId: "c3",
 			args: { path: "src/store.ts", offset: -5 }, llmResponseId: "r3",
 		},
-		// ③ 我們自己的鷹架壞了（source 是 "agent"，不是 environment）
+			// ③ Our own harness broke (source is "agent", not environment)
 		{
 			kind: "agent-error", id: "f7", timestamp: next(), source: "agent",
 			toolName: "read_file", toolCallId: "c3",

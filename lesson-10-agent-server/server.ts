@@ -1,28 +1,28 @@
 /**
  * Lesson 10 - Agent server
  *
- * Lesson 3 的 agent 住在終端機裡：`runTurn` 一邊跑一邊 `process.stdout.write`。
- * 這一課把它拆成兩個進程：
+ * Lesson 3's agent lives in the terminal: `runTurn` runs and writes to `process.stdout` as it goes.
+ * This lesson splits it into two processes:
  *
  *     client (UI)  ──HTTP POST──▶  server  ──▶  provider
  *                  ◀───  SSE  ───  server
  *
- * 核心 loop 沒有改（設計原則 6）。改的只有一件事：
+ * The core loop did not change (design principle 6). Only one thing did:
  *
  *     process.stdout.write(delta)   →   emit({ type: "text_delta", delta })
  *
- * 但光是這一個改動，就逼出四個原本不存在的問題：
- *   1. 同一個 session 有兩個視窗在看，事件要送給誰？
- *   2. 中斷從哪裡進來？（終端機有 SIGINT，瀏覽器沒有）
- *   3. UI 關掉的時候，正在跑的 turn 該死還是該活？
- *   4. UI 重新連上來的時候，斷線期間的事件去哪了？
+ * And that single change forces out four problems that did not exist before:
+ *   1. two windows are watching the same session, so who does an event go to?
+ *   2. where does an interruption come from? (a terminal has SIGINT, a browser does not)
+ *   3. when the UI closes, should a running turn die or live?
+ *   4. when the UI reconnects, where did the events from the gap go?
  *
- * 第 4 題是這課的重點，而且它是一個**安靜的失敗**（設計原則 7）：
- * 沒有錯誤、沒有例外，只是使用者的畫面少了一段，而且永遠補不回來。
+ * The fourth is this lesson's point, and it is a *silent* failure (design principle 7):
+ * no error, no exception, just a missing passage on the user's screen that never comes back.
  *
- * 執行：
- *   bun run lesson-10-agent-server/server.ts          # 修好的版本
- *   NAIVE=1 bun run lesson-10-agent-server/server.ts  # 會掉事件的版本
+ * Run:
+ *   bun run lesson-10-agent-server/server.ts          # the fixed version
+ *   NAIVE=1 bun run lesson-10-agent-server/server.ts  # the version that loses events
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -47,11 +47,11 @@ const MAX_TOKENS = 16000;
 const MAX_STEPS = 25;
 
 /**
- * NAIVE=1 會關掉這一課後半段做的兩件事：
- *   - 重連時重送狀態
- *   - turn 中途存檔（checkpoint）
+ * NAIVE=1 switches off the two things the second half of this lesson adds:
+ *   - resending state on reconnect
+ *   - checkpointing mid-turn
  *
- * 留著這個開關是為了讓「掉事件」可以被示範出來，而不是用講的。
+ * The switch exists so that losing events can be demonstrated rather than described.
  */
 const NAIVE = process.env.NAIVE === "1";
 
@@ -75,23 +75,23 @@ const registry = new ToolRegistry([
 ]);
 
 // ─────────────────────────────────────────────────────────────
-// 事件
+// Events
 //
-// 這份型別就是「server 跟 UI 之間的契約」。它比 StreamEvent 多了幾種，
-// 多出來的全部都是**因為有第二個進程才需要的**：
+// This type is the contract between the server and the UI. It has several members
+// StreamEvent does not, and every extra one exists *because there is a second process*:
 //
-//   ready / state   ← 重連時要有辦法把 UI 補回正確畫面
-//   turn_start      ← UI 要知道什麼時候該把輸入框變灰
-//   turn_done       ← 以及什麼時候變回來
-//   input_rejected  ← 上行的請求可能被拒絕（終端機不會有這種事）
+//   ready / state   ← a reconnect needs a way to restore the UI to the right screen
+//   turn_start      ← the UI needs to know when to grey the input box out
+//   turn_done       ← and when to bring it back
+//   input_rejected  ← an upstream request can be refused (a terminal never has this)
 // ─────────────────────────────────────────────────────────────
 
 export type ServerEvent =
-	/** 連上來的第一則。只送給這一個 client。 */
+	/** The first message on connect. Sent only to this one client. */
 	| { type: "ready"; sessionId: string; provider: string; model: string; naive: boolean }
 	/**
-	 * 目前的完整狀態。**這是重連正確性的關鍵，不是事件重播。**
-	 * 見 README Step 4。
+	 * The current complete state. **This is the key to reconnect correctness, not event replay.**
+	 * See README Step 4.
 	 */
 	| { type: "state"; messages: Message[]; running: boolean }
 	| { type: "turn_start"; text: string }
@@ -100,7 +100,7 @@ export type ServerEvent =
 	| { type: "text_end" }
 	| { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
 	| { type: "tool_result"; id: string; name: string; content: string; isError: boolean }
-	/** 一次「模型回應 + 它的工具結果」跑完了。這是一個 checkpoint。 */
+	/** One "model response plus its tool results" finished. This is a checkpoint. */
 	| { type: "iteration_end"; step: number }
 	| { type: "interrupted"; where: "stream" | "tools" }
 	| { type: "turn_done"; reason: "end" | "aborted" | "error" | "max_steps"; message?: string }
@@ -114,18 +114,18 @@ interface Session {
 	id: string;
 	messages: Message[];
 	/**
-	 * 一個 session 一個 provider。
+	 * One provider per session.
 	 *
-	 * 不是效能考量，`fakeStreamingProvider` 內部有個 `step` 計數器，
-	 * 兩個 session 共用一個實例的話，B 的第一句話會拿到 A 的第三段劇本。
-	 * 真實 provider 沒有這個狀態，但「session 之間不共用可變狀態」
-	 * 這條規則要一開始就守住，不然之後加快取、加 rate limit 都會踩到。
+	 * Not for performance: `fakeStreamingProvider` has a `step` counter inside, so two
+	 * sessions sharing one instance would give B's first sentence A's third scripted passage.
+	 * A real provider has no such state, but the rule "sessions share no mutable state"
+	 * has to be held from the start, or caching and rate limiting will trip over it later.
 	 */
 	provider: StreamingProvider;
-	/** 正在看這個 session 的所有連線。可能是 0 個（UI 關掉了），也可能是 3 個。 */
+	/** Every connection watching this session. Possibly 0 (the UI closed), possibly 3. */
 	clients: Set<(event: ServerEvent) => void>;
 	running: boolean;
-	/** 只有在 running 的時候有值。中斷就是 abort 它，跟 Lesson 3 一模一樣。 */
+	/** Only set while running. Interrupting means aborting it, exactly as in Lesson 3. */
 	controller?: AbortController;
 }
 
@@ -147,32 +147,32 @@ function getSession(id: string): Session {
 }
 
 /**
- * 送給「所有正在看這個 session 的連線」，**包含剛剛送出訊息的那一個**。
+ * Send to every connection watching this session, **including the one that just sent the message**.
  *
- * 直覺上會想讓送訊息的那個 client 自己把訊息畫上去（樂觀更新），
- * 但那樣一來畫面就有兩個來源：一個是自己畫的，一個是 server 推的。
- * 第二個視窗打開的那一刻，兩邊就會不一致。
+ * The intuition is to let the sending client paint its own message (an optimistic update),
+ * but then the screen has two sources: one painted locally and one pushed by the server.
+ * The moment a second window opens, the two disagree.
  *
- * **一個畫面只能有一個真相來源。** client 送出去之後什麼都不畫，
- * 等事件回來再畫，兩個視窗自然就同步了。
+ * **A screen may have only one source of truth.** The client paints nothing on send and
+ * waits for the event to come back, and two windows stay in sync by construction.
  *
- * 對照 openworker/coworker/server/app.py:1721 的註解，寫的是同一件事。
+ * The comment at openworker/coworker/server/app.py:1721 says the same thing.
  */
 function broadcast(session: Session, event: ServerEvent): void {
 	for (const send of session.clients) send(event);
 }
 
 /**
- * 哪些事件是 checkpoint：收到它的時候要把 session 存到硬碟。
+ * Which events are checkpoints: on receiving one, persist the session to disk.
  *
- * 為什麼不是每個事件都存？因為 text_delta 一秒鐘有幾十個，
- * 而且它們**不是狀態**，它們是狀態變化的過程。存過程沒有意義，
- * 存結果才有。
+ * Why not persist every event? Because text_delta arrives dozens of times a second,
+ * and those are **not state**; they are the process of state changing. Persisting a
+ * process is pointless; persisting a result is not.
  *
- * 對照 openworker/coworker/server/app.py:1702 的 `_CHECKPOINTS`，
- * 那邊列的是 turn_start / permission_required / directory_requested /
- * plan_proposed / iteration_end。形狀一樣：**要嘛是一段完成了，
- * 要嘛是停下來等人。**
+ * Against `_CHECKPOINTS` at openworker/coworker/server/app.py:1702, which lists
+ * turn_start / permission_required / directory_requested / plan_proposed /
+ * iteration_end. The same shape: **either a stage completed, or it stopped to wait
+ * for a person.**
  */
 const CHECKPOINTS: ReadonlySet<ServerEvent["type"]> = new Set([
 	"turn_start",
@@ -186,10 +186,10 @@ function emit(session: Session, event: ServerEvent): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 持久化
+// Persistence
 //
-// 刻意做成最笨的形式（一個 session 一個 JSON 檔）。
-// 重點不是儲存格式，是「什麼時候存」。
+// Deliberately the dumbest possible form (one JSON file per session).
+// The point is not the storage format but *when* to store.
 // ─────────────────────────────────────────────────────────────
 
 function sessionPath(id: string): string {
@@ -212,14 +212,14 @@ function load(id: string): Message[] {
 // ─────────────────────────────────────────────────────────────
 // Agent loop
 //
-// 跟 lesson-03-streaming/agent.ts 的 runTurn 逐行對照，只有兩類差異：
+// Compared line by line against lesson-03-streaming/agent.ts's runTurn, there are only
+// two kinds of difference:
+//   1. every process.stdout.write / console.log → emit(session, {...})
+//   2. approve returns false directly (approval travels upstream, which is Lessons 8-9;
+//      not done here, see the README's "what this lesson deliberately leaves out")
 //
-//   1. 每一個 process.stdout.write / console.log → emit(session, {...})
-//   2. approve 直接回 false（批准要走上行訊息，那是 Lesson 8-9 的事，
-//      這課先不做，見 README「這課刻意不做的事」）
-//
-// 中斷、歷史修復、工具結果補齊的邏輯**一個字都沒動**。
-// 這就是設計原則 6 想保護的東西：換一個外殼不應該碰到核心。
+// The interruption, history repair and tool-result completion logic is **untouched**.
+// That is what design principle 6 protects: a new shell should not touch the core.
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
@@ -271,7 +271,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 			}
 		}
 
-		// 中斷點 A：模型講到一半（跟 Lesson 3 相同）
+		// Interruption point A: the model is mid-sentence (as in Lesson 3)
 		if (streamError) {
 			if (streamError.aborted) {
 				emit(session, { type: "interrupted", where: "stream" });
@@ -311,7 +311,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 			return;
 		}
 
-		// 中斷點 B：工具跑到一半（跟 Lesson 3 相同）
+		// Interruption point B: a tool is mid-execution (as in Lesson 3)
 		const results: ToolResult[] = [];
 		let abortedDuringTools = false;
 
@@ -356,7 +356,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 
 		session.messages.push({ role: "toolResult", results });
 
-		// 中斷點 C：工具結果補齊了才停（跟 Lesson 3 相同）
+		// Interruption point C: stopped only after tool results are completed (as in Lesson 3)
 		if (abortedDuringTools || signal.aborted) {
 			emit(session, { type: "interrupted", where: "tools" });
 			session.messages.push({
@@ -367,7 +367,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 			return;
 		}
 
-		// 一輪完整跑完 = checkpoint。crash 在這之後就不會吃掉這一段。
+		// A full turn completed = a checkpoint. A crash after this cannot eat this passage.
 		emit(session, { type: "iteration_end", step });
 	}
 
@@ -375,15 +375,15 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 一個 session 一次只能跑一輪
+// One turn at a time per session
 //
-// 為什麼需要這個：終端機是同步的，你打完 enter 才會有下一個 prompt。
-// HTTP 不是。使用者可以連按兩次送出，兩個視窗也可以同時送。
-// 兩個 turn 同時改同一個 messages 陣列，歷史就爛了。
+// Why this is needed: a terminal is synchronous; the next prompt only appears after enter.
+// HTTP is not. A user can press send twice, and two windows can send at once.
+// Two turns mutating the same messages array corrupts the history.
 //
-// 對照 app.py:1744：claim 要在「排程 task 之前」做完，
-// 註解寫「Keeping the claim outside prevents two back-to-back frames
-// from both starting」，如果先開 task 再檢查，兩個請求會同時通過。
+// Against app.py:1744: the claim must complete *before* scheduling the task; the comment
+// says "Keeping the claim outside prevents two back-to-back frames from both starting".
+// Open the task first and check afterwards, and two requests both get through.
 // ─────────────────────────────────────────────────────────────
 
 function tryMarkRunning(session: Session): boolean {
@@ -399,9 +399,9 @@ function startTurn(session: Session, text: string): void {
 	const controller = new AbortController();
 	session.controller = controller;
 
-	// 刻意不 await。HTTP 請求要立刻回，turn 在背景跑，
-	// 進度靠 SSE 推。**turn 的生命週期跟送出它的那個請求無關**，
-	// 這正是「agent 不能住在 UI 進程裡」的核心。
+		// Deliberately not awaited. The HTTP request returns immediately and the turn runs in
+		// the background, with progress pushed over SSE. **A turn's lifetime is unrelated to
+		// the request that started it**, which is the core of "an agent cannot live in the UI process".
 	void runTurn(session, controller.signal)
 		.catch((error: unknown) => {
 			emit(session, {
@@ -422,17 +422,17 @@ function startTurn(session: Session, text: string): void {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 一個開在 localhost 的 server，**使用者瀏覽的任何網站都打得到它**。
+ * A server listening on localhost is **reachable from any website the user browses**.
  *
- * evil.example.com 的一段 JavaScript 可以 fetch("http://127.0.0.1:7010/…")，
- * 而這個 server 手上有 shell 工具。CORS 擋得住讀回應，
- * 但擋不住請求送達，而「送達」就足夠讓 agent 開始跑東西了。
+ * A piece of JavaScript on evil.example.com can fetch("http://127.0.0.1:7010/…"),
+ * and this server holds shell tools. CORS blocks reading the response but does not
+ * block the request arriving, and arriving is enough to start the agent running.
  *
- * 所以 origin 要當成白名單來檢查，不是當成 CORS 標頭來設定。
- * 沒有 Origin 標頭的（curl、原生 client、測試）放行，
- * 這個閘門針對的是瀏覽器，而瀏覽器一定會帶 Origin 且無法偽造。
+ * So origin must be checked as an allowlist, not configured as a CORS header.
+ * Requests with no Origin header (curl, native clients, tests) are allowed through;
+ * this gate targets browsers, and a browser always sends an unforgeable Origin.
  *
- * 對照 openworker/coworker/server/app.py:26-46，理由寫得比我這裡更完整。
+ * openworker/coworker/server/app.py:26-46 states the reasoning more completely.
  */
 const ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -440,7 +440,7 @@ function originAllowed(origin: string | undefined): boolean {
 	return origin === undefined || ALLOWED_ORIGIN.test(origin);
 }
 
-/** 上行請求的粗暴上限。loopback 是不認證的，任何本機程序都打得到。 */
+/** A crude cap on upstream requests. Loopback is unauthenticated; any local process can reach it. */
 const RATE_LIMIT_COUNT = 30;
 const RATE_LIMIT_WINDOW_MS = 10_000;
 const inbound: number[] = [];
@@ -473,16 +473,16 @@ async function readBody(req: IncomingMessage): Promise<string> {
 }
 
 /**
- * SSE：server → client 的單向事件流。
+ * SSE: a one-way event stream from server to client.
  *
- * 為什麼是 SSE 而不是 WebSocket？因為這課只需要單向推送，
- * 上行的東西（送訊息、中斷）用普通的 POST 就夠了，而 SSE
- * 是純文字、可以用 curl 看、不需要任何依賴。
+ * Why SSE rather than WebSocket? Because this lesson only needs one-way push; upstream
+ * things (sending a message, interrupting) fit in an ordinary POST, and SSE is plain
+ * text, inspectable with curl, and needs no dependency.
  *
- * OpenWorker 用的是 WebSocket，理由在 README Step 5：
- * 它的上行不只有這兩種，還有批准、目錄授權、計畫確認、提問回覆
- * （app.py:1767 之後那一串 `elif kind == …`）。
- * 上行一旦變成一個協定，就該用雙向通道。
+ * OpenWorker uses WebSocket, and the reason is in README Step 5: its upstream is not
+ * just those two but also approval, directory authorisation, plan confirmation and
+ * question replies (the chain of `elif kind == …` after app.py:1767).
+ * Once upstream becomes a protocol, it deserves a bidirectional channel.
  */
 function openStream(req: IncomingMessage, res: ServerResponse, session: Session): void {
 	res.writeHead(200, {
@@ -505,18 +505,18 @@ function openStream(req: IncomingMessage, res: ServerResponse, session: Session)
 		naive: NAIVE,
 	});
 
-	// ── 這課的重點就是這個 if ───────────────────────────────
+	// ── this if is the whole point of the lesson ──────────────
 	//
-	// NAIVE 版本連上來之後什麼都不送，等下一個事件。看起來很合理，
-	// 因為「事件流」聽起來就該從現在開始。
+	// The NAIVE version sends nothing on connect and waits for the next event. That looks
+	// reasonable, because an "event stream" sounds like it should start from now.
 	//
-	// 但使用者不是這樣想的。他關掉視窗再打開，期待看到的是
-	// **對話**，不是「從現在開始的事件」。斷線那三十秒模型講的話，
-	// 在 NAIVE 版本裡是永久消失的，沒有錯誤、沒有警告。
+	// But that is not how the user thinks. They closed the window and reopened it expecting
+	// **the conversation**, not "events from now on". What the model said during those
+	// thirty seconds is permanently gone in the NAIVE version, with no error and no warning.
 	//
-	// 修法不是「把事件存起來重播」（那要決定 buffer 多大、多久過期、
-	// 重播到哪一則），而是：**重連 = 重新拿一次狀態**。
-	// 事件是狀態變化的通知，狀態才是真相。
+	// The fix is not "buffer the events and replay them" (which requires deciding how big
+	// the buffer is, when it expires, and which entry to replay from), but:
+	// **reconnect = fetch the state again**. Events notify of state changes; state is the truth.
 	if (!NAIVE) {
 		send({ type: "state", messages: session.messages, running: session.running });
 	}
@@ -526,8 +526,8 @@ function openStream(req: IncomingMessage, res: ServerResponse, session: Session)
 	const cleanup = (): void => {
 		clearInterval(keepAlive);
 		session.clients.delete(send);
-		// 注意這裡**沒有** abort。UI 關掉不代表要停止工作，
-		// 那是使用者的決定，不是視窗的。見 README Step 1。
+			// Note there is **no** abort here. Closing the UI does not mean stopping the work;
+			// that is the user's decision, not the window's. See README Step 1.
 	};
 	req.on("close", cleanup);
 	res.on("close", cleanup);
@@ -571,7 +571,7 @@ const server = createServer((req, res) => {
 		}
 
 		if (action === "/interrupt") {
-			// 中斷就是 Lesson 3 的那三行，只是訊號來源從 SIGINT 換成 HTTP。
+				// Interruption is Lesson 3's three lines, with the signal source changed from SIGINT to HTTP.
 			if (!session.controller || session.controller.signal.aborted) {
 				json(res, 409, { error: "沒有正在跑的 turn" });
 				return;
@@ -598,7 +598,7 @@ const server = createServer((req, res) => {
 				return;
 			}
 
-			// claim 一定要在開 turn 之前做完，而且中間不能有 await。
+				// The claim must complete before the turn opens, with no await in between.
 			if (!tryMarkRunning(session)) {
 				broadcast(session, {
 					type: "input_rejected",

@@ -1,19 +1,19 @@
 /**
- * Lesson 20: 最小的 search agent
+ * Lesson 20: the smallest search agent
  *
- * 這一課的 `runTurn` 跟 Lesson 6 一模一樣，Lesson 6 的又跟 Lesson 3 一樣。
- * 換掉的還是那兩樣東西：**工具**和 **system prompt**。
+ * This lesson's `runTurn` is identical to Lesson 6's, and Lesson 6's is identical to Lesson 3's.
+ * What changes is still those two things: **the tools** and **the system prompt**.
  *
  *   Lesson 3   read_file / write_file / bash      → coding agent
- *   Lesson 6   query_telemetry / find_anomalies   → 事故分析 agent
+ *   Lesson 6   query_telemetry / find_anomalies   → an incident analysis agent
  *   Lesson 20  web_search                          → search agent
  *
- * 一整個 AI Search 篇要開始了，但起手式不是什麼新架構，
- * 是一個只有一個工具的 loop。**先看清楚缺什麼，再去補。**
+ * A whole AI Search part is beginning, and the opening move is not a new architecture
+ * but a loop with one tool. **See what is missing before filling it in.**
  *
- * 執行：
- *   bun run lesson-20                     用真模型
- *   PROVIDER=fake bun run lesson-20       不需要金鑰，跑一段寫死的軌跡
+ * Run:
+ *   bun run lesson-20                     with a real model
+ *   PROVIDER=fake bun run lesson-20       no key needed; a hardcoded trajectory
  */
 
 import { resolve } from "node:path";
@@ -32,15 +32,15 @@ const MAX_TOKENS = 8000;
 const MAX_STEPS = 12;
 
 /**
- * 這一課的 system prompt 有一半在講「不知道的時候怎麼辦」。
+ * Half of this lesson's system prompt is about what to do when you do not know.
  *
- * 因為 search agent 最大的風險不是找不到資料，是**找到一半就開始腦補**。
- * 模型手上只有 snippet，但它讀起來很像完整答案，於是它會很自然地
- * 把 snippet 當成整頁的結論講出來。
+ * Because a search agent's biggest risk is not failing to find data but **starting to fill in the gaps**.
+ * The model holds only snippets, and they read like complete answers, so it naturally
+ * states a snippet as if it were the page's conclusion.
  *
- * 注意規則 4：這是 Lesson 6 「有結論就要有證據」的搜尋版。
- * 差別是這裡多了一級「查不到」——因為在搜尋的世界裡，
- * 「我只看到 snippet，沒辦法確認」本身就是一個正確答案。
+ * Note rule 4: this is the search version of Lesson 6's "a conclusion needs evidence".
+ * The difference is an extra level for "cannot confirm" — because in search,
+ * "I only saw a snippet and cannot confirm" is itself a correct answer.
  */
 const SYSTEM_PROMPT = `You are a research assistant. You answer questions using web search.
 
@@ -89,7 +89,7 @@ function handleInterrupt(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop: 跟 Lesson 3 / Lesson 6 完全相同，一行都沒改
+// The agent loop: identical to Lesson 3's and Lesson 6's, not one line changed
 // ─────────────────────────────────────────────────────────────
 
 export async function runTurn(
@@ -241,14 +241,14 @@ function firstLine(text: string): string {
 }
 
 /**
- * 這一課有自己的 fake provider。
+ * This lesson has its own fake provider.
  *
- * `shared/streaming/fake.ts` 那個是寫給 Lesson 1-5 的 coding agent 用的，
- * 它會去呼叫 list_files / read_file，在這裡只會得到「Unknown tool」。
+ * `shared/streaming/fake.ts` was written for the Lesson 1-5 coding agent;
+ * it calls list_files / read_file, which here only earns "Unknown tool".
  *
- * 設計原則 1 說每一課都要能不用金鑰跑起來，所以這一課自備一段
- * 寫死的軌跡。它演的不是「模型有多聰明」，剛好相反——
- * 它演的是**只靠 snippet 回答會錯成什麼樣子**。
+ * Design principle 1 says every lesson must run without a key, so this lesson brings its own
+ * hardcoded trajectory. What it acts out is not "how clever the model is" but the opposite —
+ * **what answering from snippets alone gets wrong**.
  */
 function selectProvider(): StreamingProvider {
 	if (process.env.PROVIDER?.toLowerCase() === "fake") return fakeSearchProvider();
@@ -263,7 +263,7 @@ async function main(): Promise<void> {
 	process.on("SIGINT", handleInterrupt);
 
 	const ctx: ToolContext = {
-		// 這一課沒有檔案沙箱，工具只讀自己的語料
+			// This lesson has no file sandbox; the tool only reads its own corpus
 		root: resolve(import.meta.dirname, "corpus"),
 		approve: createApprover(reader),
 		log: (line) => console.log(dim(`    │ ${line}`)),
@@ -299,7 +299,7 @@ async function main(): Promise<void> {
 	}
 }
 
-// 之後的課會把這個 agent 當成模組 import，那時不該啟動 REPL
+// Later lessons import this agent as a module, and must not start a REPL then
 if (import.meta.main) {
 	try {
 		await main();

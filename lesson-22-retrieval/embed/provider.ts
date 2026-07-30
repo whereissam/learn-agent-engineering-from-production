@@ -1,39 +1,39 @@
 /**
- * Embedding：把文字變成向量。
+ * Embeddings: turning text into vectors.
  *
- * 這是 dense retrieval 的前置。Lesson 20 的 BM25 只認得「字面上一樣的字」，
- * 所以中文 query 查英文文件會回 0 筆，同義詞也查不到。
- * Embedding 把文字放到一個空間裡，意思相近的東西距離就近，
- * 跟用什麼語言、用哪個同義詞無關。
+ * The prerequisite for dense retrieval. Lesson 20's BM25 only recognises literally identical words,
+ * so a Chinese query against English documents returns 0 results, and synonyms are unfindable.
+ * An embedding places text in a space where things close in meaning are close in distance,
+ * regardless of language or which synonym was used.
  *
- * ## 兩個設計決定
+ * ## Two design decisions
  *
- * **1. 用真的 embedding API，不自己造一個假的。**
- * 我本來想寫一個離線的玩具版（例如 hash + 隨機投影），但那會教錯東西：
- * 玩具版沒有語義，跨語言檢索根本不會成功，讀者會學到一個假的成功案例。
+ * **1. Use a real embedding API rather than building a fake one.**
+ * An offline toy version (hash plus random projection, say) was considered and would teach the wrong thing:
+ * a toy has no semantics, cross-language retrieval would never succeed, and the reader would learn a fake success.
  *
- * **2. 但結果要能離線重現。** 所以向量算完之後寫進 `cache.json` 一起進版控。
- * 沒有金鑰的人照樣跑得動整課，而且拿到的數字跟 README 裡的一模一樣。
- * 只有你**加了新的 query 或新的文件**才需要金鑰。
+ * **2. But the results must be reproducible offline.** So computed vectors are written into `cache.json` and committed.
+ * Somebody without a key still runs the whole lesson and gets exactly the numbers in the README.
+ * A key is needed only when you **add a new query or a new document**.
  *
- * 這其實是很多產品的真實做法：embedding 是可以離線批次算好的，
- * 線上只需要算 query 那一次。
+ * This is in fact how many products work: embeddings can be batch-computed offline,
+ * and only the query's embedding is computed online.
  *
- * ## 為什麼是 768 維
+ * ## Why 768 dimensions
  *
- * `gemini-embedding-001` 預設 3072 維，但 API 可以指定較小的維度
- * （Matryoshka 表示法：前面的維度就已經包含大部分資訊）。實測：
+ * `gemini-embedding-001` defaults to 3072 dimensions, and the API accepts smaller ones
+ * (a Matryoshka representation: the leading dimensions already carry most of the information). Measured:
  *
- *   dims=256   cos(英文, 中文)=0.861   cos(英文, 無關的烹飪文)=0.569
- *   dims=768   cos(英文, 中文)=0.817   cos(英文, 無關的烹飪文)=0.449
- *   dims=3072  cos(英文, 中文)=0.820
+ *   dims=256   cos(English, Chinese)=0.861   cos(English, an unrelated cooking article)=0.569
+ *   dims=768   cos(English, Chinese)=0.817   cos(English, an unrelated cooking article)=0.449
+ *   dims=3072  cos(English, Chinese)=0.820
  *
- * 注意看的不是「跟中文有多像」，是**兩者的差距**：
- * 256 維的時候連完全無關的烹飪文章都有 0.569，鑑別力太差。
- * 768 維把無關的壓到 0.449，差距拉開到 0.37。
+ * What matters is not "how similar to the Chinese" but **the gap between the two**:
+ * at 256 dimensions even a wholly unrelated cooking article scores 0.569, which discriminates poorly.
+ * 768 dimensions push the unrelated one down to 0.449, widening the gap to 0.37.
  *
- * 維度越低越省空間，但**語義會被壓扁**。這是一個真實的取捨，
- * 不是「越大越好」也不是「越小越省」。
+ * Fewer dimensions save space and **flatten the semantics**. A real trade-off,
+ * neither "bigger is better" nor "smaller is cheaper".
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -43,7 +43,7 @@ if (typeof process.loadEnvFile === "function") {
 	try {
 		process.loadEnvFile(resolve(import.meta.dirname, "../../.env"));
 	} catch {
-		// 沒有 .env 很正常
+			// Having no .env is entirely normal
 	}
 }
 
@@ -54,7 +54,7 @@ export const DIMS = 768;
 interface Cache {
 	model: string;
 	dims: number;
-	/** 原文 → 向量。用原文當 key 是為了可讀：出問題的時候你打得開這個檔案。 */
+		/** Text → vector. The text is the key for readability: when something goes wrong you can open this file. */
 	vectors: Record<string, number[]>;
 }
 
@@ -101,8 +101,8 @@ function detectApi(): ApiConfig | undefined {
 			baseURL: "https://api.openai.com/v1/",
 		};
 	}
-	// Anthropic 沒有 embedding API，所以這裡沒有第三個分支。
-	// 這件事本身值得知道：embedding 和生成常常不是同一家。
+		// Anthropic has no embedding API, so there is no third branch here.
+		// That is worth knowing in itself: embeddings and generation often come from different vendors.
 	return undefined;
 }
 
@@ -123,25 +123,25 @@ async function callApi(texts: string[], api: ApiConfig): Promise<number[][]> {
 }
 
 /**
- * 正規化成單位長度。
+ * Normalise to unit length.
  *
- * 這樣 cosine 相似度就等於內積，省掉每次比對都要算兩個長度。
- * 另外 Gemini 的文件也說了：**維度不是預設值的時候要自己重新正規化**，
- * 因為截斷之後長度就不是 1 了。
+ * Then cosine similarity is a dot product, saving two length computations per comparison.
+ * Gemini's documentation also says so: **re-normalise yourself when the dimensionality is not the default**,
+ * because after truncation the length is no longer 1.
  */
 function normalize(vector: number[]): number[] {
 	const length = Math.sqrt(vector.reduce((sum, x) => sum + x * x, 0)) || 1;
-	// 存進版控的檔案不需要 17 位小數，5 位對 768 維綽綽有餘
+	// A committed file does not need 17 decimal places; 5 is ample for 768 dimensions
 	return vector.map((x) => Math.round((x / length) * 1e5) / 1e5);
 }
 
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 拿一段文字的向量。優先用快取，快取沒有才打 API。
+ * Get a piece of text's vector. The cache first, and the API only when it misses.
  *
- * 沒有金鑰而且快取也沒有的時候，錯誤訊息要說清楚**兩條路**：
- * 補金鑰重算，或者換一個快取裡有的 query。
+ * Without a key and without a cache entry, the error message must state **both roads**:
+ * add a key and recompute, or use a query the cache has.
  */
 export async function embed(texts: string[]): Promise<number[][]> {
 	const store = loadCache();
@@ -159,8 +159,8 @@ export async function embed(texts: string[]): Promise<number[][]> {
 			);
 		}
 
-		// 一次送一批。真實系統這裡還要處理 rate limit 和分批大小，
-		// 語料只有 14 篇所以不需要。
+			// Send in batches. A real system would also handle rate limits and batch sizes here;
+			// the corpus has only 14 documents, so it does not need to.
 		const vectors = await callApi(missing, api);
 		store.model = api.model;
 		store.dims = DIMS;
@@ -178,7 +178,7 @@ export async function embed(texts: string[]): Promise<number[][]> {
 	});
 }
 
-/** 已經正規化過了，所以 cosine 就是內積。 */
+/** Already normalised, so cosine is a dot product. */
 export function cosine(a: number[], b: number[]): number {
 	let sum = 0;
 	for (let i = 0; i < a.length; i++) sum += (a[i] ?? 0) * (b[i] ?? 0);

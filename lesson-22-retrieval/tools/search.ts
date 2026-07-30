@@ -1,17 +1,17 @@
 /**
- * web_search v2：接上完整檢索管線的搜尋工具。
+ * web_search v2: the search tool wired to the full retrieval pipeline.
  *
- * 對模型來說，介面跟 Lesson 20 的那個幾乎一樣（給 query，回排序過的結果）。
- * 換掉的是背後那條管線：BM25 → +dense → +RRF → +去重 → +訊號 → +多樣性。
+ * To the model the interface is nearly the same as Lesson 20's (give a query, get ranked results).
+ * What changed is the pipeline behind it: BM25 → +dense → +RRF → +dedup → +signals → +diversity.
  *
- * 有兩個地方是**為了 agent 而不是為了人**設計的：
+ * Two things here are designed **for the agent rather than for a person**:
  *
- * 1. **回傳發佈日期，而且講清楚今天是哪天。**
- *    模型不知道今天幾號，它會把 2025 年的文章當成最新的。
+ * 1. **Return the publication date, and state what today is.**
+ *    The model does not know today's date and will treat a 2025 article as the newest.
  *
- * 2. **把去重的事實講出來。**
- *    「我幫你合併了 2 筆幾乎一樣的內容」比默默砍掉好，
- *    因為模型可能正想比較不同來源說了什麼。
+ * 2. **State the fact that deduplication happened.**
+ *    "I merged 2 nearly identical results for you" beats cutting them silently,
+ *    because the model may be about to compare what different sources say.
  */
 
 import type { Tool } from "../../shared/tools/registry.ts";

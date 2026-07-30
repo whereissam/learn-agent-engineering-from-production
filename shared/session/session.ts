@@ -1,17 +1,17 @@
 /**
- * Session 持久化 ， append-only 的 JSONL 檔案。
+ * Session persistence — an append-only JSONL file.
  *
- * 為什麼是 JSONL（一行一個 JSON）而不是一個大 JSON 檔？
+ * Why JSONL (one JSON per line) rather than one big JSON file?
  *
- *   1. 只要 append，不用每次重寫整個檔案
- *   2. 程式當掉時最多壞掉最後一行，前面的都還在
- *   3. 用 tail -f 就能即時看
- *   4. 不用把整份載入記憶體就能處理
+ *   1. appending only, without rewriting the whole file each time
+ *   2. a crash damages at most the last line, and everything before it survives
+ *   3. tail -f shows it live
+ *   4. it can be processed without loading the whole thing into memory
  *
- * 為什麼是「樹」而不是「陣列」？見 README。簡短版：
- * 使用者會編輯訊息重問、會退回去重試。這些操作會產生分支。
+ * Why a **tree** rather than an array? See the README. The short version:
+ * users edit a message and ask again, and go back and retry. Those operations create branches.
  *
- * 對照 Pi：packages/agent/src/harness/session/jsonl-storage.ts
+ * Against Pi: packages/agent/src/harness/session/jsonl-storage.ts
  */
 
 import { appendFile, mkdir, readFile } from "node:fs/promises";
@@ -19,27 +19,27 @@ import { dirname } from "node:path";
 import type { Message } from "../providers/types.ts";
 
 /**
- * 檔案裡的一筆記錄。
+ * One record in the file.
  *
- * 關鍵是 parentId：它讓這些「一行一筆」的記錄組成一棵樹。
- * 大部分時候 parentId 就是前一筆，形成一條直線。
- * 但當你退回去重問時，新的分支會指向更早的節點。
+ * The key is parentId: it turns these one-per-line records into a tree.
+ * Most of the time parentId is simply the previous record, forming a straight line.
+ * When you go back and ask again, the new branch points at an earlier node.
  */
 export interface SessionEntry {
 	id: string;
-	/** 上一筆的 id。第一筆是 null。 */
+	/** The previous record's id. null for the first. */
 	parentId: string | null;
 	timestamp: string;
 	message: Message;
 }
 
-/** 額外記錄的事件（不是對話內容，但值得留下來）。 */
+/** An extra recorded event (not conversation content, and worth keeping). */
 export interface SessionMeta {
 	type: "meta";
 	id: string;
 	parentId: string | null;
 	timestamp: string;
-	/** 例如 "model_change"、"compaction" */
+	/** For example "model_change" or "compaction" */
 	kind: string;
 	detail: Record<string, unknown>;
 }
@@ -49,7 +49,7 @@ export type SessionRecord = SessionEntry | SessionMeta;
 export class Session {
 	private readonly path: string;
 	private readonly records: SessionRecord[] = [];
-	/** 目前這條分支的最後一筆。新訊息會掛在它下面。 */
+	/** The last record on the current branch. New messages hang beneath it. */
 	private head: string | null = null;
 	private counter = 0;
 
@@ -57,17 +57,17 @@ export class Session {
 		this.path = path;
 	}
 
-	/** 開一個新的 session 檔案。 */
+		/** Open a new session file. */
 	static async create(path: string): Promise<Session> {
 		await mkdir(dirname(path), { recursive: true });
 		return new Session(path);
 	}
 
 	/**
-	 * 從檔案讀回一個 session。
+		 * Read a session back from a file.
 	 *
-	 * 注意：讀回來之後，head 是「最後一筆記錄」。這代表你續跑的是
-	 * 最後那條分支，不一定是最長的那條。
+		 * Note: after reading, head is the **last record**. That means you continue
+		 * the last branch, which is not necessarily the longest one.
 	 */
 	static async load(path: string): Promise<Session> {
 		const session = new Session(path);
@@ -87,8 +87,8 @@ export class Session {
 				session.head = record.id;
 				session.counter++;
 			} catch {
-				// 壞掉的一行不該讓整個 session 讀不回來。
-				// 這正是 JSONL 的好處：損壞是局部的。
+					// One broken line must not make the whole session unreadable.
+					// That is JSONL's benefit: damage is local.
 				console.warn(`[session] skipping malformed line ${index + 1}`);
 			}
 		}
@@ -104,7 +104,7 @@ export class Session {
 		return this.records.length;
 	}
 
-	/** 加一則訊息，寫進磁碟。 */
+		/** Add a message and write it to disk. */
 	async append(message: Message): Promise<SessionEntry> {
 		const entry: SessionEntry = {
 			id: this.nextId(),
@@ -116,12 +116,12 @@ export class Session {
 		this.records.push(entry);
 		this.head = entry.id;
 
-		// 先寫檔再回傳。當機時「已經回傳但沒寫進去」比「寫進去但沒回傳」難處理得多。
+			// Write before returning. "Returned but not written" is far harder to handle after a crash than "written but not returned".
 		await appendFile(this.path, `${JSON.stringify(entry)}\n`, "utf8");
 		return entry;
 	}
 
-	/** 記一筆非對話的事件（換 model、壓縮……）。 */
+		/** Record a non-conversation event (a model change, a compaction…). */
 	async appendMeta(kind: string, detail: Record<string, unknown>): Promise<void> {
 		const meta: SessionMeta = {
 			type: "meta",
@@ -137,10 +137,10 @@ export class Session {
 	}
 
 	/**
-	 * 從 head 往回走，組出「目前這條分支」的訊息串。
+		 * Walk back from head to assemble the current branch's message list.
 	 *
-	 * 這就是要送給模型的東西。注意它「不是」整個檔案，
-	 * 被放棄的分支不會出現在這裡。
+		 * This is what gets sent to the model. Note it is **not** the whole file;
+		 * abandoned branches never appear here.
 	 */
 	messages(): Message[] {
 		const byId = new Map(this.records.map((r) => [r.id, r]));
@@ -151,22 +151,22 @@ export class Session {
 			const record = byId.get(cursor);
 			if (!record) break;
 
-			// meta 記錄不進對話
+				// meta records are not part of the conversation
 			if (!("type" in record)) {
 				chain.push(record.message);
 			}
 			cursor = record.parentId;
 		}
 
-		// 我們是從後往前走的，要反過來
+			// We walked backwards, so reverse it
 		return chain.reverse();
 	}
 
 	/**
-	 * 退回到某一筆記錄，之後的新訊息會從那裡長出新分支。
+		 * Go back to a record, so new messages grow a new branch from there.
 	 *
-	 * 舊的分支「不會被刪掉」，它還在檔案裡，只是不在目前這條路徑上。
-	 * 這就是為什麼 append-only 值得：你永遠不會弄丟東西。
+		 * The old branch is **not deleted**; it is still in the file, just not on the current path.
+		 * Which is why append-only is worth it: you never lose anything.
 	 */
 	rewindTo(entryId: string): void {
 		if (!this.records.some((r) => r.id === entryId)) {
@@ -175,7 +175,7 @@ export class Session {
 		this.head = entryId;
 	}
 
-	/** 目前這條分支上的所有記錄（含 meta），最舊到最新。 */
+		/** Every record on the current branch (including meta), oldest to newest. */
 	branch(): SessionRecord[] {
 		const byId = new Map(this.records.map((r) => [r.id, r]));
 		const out: SessionRecord[] = [];
@@ -189,13 +189,13 @@ export class Session {
 		return out.reverse();
 	}
 
-	/** 全部記錄，包含被放棄的分支。 */
+		/** Every record, including abandoned branches. */
 	all(): readonly SessionRecord[] {
 		return this.records;
 	}
 
 	private nextId(): string {
-		// 遞增的 id 就夠了，而且比 UUID 好讀，你要用肉眼看 JSONL 檔。
+			// An incrementing id is enough, and reads better than a UUID — you will be reading this JSONL by eye.
 		return `e${String(++this.counter).padStart(4, "0")}`;
 	}
 }

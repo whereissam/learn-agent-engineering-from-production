@@ -1,22 +1,25 @@
-# Lesson 1: 最小的 Agent Loop
+# Lesson 1: The Minimal Agent Loop
 
-> 前置：沒有。這是第一課。
+> [繁體中文](README.zh-TW.md)
 >
-> 目標：把「AI agent」從一個模糊的概念，變成你能一行一行指著看的程式碼。
-> 讀完這課，你會知道 Claude Code / Cursor 那類工具的核心到底在做什麼。
+> Prerequisites: none. This is the first lesson.
+>
+> Goal: turn "AI agent" from a vague idea into code you can point at line by
+> line. By the end you will know what sits at the core of tools like Claude
+> Code and Cursor.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 模型明明只會輸出文字，怎麼會「讀我的檔案」？
-2. 「工具」是什麼？誰執行它？
-3. 為什麼 agent 要跑迴圈，不是問一次就好？
-4. 每家 LLM 的 API 都不一樣，怎麼寫才不用綁死一家？
+1. The model only emits text, so how does it "read my files"?
+2. What is a tool, and who runs it?
+3. Why does an agent need a loop instead of one call?
+4. Every LLM API differs; how do you avoid welding yourself to one vendor?
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
-先看到東西動，再回頭理解。**不需要 API key**：
+See it move, then understand it. No API key needed:
 
 ```bash
 cd agent-lessons
@@ -24,7 +27,7 @@ bun install
 PROVIDER=fake bun run lesson-01
 ```
 
-看到提示符號後，隨便打一句話按 Enter：
+At the prompt, type anything and press Enter:
 
 ```
 provider: fake  model: scripted
@@ -41,25 +44,28 @@ provider: fake  model: scripted
 真正的模型會在這裡給出答案。想看真的推理，設一把 API key 再跑一次。
 ```
 
-**停下來，看懂這幾行輸出。** 每一個 `→` 就是迴圈跑了一圈：模型說它想讀某個
-檔案，我們的程式真的去讀，把內容送回去，模型再決定下一步。
+Stop and read those lines. Every `→` is one trip around the loop: the model
+says it wants a file, your program actually reads it, the contents go back,
+and the model decides what to do next.
 
-第二圈一次讀了兩個檔案，這叫**平行工具呼叫**，模型知道這兩個檔案互相獨立，
-就一起要。
+The second trip reads two files at once. That is a parallel tool call: the
+model knows the two files are independent, so it asks for both together.
 
-那個 `✗` 是故意的。模型讀了一個不存在的檔案，我們**沒有讓程式崩潰**，而是
-把錯誤訊息當成「工具結果」送回給模型。真正的模型看到這個會說「喔那個檔案不
-存在，我換一個」然後繼續。這是 agent 能自我修復的關鍵機制。
+The `✗` is deliberate. The model asked for a file that does not exist and the
+program did not crash. The error went back to the model as a tool result. A
+real model reads that and says "that file is not there, let me try another
+one", then carries on. This is the mechanism that lets an agent repair itself.
 
-### 換成真的模型
+### Switch to a real model
 
-把 API key 放進 `.env`（見[上層 README](../README.zh-TW.md#開始跑)），然後：
+Put an API key in `.env` (see the [root README](../README.md#quick-start)),
+then:
 
 ```bash
 bun run lesson-01
 ```
 
-下面是**實際跑出來的輸出**（Gemini 3.6 Flash，節錄）：
+What follows is real output, Gemini 3.6 Flash, abridged:
 
 ```
 > 為什麼有些短網址會回 404？
@@ -86,25 +92,27 @@ bun run lesson-01
 ### 5. 其它 GET 請求（如 /favicon.ico）也被當成短碼處理
 ```
 
-這就是 agent。它沒有「看過」這個專案，是自己一步步讀出來的，而且我只埋了
-第 1 個 bug，另外四個是它自己額外發現的。
+That is an agent. It had never seen this project; it read its way there. Only
+the first bug was planted, and it found the other four on its own.
 
-> 這一輪大約 4 次工具呼叫、花了十幾秒。同樣的問題你可以換 provider 再問一次，
-> 比較不同模型的推理深度。
+> That turn took about 4 tool calls and a dozen seconds. Ask the same question
+> with a different provider to compare how deep each model digs.
 
-> 💡 `playground/` 裡的專案是我們故意寫的，bug 也是故意埋的。
-> 你可以改掉 bug、換成自己的專案，agent 一樣能用。
+> The project in `playground/` was written for this course and the bugs were
+> planted on purpose. Fix them, or point the agent at your own project; it
+> works the same.
 
 ---
 
-## Step 1：核心的 50 行
+## Step 1: the 50 lines that matter
 
-打開 [`agent.ts`](agent.ts)，找到 `runTurn`。整個 agent 就是這個函式：
+Open [`agent.ts`](agent.ts) and find `runTurn`. The whole agent is this
+function:
 
 ```ts
 async function runTurn(messages: Message[]): Promise<void> {
   while (true) {
-    // 1. 呼叫模型
+    // 1. Call the model
     const response = await provider.call({
       system: SYSTEM_PROMPT,
       messages,
@@ -112,21 +120,21 @@ async function runTurn(messages: Message[]): Promise<void> {
       maxTokens: MAX_TOKENS,
     });
 
-    // 2. 把模型的回覆推回歷史
+    // 2. Push the model's reply into history
     messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
-    // 3. 先看 stopReason，再讀內容
+    // 3. Check stopReason before reading content
     if (response.stopReason === "refusal") return;
     if (response.stopReason === "max_tokens") return;
 
-    // 4. 印出模型說了什麼
+    // 4. Print what the model said
     for (const block of response.blocks) { /* ... */ }
 
-    // 5. 沒有工具呼叫了 → 結束這一輪
+    // 5. No tool calls left → this turn is done
     const toolCalls = response.blocks.filter((b) => b.type === "toolCall");
     if (toolCalls.length === 0) return;
 
-    // 6. 執行所有工具，收集結果
+    // 6. Run every tool, collect the results
     const results: ToolResult[] = [];
     for (const call of toolCalls) {
       try {
@@ -140,44 +148,45 @@ async function runTurn(messages: Message[]): Promise<void> {
           toolCallId: call.id,
           toolName: call.name,
           content: (error as Error).message,
-          isError: true,   // ← 錯誤也要回報給模型
+          isError: true,   // ← failures go back to the model too
         });
       }
     }
     messages.push({ role: "toolResult", results });
 
-    // 7. 回到步驟 1
+    // 7. Back to step 1
   }
 }
 ```
 
-**這就是全部了。** 你現在已經看過一個 AI agent 的完整核心。
+That is all of it. You have now seen the complete core of an AI agent.
 
-Claude Code、Cursor、Devin 的核心迴圈跟這個是同一個形狀。它們多出來的
-幾萬行是：更多工具、streaming、UI、權限控制、session 管理、context 壓縮。
-重要，但都是外圍。
+The central loop in Claude Code, Cursor and Devin has this same shape. Their
+extra tens of thousands of lines are more tools, streaming, UI, permissions,
+session management and context compaction. All important, all around the edge.
 
-### 幾個容易看漏的細節
+### Details that are easy to miss
 
-**`messages` 陣列只增不減。** 每一輪都把完整歷史重新送給模型，模型本身
-沒有記憶，它每次都是從零讀完整份對話。這也是為什麼對話越長越貴。
+The `messages` array only grows. Every turn resends the entire history,
+because the model has no memory of its own; it reads the whole conversation
+from scratch each time. That is also why long conversations get expensive.
 
-**步驟 5 判斷的是「有沒有工具呼叫」，不是 `stopReason === "tool_use"`。**
-`stopReason` 是 provider 宣稱的狀態，`blocks` 是實際內容。以實際內容為準，
-不同 provider 的 stop reason 語意有微妙差異。
+Step 5 tests whether tool calls exist, not `stopReason === "tool_use"`. The
+stop reason is what the provider claims; the blocks are what actually arrived.
+Trust the content, because stop-reason semantics differ subtly per provider.
 
-**步驟 6 的 try/catch 不能省。** 每一個 tool call 都**必須**有一則對應的
-結果送回去，就算它失敗了。少一則，下次請求會被 API 直接打回 400
-（"tool_use ids were found without tool_result blocks"），這是新手最常
-撞到的錯誤。
+The try/catch in step 6 is not optional. Every tool call must have a matching
+result sent back, including the ones that failed. Miss one and the next
+request comes back as a 400 ("tool_use ids were found without tool_result
+blocks"), which is the single most common beginner error.
 
 ---
 
-## Step 2：工具是什麼
+## Step 2: what a tool is
 
-工具由三個部分組成。
+A tool has three parts.
 
-### (1) 給模型看的說明書
+### (1) The manual the model reads
 
 ```ts
 const readFileTool: ToolSpec = {
@@ -198,18 +207,19 @@ const readFileTool: ToolSpec = {
 };
 ```
 
-**`description` 不是註解，是 prompt。** 這段字會原封不動送進模型的 context，
-模型完全靠它決定要不要用這個工具。寫「讀檔案」跟寫「在回答任何關於程式碼的
-問題之前，先用這個工具讀檔案」，模型的行為差很多。
+`description` is not a comment, it is prompt. That string goes into the
+model's context verbatim, and it is the only thing the model has to decide
+whether to reach for this tool. "Reads a file" and "use this before answering
+any question about what the code does" produce noticeably different behaviour.
 
-`parameters` 是 [JSON Schema](https://json-schema.org/)。模型會照著這個
-schema 產生參數。
+`parameters` is [JSON Schema](https://json-schema.org/). The model generates
+arguments to fit it.
 
-> 🔬 **想立刻有感？** 把 description 改成只剩 `"reads a file"`，
-> 重跑一次，看模型是不是變得比較懶、比較愛猜。這是最能體會
-> 「prompt engineering 就是工程」的實驗。
+> Want to feel that immediately? Cut the description down to `"reads a file"`,
+> run the same question again, and watch the model get lazier and guess more.
+> It is the cheapest way to understand that prompt engineering is engineering.
 
-### (2) 真正執行的程式碼
+### (2) The code that actually runs
 
 ```ts
 async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -220,7 +230,7 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
 
   const target = resolve(ROOT, path);
 
-  // args 是模型產生的，一律當成不可信輸入
+  // args came from the model: treat them as untrusted input
   if (target !== ROOT && !target.startsWith(`${ROOT}/`)) {
     throw new Error(`Path escapes the project root: ${path}`);
   }
@@ -229,50 +239,56 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
 }
 ```
 
-兩件事值得記住：
+Two things worth remembering.
 
-**契約是「失敗就 throw」。** 不要把錯誤訊息偽裝成正常結果回傳。讓 loop 統一
-把 throw 包成 `isError: true` 的結果，這樣模型才知道那是失敗，而不是把錯誤
-訊息當成檔案內容。
+The contract is throw on failure. Do not dress an error up as a normal
+result. Let the loop turn throws into `isError: true` results, so the model
+knows it failed instead of reading the error message as file contents.
 
-**那三行路徑檢查不是裝飾。** `args.path` 是模型產生的字串。少了檢查，
-`"../../../.ssh/id_rsa"` 你就乖乖讀給它了。所有模型輸出都是不可信輸入，就算你相信模型沒惡意，使用者也可能在別的地方注入指令
-（prompt injection）。
+Those three lines of path checking are not decoration. `args.path` is a
+string the model generated. Without the check, `"../../../.ssh/id_rsa"` gets
+read out to it. Every model output is untrusted input; even if you trust the
+model's intent, someone may have injected instructions upstream (prompt
+injection).
 
-### (3) sandbox 邊界
+### (3) The sandbox boundary
 
 ```ts
 const ROOT = resolve(import.meta.dirname, "playground");
 ```
 
-一行常數，就是這個 agent 的整個權限模型。它只能讀 `playground/` 底下的東西。
+One constant is this agent's entire permission model. It can only read what
+lives under `playground/`.
 
-真實的 agent 需要更嚴肅的答案，Docker、micro-VM、或作業系統層的沙箱。
-但概念是一樣的：**在工具執行的地方畫界線，不是在 prompt 裡拜託模型不要亂來。**
+A real agent needs a more serious answer: Docker, a micro-VM, or OS-level
+sandboxing. The idea is the same either way. Draw the line where the tool
+executes, not in a prompt that asks the model to behave.
 
 ---
 
-## Step 3：為什麼要有 provider 那一層
+## Step 3: why there is a provider layer
 
-`agent.ts` 裡完全沒有 `import Anthropic` 或 `import OpenAI`。它只認識
-[`providers/types.ts`](providers/types.ts) 定義的中立介面。
+`agent.ts` contains no `import Anthropic` and no `import OpenAI`. It knows
+only the neutral interface in [`providers/types.ts`](providers/types.ts).
 
-為什麼要多這一層？因為每家的 tool calling 形狀都不一樣：
+Why the extra layer? Because tool calling has a different shape everywhere:
 
 | | Anthropic | OpenAI | Gemini |
 |---|---|---|---|
-| 工具定義 | `{ name, description, input_schema }` | `{ type: "function", function: {...} }` | `functionDeclarations` |
-| 參數格式 | 已解析的物件 | **JSON 字串**，要自己 parse | 已解析的物件 |
-| 工具結果 | 全部塞進**同一則** user 訊息 | **每個結果各一則** `role: "tool"` 訊息 | `functionResponse` parts |
-| System prompt | 獨立的 `system` 欄位 | `messages[0]` | `systemInstruction` |
-| 錯誤標記 | 有 `is_error` 欄位 | 沒有，只能寫進文字 | 沒有 |
+| Tool definition | `{ name, description, input_schema }` | `{ type: "function", function: {...} }` | `functionDeclarations` |
+| Argument format | parsed object | **JSON string**, you parse it | parsed object |
+| Tool results | all in **one** user message | **one message each**, `role: "tool"` | `functionResponse` parts |
+| System prompt | its own `system` field | `messages[0]` | `systemInstruction` |
+| Error marker | an `is_error` field | none, only in the text | none |
 
-如果 loop 直接寫死其中一種，換 provider 就要重寫整個 loop。
+Hardcode one of those into the loop and switching providers means rewriting
+the loop.
 
-看一下這個對比就懂了，同一個中立訊息，兩邊翻譯出來的形狀差多少：
+One contrast makes it concrete. Here is the same neutral message translated
+by each side:
 
 ```ts
-// providers/anthropic.ts ， 1 則中立訊息 → 1 則原生訊息
+// providers/anthropic.ts — 1 neutral message → 1 native message
 case "toolResult":
   return {
     role: "user",
@@ -284,7 +300,7 @@ case "toolResult":
     })),
   };
 
-// providers/openai.ts ， 1 則中立訊息 → N 則原生訊息
+// providers/openai.ts — 1 neutral message → N native messages
 case "toolResult":
   return message.results.map((r) => ({
     role: "tool" as const,
@@ -293,187 +309,198 @@ case "toolResult":
   }));
 ```
 
-注意 OpenAI 那邊回傳的是**陣列**，Anthropic 那邊是單一物件。上層 loop 完全
-不需要知道這件事。
+Note that the OpenAI branch returns an array and the Anthropic branch returns
+a single object. The loop above never needs to know.
 
-### 那個很醜的 `raw` 欄位
+### That ugly `raw` field
 
 ```ts
 export interface AssistantMessage {
   role: "assistant";
-  blocks: AssistantBlock[];  // 中立表示，你的程式碼讀這個
-  raw: unknown;              // provider 原生物件，原封不動保存
+  blocks: AssistantBlock[];  // neutral form, your code reads this
+  raw: unknown;              // the provider's own object, kept untouched
 }
 ```
 
-看起來像設計失敗，但它是必要的。
+It looks like a design failure. It is necessary.
 
-Anthropic 的模型會產生 **thinking block**（模型的思考過程）。這些 block
-**必須一字不改地傳回去**，否則下一輪請求會被拒絕。但 thinking block 的
-內部結構是 Anthropic 專有的，中立表示不可能涵蓋每家 provider 的所有欄位。
+Anthropic models emit thinking blocks. Those blocks must be handed back
+byte-for-byte or the next request is rejected, and their internal structure is
+Anthropic-specific: no neutral representation can cover every field of every
+provider.
 
-所以兩份都留：`blocks` 給自己讀，`raw` 給 provider 原樣送回去。
+So both are kept. `blocks` is what your code reads; `raw` is what goes back
+to the provider unchanged.
 
-**真實世界的 agent harness 幾乎都有這一欄。** 這是「中立抽象」遇到現實時
-必然要做的妥協，先知道它存在，之後看別人的 code 就不會困惑。
+Almost every real agent harness has this field. It is the compromise a neutral
+abstraction has to make when it meets reality, and knowing it exists means you
+will not be confused when you read someone else's code.
 
 ---
 
-## Step 4：五個你一定會撞到的坑
+## Step 4: five traps you will hit
 
-新手寫第一個 agent 時，這五個幾乎人人中招：
+Writing a first agent, nearly everyone hits all five.
 
-### 1. 忘記把 assistant 訊息推回歷史
+### 1. Forgetting to push the assistant message
 
 ```ts
-// ✗ 錯：模型永遠不知道自己說過什麼，會無限重複同一個工具呼叫
+// ✗ wrong: the model never learns what it said, and repeats the same call forever
 const response = await provider.call({ messages, ... });
 const results = await executeTools(response);
 messages.push({ role: "toolResult", results });
 
-// ✓ 對：assistant 訊息一定要先進歷史
+// ✓ right: the assistant message goes into history first
 messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 messages.push({ role: "toolResult", results });
 ```
 
-症狀：agent 卡在無限迴圈，一直讀同一個檔案。
+Symptom: the agent loops forever, reading the same file.
 
-### 2. 工具失敗時沒回結果
+### 2. Returning nothing when a tool fails
 
 ```ts
-// ✗ 錯：靜靜吞掉錯誤
+// ✗ wrong: swallowing the error
 try {
   results.push({ ...await run(call) });
-} catch { /* 忽略 */ }
+} catch { /* ignored */ }
 
-// ✓ 對：失敗也是一種結果
+// ✓ right: a failure is also a result
 catch (error) {
   results.push({ toolCallId: call.id, content: error.message, isError: true });
 }
 ```
 
-症狀：下次請求 400，錯誤訊息大意是「有 tool_use 但找不到對應的 tool_result」。
+Symptom: the next request 400s, complaining that a `tool_use` has no matching
+`tool_result`.
 
-### 3. 把工具結果拆成多則訊息（Anthropic）
+### 3. Splitting tool results across messages (Anthropic)
 
-一則 assistant 訊息裡有 3 個 tool call，就要在**同一則** user 訊息裡回 3 個
-`tool_result` block。拆成三則不會報錯，但模型會學到「這裡不能平行呼叫」，
-之後就變成一次只叫一個工具，速度掉三倍。
+Three tool calls in one assistant message means three `tool_result` blocks in
+one user message. Splitting them into three messages raises no error, but the
+model learns that parallel calls are not available here and drops to one tool
+at a time, which is three times slower.
 
-### 4. 沒處理被截斷的輸出
+### 4. Not handling truncated output
 
-模型撞到 `max_tokens` 上限時，輸出會從中間斷掉，包括工具參數的 JSON。
-那個 JSON 可能剛好還能 parse，但內容是半截的。
+When the model hits `max_tokens` the output stops mid-stream, including the
+JSON for tool arguments. That JSON may still parse while being half a value.
 
 ```ts
 if (response.stopReason === "max_tokens") {
-  // 這一輪的所有 tool call 都不可信，一個都別執行
+  // Every tool call in this turn is suspect. Run none of them.
   return;
 }
 ```
 
-症狀：agent 偶爾用奇怪的參數呼叫工具，例如檔案路徑只有一半。
+Symptom: the agent occasionally calls a tool with odd arguments, such as half
+a file path.
 
-### 5. 直接讀 `content[0]`
+### 5. Reading `content[0]` directly
 
-模型可能拒絕回答（`stopReason: "refusal"`），這時內容可能是空陣列。
-永遠先看 `stopReason`，再讀內容。
+The model may refuse (`stopReason: "refusal"`), and then the content can be an
+empty array. Always read `stopReason` before the content.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-這幾個是我實際做這一課時撞到的，不是想像出來的：
+These came out of building the lesson, not from imagining what might break:
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `process.loadEnvFile is not a function` | Bun 沒有這個 Node API | 已經處理掉了（`typeof` 檢查）。Bun 本來就會自己讀 `.env` |
-| `Request timed out.`（等 30 秒） | 網路連不到 API。SDK 會重試 3 次，每次 10 秒 | 先用 `curl -I https://generativelanguage.googleapis.com` 確認連得到。公司網路 / VPN / proxy 常擋 |
-| `Top-level await is currently not supported with the "cjs" output format` | 用 `tsx` 跑專案外的檔案，沒有 `type: "module"` | 用 `bun run` 跑，或把檔案放進專案裡 |
-| `404 model not found` | 預設 model id 你的帳號沒權限 | `MODEL=gemini-3.5-flash-lite bun run lesson-01` |
-| Agent 一直重複讀同一個檔案 | 忘記把 assistant 訊息推回歷史 | 見下面「坑 1」 |
-| `tool_use ids were found without tool_result blocks` | 有工具失敗時沒回結果 | 見下面「坑 2」 |
+| `process.loadEnvFile is not a function` | Bun lacks that Node API | Already handled with a `typeof` check. Bun reads `.env` by itself |
+| `Request timed out.` after 30 seconds | The API is unreachable. The SDK retries 3 times, 10 seconds each | Check with `curl -I https://generativelanguage.googleapis.com`. Corporate networks, VPNs and proxies often block it |
+| `Top-level await is currently not supported with the "cjs" output format` | Running a file outside the project with `tsx`, without `type: "module"` | Use `bun run`, or move the file into the project |
+| `404 model not found` | Your account cannot use the default model id | `MODEL=gemini-3.5-flash-lite bun run lesson-01` |
+| The agent rereads the same file forever | The assistant message never went into history | See trap 1 |
+| `tool_use ids were found without tool_result blocks` | A failing tool returned no result | See trap 2 |
 
 ---
 
-## 練習
+## Exercises
 
-按順序做，每一題都會讓你撞到一個真實問題。
+Do them in order. Each one walks you into a real problem.
 
-### 練習 1：加一個 `list_files` 工具 ⭐
+### Exercise 1: add a `list_files` tool ⭐
 
-讓 agent 能列出資料夾內容，不用先猜檔名。
+Let the agent list a directory instead of guessing file names.
 
-- 在 `TOOLS` 加一個 `ToolSpec`
-- 在 `executeTool` 加一個分支（用 `node:fs/promises` 的 `readdir`）
-- **別忘了路徑檢查**
+- add a `ToolSpec` to `TOOLS`
+- add a branch to `executeTool`, using `readdir` from `node:fs/promises`
+- do not forget the path check
 
-跑跑看：agent 的行為改變了嗎？它會先 list 再 read 嗎？
+Then run it: did the behaviour change? Does it list before reading?
 
-### 練習 2：把 description 寫爛 ⭐
+### Exercise 2: write a bad description ⭐
 
-把 `read_file` 的 description 改成 `"reads a file"`，重跑同一個問題。
+Change `read_file`'s description to `"reads a file"` and rerun the same
+question.
 
-觀察：模型變懶了嗎？開始用猜的嗎？工具呼叫次數變少了嗎？
+Watch for it getting lazier, guessing more, calling fewer tools.
 
-這題的重點是體會「description 是 prompt 不是註解」。
+The point is to feel that a description is prompt, not a comment.
 
-### 練習 3：印出真實的 token 用量 ⭐⭐
+### Exercise 3: print real token usage ⭐⭐
 
-在 `ModelResponse` 加一個 `usage: { inputTokens, outputTokens }` 欄位，
-兩個 provider 各自填好，每輪印出來。
+Add `usage: { inputTokens, outputTokens }` to `ModelResponse`, fill it in
+both providers, and print it every turn.
 
-觀察：**input token 每一輪都在漲**。這就是 agent 貴的原因，也是
-Lesson 5（context 壓縮）要解決的問題。
+Watch the input tokens climb every single turn. That is why agents are
+expensive, and it is the problem Lesson 5 (context compaction) exists to
+solve.
 
-### 練習 4：加一個工具呼叫上限 ⭐⭐
+### Exercise 4: add a tool-call ceiling ⭐⭐
 
-現在的 loop 理論上可以跑到天荒地老。加一個 `maxIterations`（例如 20），
-超過就停下來並告訴使用者。
+The loop can currently run until the end of time. Add a `maxIterations`, say
+20, and stop with a message to the user.
 
-想一想：停下來之後，`messages` 陣列處於什麼狀態？下次還能繼續用嗎？
-（提示：最後一則訊息如果是 `toolResult`，直接再叫一次 `runTurn` 就能續跑。）
+Then think: once you stop, what state is `messages` in? Can you resume?
+(Hint: if the last message is a `toolResult`, calling `runTurn` again picks up
+where it left off.)
 
-### 練習 5：讓工具修改檔案 ⭐⭐⭐
+### Exercise 5: let a tool modify files ⭐⭐⭐
 
-加一個 `write_file` 工具。這題會逼你面對第一個真正的設計問題：
+Add a `write_file` tool. This walks you into the first real design question:
 
-**要不要在寫入前問使用者？**
+Should you ask the user before writing?
 
-讀檔是安全的，寫檔不是。試著加一個確認機制：模型要求寫檔時，先在 terminal
-問使用者 y/n，拒絕的話就回一個 `isError: true` 的結果說「使用者拒絕了」。
+Reading is safe; writing is not. Add a confirmation: when the model asks to
+write, prompt for y/n in the terminal, and on a refusal return an
+`isError: true` result saying the user declined.
 
-這就是 Claude Code 每次要改你的檔案時跳出來問的那個東西。
-（Pi 把這個做成 `beforeToolCall` hook，見下方對照表。）
+That is the thing Claude Code shows you every time it wants to edit a file.
+(Pi models it as a `beforeToolCall` hook; see the table below.)
 
 ---
 
-## 對照 Pi 原始碼
+## Compared with Pi's source
 
-寫完自己的版本後，去讀真正的 production 實作會清楚很多。
-[Pi](https://github.com/earendil-works/pi) 是一個把 agent runtime 拆得
-特別乾淨的開源專案：
+Reading a production implementation after writing your own makes it much
+clearer. [Pi](https://github.com/earendil-works/pi) is an open-source project
+that separates the parts of an agent runtime unusually cleanly:
 
-| 這一課的概念 | Pi 的對應位置 |
+| Concept in this lesson | Where it lives in Pi |
 |---|---|
-| `runTurn` 的 while 迴圈 | `packages/agent/src/agent-loop.ts:170-272` |
-| 唯一呼叫 LLM 的地方 | `agent-loop.ts:281-372` (`streamAssistantResponse`) |
-| `ToolSpec` / `executeTool` 契約 | `packages/agent/src/types.ts:380-403` (`AgentTool`) |
-| 中立訊息 vs 原生訊息 | `types.ts:319` (`AgentMessage`) + `convertToLlm` |
-| Provider 抽象 | `types.ts:28` (`StreamFn`)、`packages/ai/src/providers/` |
-| 被截斷輸出的處理 | `agent-loop.ts:381` (`failToolCallsFromTruncatedMessage`) |
-| 假 provider（測試用） | `packages/ai/src/providers/faux.ts` |
-| `read_file` 的完整版 | `packages/agent/src/harness/tools/read.ts` |
-| sandbox 邊界 | `packages/agent/src/harness/types.ts:373` (`ExecutionEnv`) |
-| 寫檔前的批准機制 | `types.ts:271` (`beforeToolCall` hook) |
+| the `while` loop in `runTurn` | `packages/agent/src/agent-loop.ts:170-272` |
+| the only place the LLM is called | `agent-loop.ts:281-372` (`streamAssistantResponse`) |
+| the `ToolSpec` / `executeTool` contract | `packages/agent/src/types.ts:380-403` (`AgentTool`) |
+| neutral vs native messages | `types.ts:319` (`AgentMessage`) plus `convertToLlm` |
+| the provider abstraction | `types.ts:28` (`StreamFn`), `packages/ai/src/providers/` |
+| handling truncated output | `agent-loop.ts:381` (`failToolCallsFromTruncatedMessage`) |
+| a fake provider for tests | `packages/ai/src/providers/faux.ts` |
+| the full version of `read_file` | `packages/agent/src/harness/tools/read.ts` |
+| the sandbox boundary | `packages/agent/src/harness/types.ts:373` (`ExecutionEnv`) |
+| approval before writing | `types.ts:271` (the `beforeToolCall` hook) |
 
-Pi 的 `agent-loop.ts` 全檔 792 行，但核心迴圈就是第 170-272 行那 100 行。
-你現在有能力直接讀它了。
+Pi's `agent-loop.ts` is 792 lines, but the core loop is the 100 lines from 170
+to 272. You can go read it now.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 2 - 更多工具](../lesson-02-tools/)**：加上 `write_file`、`edit_file`、`run_command`，
-然後撞上第一個真實問題：**工具輸出太長，context 爆掉**。
-（`ls -R` 一個大專案，或 `cat` 一個 10MB 的 log，會發生什麼事？）
+[Lesson 2 - More tools](../lesson-02-tools/): add `write_file`, `edit_file`
+and `run_command`, then hit the first real problem, which is tool output long
+enough to blow up the context. (What happens when you `ls -R` a large project,
+or `cat` a 10MB log?)

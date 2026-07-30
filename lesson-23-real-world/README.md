@@ -1,27 +1,31 @@
-# Lesson 23: 對照真實原始碼
+# Lesson 23: Against the Real Source
 
-> 前置：[Lesson 20](../lesson-20-search-agent/)、[21](../lesson-21-crawl/)、[22](../lesson-22-retrieval/)。
+> [繁體中文](README.zh-TW.md)
 >
-> 這一課不加新功能。它只做一件事：**把我們自己從零推導出來的東西，
-> 跟真的在跑的專案逐項對照。**
+> Prerequisites: [Lesson 20](../lesson-20-search-agent/),
+> [21](../lesson-21-crawl/), [22](../lesson-22-retrieval/).
+>
+> This lesson adds no features. It does one thing: **compare what we derived
+> from scratch, item by item, against projects that are actually running.**
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 我們踩的那些坑，真實專案怎麼處理？
-2. 哪些地方我們做得跟他們一樣？哪些不一樣、為什麼？
-3. 把他們的做法抄回來，agent 會變好嗎？
+1. How do real projects handle the traps we hit?
+2. Where did we do the same thing as them? Where differently, and why?
+3. If their approach is copied back, does the agent get better?
 
-第 3 題有實測，而且結果比預期複雜：抄完之後**第一次跑就炸了**，
-炸出一個潛伏在我們 provider 層三課的 bug。
+The third is measured, and the result is more complicated than expected: after
+copying, **the very first run blew up**, exposing a bug that had been latent in
+our provider layer for three lessons.
 
 ---
 
-## 為什麼是現在讀，不是一開始就讀
+## Why read it now instead of at the start
 
-如果 Lesson 20 就叫你去讀 GPT Researcher，你會看到一堆 `if` 和參數，
-然後想「嗯，看起來很合理」，然後什麼都學不到。
+If Lesson 20 had told you to go read GPT Researcher, you would have seen a pile
+of `if`s and parameters, thought "hmm, seems reasonable", and learned nothing.
 
-但你現在不一樣。你已經：
+But you are different now. You have already:
 
 ```text
 Lesson 20  看過模型自己生出 site: 和 OR，然後在 BM25 上完全失效
@@ -29,16 +33,16 @@ Lesson 21  因為抽取器丟掉 <table>，燒掉兩次 16 步上限
 Lesson 22  猜錯去重門檻，還被一個「平均分數上升」蓋掉一次崩塌
 ```
 
-**帶著這些傷去讀，同一行程式碼的意思完全不同。**
-你會在 gpt-researcher 的 prompt 裡看到一行「不要用搜尋運算子」，
-然後知道那一行是誰用血換來的。
+Read with those injuries and the same line of code means something completely
+different. You will find a line in gpt-researcher's prompt saying "do not use
+search operators" and know whose blood paid for it.
 
-這也是這個系列從 Lesson 1 就在做的事（對照 Pi），只是這次對照的是
-四個專案而不是一個。
+This is also what the series has done since Lesson 1 (comparing against Pi), only
+this time against four projects instead of one.
 
 ---
 
-## 先把原始碼弄到本機
+## Get the source locally first
 
 ```bash
 git clone --depth 1 https://github.com/dzhng/deep-research        deep-research
@@ -47,20 +51,21 @@ git clone --depth 1 https://github.com/firecrawl/firecrawl        firecrawl
 git clone --depth 1 https://github.com/unclecode/crawl4ai         crawl4ai
 ```
 
-我讀的版本：
+The versions this lesson reads:
 
-| 專案 | commit | 日期 | 規模 |
+| Project | commit | Date | Size |
 |---|---|---|---|
-| deep-research | `1f8f3e2` | 2026-04-11 | 559 行（整個 `src/`） |
-| gpt-researcher | `5d84d2f5` | 2026-07-14 | 大 |
-| firecrawl | `ab033afd9` | 2026-07-26 | 很大 |
-| crawl4ai | `7e80152` | 2026-07-15 | 大 |
+| deep-research | `1f8f3e2` | 2026-04-11 | 559 lines (all of `src/`) |
+| gpt-researcher | `5d84d2f5` | 2026-07-14 | large |
+| firecrawl | `ab033afd9` | 2026-07-26 | very large |
+| crawl4ai | `7e80152` | 2026-07-15 | large |
 
-**先讀 deep-research。** 整個 `src/` 只有 559 行，`deep-research.ts` 294 行，
-一次讀得完，而且該有的都有。其他三個是產品，讀法是「拿著問題去找那一段」，
-不是從頭讀。
+Read deep-research first. All of `src/` is 559 lines and `deep-research.ts` is
+294, readable in one sitting, and everything that should be there is. The other
+three are products; the way to read them is to arrive with a question and find
+that passage, not to read front to back.
 
-### 這幾份不進版控，但也不寫進 `.gitignore`
+### These clones stay out of version control, but not via `.gitignore`
 
 ```bash
 # .git/info/exclude
@@ -70,11 +75,12 @@ gpt-researcher/
 deep-research/
 ```
 
-`.gitignore` 是給**所有讀者**的檔案，這幾份只是我本機的參考資料，
-不該出現在別人 clone 下來的 repo 裡。`.git/info/exclude` 是同樣的語法，
-但只作用在你自己的機器上。**這個區別很多人不知道，值得記一下。**
+`.gitignore` is a file for **every reader**; these clones are local reference
+material and should not appear in a repo somebody else cloned.
+`.git/info/exclude` has the same syntax but applies only to your own machine.
+Many people do not know the distinction, and it is worth noting.
 
-### 行號會過期，所以引用是可執行的
+### Line numbers go stale, so the citations are executable
 
 ```bash
 bun run lesson-23:check
@@ -91,20 +97,22 @@ bun run lesson-23:check
 23 條正確  0 條行號漂了  0 條找不到
 ```
 
-設計原則 4 說「對照原始碼的行號要驗證過」。與其寫一份看起來很精確、
-其實已經對不上的文件，不如讓文件自己可以被檢查。
+Design principle 4 says citations into other people's source must be verified.
+Rather than writing a document that looks precise while having quietly gone out
+of date, let the document check itself.
 
-> 順帶一提，這個檢查器第一次跑就抓到**我自己**三條 off-by-one。
-> 上面那個 `~` 就是它的樣子。
+> Incidentally, the checker caught three off-by-ones in this lesson's own
+> citations on its first run. The `~` above is what that looks like.
 
 ---
 
-## Step 1：query 生成——他們早就有一行在擋
+## Step 1: query generation — they already had a line blocking it
 
-Lesson 20 Step 4 我們觀察到：模型會生出 `site:github.com`、`OR`、引號，
-而這些在 BM25 眼裡只是普通的字。當時我寫的結論是「這不是模型的錯，是 harness 沒做」。
+Lesson 20 Step 4 observed the model producing `site:github.com`, `OR` and
+quotes, which are ordinary words to BM25. The conclusion written there was "this
+is not the model's fault, the harness did not do its job".
 
-GPT Researcher 的 prompt 裡就有那一行：
+GPT Researcher's prompt has exactly that line:
 
 ```python
 # gpt-researcher/gpt_researcher/prompts.py:250
@@ -113,17 +121,18 @@ such as site:, filetype:, inurl:, intitle:, OR, AND, or NOT — these operators 
 not universally supported and will return empty results on many search backends.
 ```
 
-四個專案在 query 這一層的做法，湊起來是一套完整的方法：
+Put together, the four projects' query-layer practices form a complete method:
 
-| 做法 | 出處 | 我們有沒有 |
+| Practice | Source | Do we have it |
 |---|---|---|
-| 禁止搜尋運算子 | `gpt-researcher/prompts.py:250` | ❌ Lesson 20 沒有，這一課補上 |
-| 一次生 N 條，要求彼此不相似 | `deep-research/src/deep-research.ts:54` | ❌ 我們是一條一條讓模型自己想 |
-| query 附帶 `researchGoal`（為什麼要搜這條） | `deep-research.ts:66` | ❌ |
-| 先搜一次，拿結果當 context 再生子問題 | `gpt-researcher/query_processing.py:108` | ❌ |
-| 給模型今天的日期 | `deep-research/src/prompt.ts` | ✅ Lesson 22 有 |
+| forbid search operators | `gpt-researcher/prompts.py:250` | not in Lesson 20; added here |
+| generate N at once, required to be dissimilar | `deep-research/src/deep-research.ts:54` | we let the model think of them one at a time |
+| a query carries a `researchGoal` (why this search) | `deep-research.ts:66` | |
+| search once, use the results as context to generate sub-questions | `gpt-researcher/query_processing.py:108` | |
+| give the model today's date | `deep-research/src/prompt.ts` | Lesson 22 has it |
 
-`researchGoal` 那條特別值得看。他們的 query 不是字串，是一個物件：
+The `researchGoal` line is especially worth a look. Their query is not a string
+but an object:
 
 ```ts
 // deep-research/src/deep-research.ts:61-74
@@ -138,10 +147,10 @@ schema: z.object({
 })
 ```
 
-**「說出你為什麼要搜這一條」本身就是一種約束。** 而且那個 `researchGoal`
-下一輪會被拿來當輸入（Step 4 會看到）。
+"Say why you are running this search" is itself a constraint. And that
+`researchGoal` becomes input on the next round (Step 4 shows it).
 
-### 順便：結構化輸出真的會壞
+### Also: structured output really does break
 
 ```python
 # gpt-researcher/gpt_researcher/actions/query_processing.py:6
@@ -152,22 +161,25 @@ def _normalize_sub_queries(parsed: Any, fallback_query: str) -> List[str]:
     on ``.append`` / iteration, so normalize defensively here."""
 ```
 
-整整一個函式，只為了處理「模型回了四種不同形狀」。而且他們用的是
-`json_repair.loads` 而不是 `json.loads`——一個專門修壞掉 JSON 的套件。
+A whole function, purely to handle the model returning four different shapes. And
+they use `json_repair.loads` rather than `json.loads` — a package dedicated to
+fixing broken JSON.
 
-再往下看，同一個檔案有**三層 LLM fallback**：strategic LLM →
-同一個模型但限制 max_tokens 重試 → 換成 smart LLM。註解裡還附了一個
-GitHub issue 連結。這就是產品和 demo 的差別。
+Further down, the same file has **three layers of LLM fallback**: strategic LLM →
+the same model retried with a max_tokens limit → switch to the smart LLM. The
+comment even links a GitHub issue. That is the difference between a product and a
+demo.
 
 ---
 
-## Step 2：抽取——我們撞三次才學到的，是他們的預設值
+## Step 2: extraction — what took us three collisions is their default
 
-Lesson 21 Step 5 是整個系列最痛的一段：抽取器只取 `<p>`，
-表格被安靜地丟掉，模型讀完全部 7 個 chunk、燒掉兩次 16 步上限，
-最後才發現要把 `<table>` 抽出來。
+Lesson 21 Step 5 is the most painful section in the series: the extractor took
+only `<p>`, the table was silently dropped, and the model read all 7 chunks and
+burned the 16-step ceiling twice before it became clear that `<table>` had to be
+extracted.
 
-crawl4ai 的白名單長這樣：
+crawl4ai's allowlist looks like this:
 
 ```python
 # crawl4ai/crawl4ai/content_filter_strategy.py:50
@@ -181,19 +193,20 @@ self.included_tags = {
 }
 ```
 
-**表格和清單從第一行就在裡面。**
+Tables and lists have been in there from the first line.
 
-而黑名單這邊，我們自己推導出來的跟他們幾乎一樣：
+On the blocklist side, what we derived independently is almost identical to
+theirs:
 
-| | 我們（Lesson 21） | crawl4ai `:101` `:113` |
+| | Ours (Lesson 21) | crawl4ai `:101` `:113` |
 |---|---|---|
-| 整塊丟的標籤 | script, style, noscript, nav, header, footer, aside, form | script, style, noscript, nav, header, footer, aside, form, **iframe** |
-| class/id 黑名單 | cookie, banner, newsletter, subscribe, sidebar, related, promo, ad, advert, sponsor, comment, share | nav, footer, header, sidebar, ads, comment, promo, advert, social, share |
+| tags dropped whole | script, style, noscript, nav, header, footer, aside, form | script, style, noscript, nav, header, footer, aside, form, **iframe** |
+| class/id blocklist | cookie, banner, newsletter, subscribe, sidebar, related, promo, ad, advert, sponsor, comment, share | nav, footer, header, sidebar, ads, comment, promo, advert, social, share |
 
-**這種「各自推導出同一份清單」的情況，通常代表那份清單反映的是
-真實世界的結構，不是誰的個人品味。**
+**When two parties independently derive the same list, the list usually reflects
+the structure of the real world rather than anybody's personal taste.**
 
-### 但他們還有第二層：文字密度
+### But they have a second layer: text density
 
 ```python
 # crawl4ai/crawl4ai/content_filter_strategy.py:568
@@ -203,13 +216,14 @@ threshold: float = 0.48
 "class_id_weight": 0.1, "text_length": 0.1
 ```
 
-黑名單只能擋掉「你想得到的」東西。文字密度（文字 vs 連結的比例）
-可以擋掉你沒想到的：導覽區塊的共同特徵是**連結多、文字少**，
-不管它的 class 叫什麼。
+A blocklist can only stop what you thought of. Text density (the ratio of text to
+links) stops what you did not: navigation blocks share the property of **many
+links and little text**, whatever their class is called.
 
-我們沒做這一層，因為語料的版型固定。真實網站你需要它。
+We do not have this layer, because the corpus has a fixed layout. Real sites need
+it.
 
-### firecrawl：同一件事的產業版本
+### firecrawl: the industrial version of the same thing
 
 ```ts
 // firecrawl/apps/api/src/scraper/scrapeURL/lib/removeUnwantedElements.ts:9
@@ -221,7 +235,7 @@ const excludeNonMainTags = [
 ];
 ```
 
-然後是我最喜歡的一段：
+And then the best part:
 
 ```ts
 // :53
@@ -232,28 +246,30 @@ const forceIncludeMainTags = [
 ];
 ```
 
-`swoogo` 是一個活動網站平台。**一個估值很高的產品裡，
-硬編碼著某個特定平台的 CSS class。**
+`swoogo` is an event-website platform. **A highly valued product has one specific
+platform's CSS classes hardcoded into it.**
 
-這不是他們懶。這是抽取這件事的真相：啟發式規則永遠有例外，
-而例外只能一個一個加。你的抽取器最後也會長出這種東西。
+They are not being lazy. This is the truth about extraction: heuristics always
+have exceptions, and exceptions can only be added one at a time. Your extractor
+will grow the same thing eventually.
 
-還有一層很值得學的設計：
+One more design worth learning:
 
 ```ts
 // :106
 logger.warn("Failed to call html-transformer! Falling back to cheerio...");
 ```
 
-主要路徑走 Rust（快），失敗才退回 cheerio（慢但可靠）。
-**效能和可靠性分兩層，不要用一個實作同時追求兩件事。**
+The main path goes through Rust (fast) and falls back to cheerio (slow but
+reliable) on failure. Performance and reliability in two layers, rather than one
+implementation chasing both.
 
 ---
 
-## Step 3：檢索——他們做得跟我們不一樣，而且有理由
+## Step 3: retrieval — they do it differently, and they have a reason
 
-這一段是最意外的。Lesson 22 我們做了 BM25 + dense + RRF + 去重 + 訊號，
-還做了評估集。GPT Researcher 呢？
+This is the most surprising section. Lesson 22 built BM25 plus dense plus RRF
+plus dedup plus signals, along with an evaluation set. GPT Researcher?
 
 ```python
 # gpt-researcher/gpt_researcher/context/compression.py:134
@@ -267,31 +283,33 @@ relevance_filter = EmbeddingsFilter(embeddings=self.embeddings,
 similarity_threshold = float(os.environ.get("SIMILARITY_THRESHOLD", 0.35))
 ```
 
-**沒有 BM25、沒有 RRF、沒有 rerank。** 只有一件事：
-把抓回來的內容切成 1000 字元的塊，然後**丟掉相似度低於 0.35 的塊**。
+No BM25, no RRF, no rerank. Just one thing: cut the fetched content into
+1000-character chunks and **drop any chunk below 0.35 similarity**.
 
-為什麼可以這麼簡單？因為**sparse 那一半外包給搜尋引擎了**。
-Tavily / Google 已經做完關鍵字匹配，他們拿到的候選已經是相關的，
-剩下的工作只是「把整頁裡不相關的段落刪掉」。
+Why can it be this simple? Because **the sparse half is outsourced to the search
+engine**. Tavily or Google already did the keyword matching, so their candidates
+are already relevant, and the remaining job is only "delete the irrelevant
+passages within a page".
 
-這是一個架構選擇，不是偷懶：
+This is an architectural choice, not laziness:
 
 ```text
 我們（Lesson 22）      自己建索引 → 所以 sparse + dense + 融合 + 排序都要自己做
 GPT Researcher         用別人的搜尋引擎 → 只需要做「頁內過濾」
 ```
 
-而且注意他們用的是**門檻**（threshold）不是**排名**（top-k）：
+And note that they use a **threshold**, not a **rank** (top-k):
 
 ```text
 排名：不管多爛，前五名一定會給你五個
 門檻：全部都爛的話，就回空的
 ```
 
-對 agent 來說門檻常常更好，因為「找不到」是一個它應該知道的事實。
-我們 Lesson 22 的管線一律回五筆——這其實是個可以改的地方。
+For an agent a threshold is often better, because "nothing found" is a fact it
+ought to know. Lesson 22's pipeline always returns five — which is in fact
+something that could be changed.
 
-### 便宜的路徑優先
+### The cheap path first
 
 ```python
 # :164
@@ -300,26 +318,29 @@ if total_chars < chunk_threshold and len(self.documents) <= max_results:
     # Fast path: no compression needed
 ```
 
-**內容不到 8000 字元就完全跳過 embedding。** 不需要的時候不要付錢，
-也不要付延遲。這跟 Lesson 6「能用程式算的不要給模型算」是同一種節制。
+Under 8000 characters, skip embedding entirely. Do not pay money, and do not pay
+latency, when you do not have to. Same restraint as Lesson 6's "do not give the
+model arithmetic a program can do".
 
-deep-research 更極端，它連過濾都沒有：
+deep-research is more extreme; it has no filtering at all:
 
 ```ts
 // deep-research/src/deep-research.ts:93
 trimPrompt(content, 25_000)
 ```
 
-每頁硬裁到 25k token，五頁一起丟進去讓模型自己看。
-**在 context window 夠大又夠便宜的時候，「不做檢索」是一個合理的選擇。**
+Hard-trim each page to 25k tokens and throw five pages in for the model to read.
+When the context window is big and cheap enough, "no retrieval" is a legitimate
+choice.
 
 ---
 
-## Step 4：loop——停止條件是結構性的（Lesson 24 的伏筆）
+## Step 4: the loop — the stopping condition is structural (Lesson 24's setup)
 
-Lesson 22 Step 8 我們卡在這裡：模型不知道什麼時候該停，兩次都撞上步數上限。
+Lesson 22 Step 8 got stuck here: the model does not know when to stop, and hit
+the step ceiling both times.
 
-deep-research 的答案是：**根本不問模型。**
+deep-research's answer is not to ask the model at all.
 
 ```ts
 // deep-research/src/deep-research.ts:230-231
@@ -331,8 +352,8 @@ if (newDepth > 0) {
 }
 ```
 
-每深一層，廣度砍半、深度減一。`depth` 歸零就結束。
-**模型從頭到尾沒有「要不要繼續」的發言權。**
+Each level deeper halves the breadth and decrements the depth. At zero it ends.
+The model never gets a say in whether to continue.
 
 ```text
 breadth=4, depth=2   →   4 條 query
@@ -340,7 +361,7 @@ breadth=4, depth=2   →   4 條 query
                           depth 到 0，停
 ```
 
-搭配另外三個設計，整個 loop 就閉合了：
+Together with three other decisions, the loop closes:
 
 ```ts
 // :252  下一輪的 query 是上一輪的產物，不是原始問題
@@ -359,15 +380,16 @@ const ConcurrencyLimit = Number(process.env.FIRECRAWL_CONCURRENCY) || 2;
 catch (e) { return { learnings: [], visitedUrls: [] }; }
 ```
 
-「流動的是 learnings 不是網頁」這點很關鍵：五頁內容壓成最多 3 條 learning，
-下一輪只帶 learning 進去。**這是 context 壓縮（Lesson 5）長在 research loop 裡的樣子。**
+"What flows is learnings, not pages" is the crucial one: five pages of content
+compress into at most 3 learnings, and only the learnings go into the next round.
+This is context compaction (Lesson 5) growing inside a research loop.
 
-### 一個他們沒做、另一個做了的事
+### One thing they did not do, and another that did
 
-deep-research 的 `visitedUrls` **只用來在報告最後列 Sources**
-（`:229`、`:239`、`:292`），它從來沒有拿來避免重複抓取。
+deep-research's `visitedUrls` is **only used to list Sources at the end of the
+report** (`:229`, `:239`, `:292`); it is never used to avoid re-fetching.
 
-GPT Researcher 有：
+GPT Researcher does:
 
 ```python
 # gpt-researcher/gpt_researcher/skills/researcher.py:801
@@ -378,7 +400,7 @@ async def _get_new_urls(self, url_set_input):
             new_urls.append(url)
 ```
 
-而且那個集合是**跨子研究共用**的：
+And that set is **shared across sub-researches**:
 
 ```python
 # :108
@@ -388,14 +410,15 @@ async def _get_new_urls(self, url_set_input):
 # scraped URLs are not fetched again.
 ```
 
-**這正是我們 Lesson 22 Step 8 缺的東西**，也是 Lesson 24 要做的第一件事。
+Which is exactly what Lesson 22 Step 8 was missing, and the first thing Lesson 24
+builds.
 
 ---
 
-## Step 5：抄回來，然後實測
+## Step 5: copy it back, then measure
 
-`lesson-23-real-world/agent.ts` 跟 Lesson 22 的 agent
-**只差 SYSTEM_PROMPT 裡多的四條規則**：
+`lesson-23-real-world/agent.ts` differs from Lesson 22's agent **only by four
+extra rules in SYSTEM_PROMPT**:
 
 ```diff
 + ## How to search (borrowed from production research agents)
@@ -410,30 +433,34 @@ async def _get_new_urls(self, url_set_input):
 + D. Do not search for project or product names you remember from training.
 ```
 
-工具沒改、loop 沒改、檢索管線沒改。然後跑 Lesson 22 那個一直失敗的問題：
+Tools unchanged, loop unchanged, retrieval pipeline unchanged. Then run the
+question Lesson 22 kept failing:
 
 ```
 > 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
 ```
 
-| | Lesson 22（各跑兩次） | Lesson 23（各跑兩次） |
+| | Lesson 22 (two runs each) | Lesson 23 (two runs each) |
 |---|---|---|
-| 搜尋次數 | 12、14 | 28、27 |
-| 抓取次數 | 4、2 | 7、4 |
-| 帶運算子的 query | 3、10 | **0、1** |
-| 結果 | **兩次都撞 16 步上限，沒有答案** | **兩次都完成，答案有完整引用** |
+| searches | 12, 14 | 28, 27 |
+| fetches | 4, 2 | 7, 4 |
+| queries with operators | 3, 10 | **0, 1** |
+| result | **both hit the 16-step ceiling, no answer** | **both completed, fully cited answers** |
 
-搜尋次數變多了但**輪數變少了**，因為規則 B 讓模型改成一次發 3-4 條
-平行查詢。這正是 deep-research 的形狀：**橫向展開，然後被結構限制住。**
+There are more searches but **fewer rounds**, because rule B made the model issue
+3-4 parallel queries at once. That is deep-research's shape: fan out sideways,
+then be constrained structurally.
 
-答案本身也對了：humanoid-mimic 排第一並標明 G1 支援與 MIT 授權，
-retarget-anything 標明 v2.0 已棄用及原因，還引用了論壇那條腳步滑移的一手經驗。
+The answer itself is right too: humanoid-mimic first with its G1 support and MIT
+licence noted, retarget-anything marked as deprecated since v2.0 with the reason,
+plus the forum's first-hand foot-sliding experience cited.
 
 ---
 
-## Step 6：抄完第一次跑就炸了 ★
+## Step 6: the first run after copying blew up
 
-上面那張表是**修好一個 bug 之後**的結果。第一次跑是這樣：
+That table above is the result **after fixing a bug**. The first run went like
+this:
 
 ```
 >   → web_search()
@@ -442,22 +469,22 @@ retarget-anything 標明 v2.0 已棄用及原因，還引用了論壇那條腳�
 [串流失敗] 400 status code (no body)
 ```
 
-跑兩次，兩次都一樣。而 Lesson 20-22 從來沒發生過。
+Twice, identically. And Lessons 20-22 never did this.
 
-### 除錯過程
+### The debugging
 
-**第一個假設（錯的）**：我們把模型送來的空 `arguments` 補成 `"{}"`，
-破壞了 Gemini 的 thought_signature（Lesson 6 Step 7 那個坑）。
-改成原樣送回——**還是 400**。
+**First hypothesis (wrong)**: padding the model's empty `arguments` to `"{}"`
+destroyed Gemini's thought_signature (the trap from Lesson 6 Step 7). Passing it
+back verbatim — **still 400**.
 
-**拿到真正的錯誤訊息。** SDK 只說 `400 status code (no body)`，
-所以我把整個請求 dump 出來，用原生 `fetch` 重放：
+Getting the real error message. The SDK only says `400 status code (no body)`, so
+the whole request got dumped and replayed with native `fetch`:
 
 ```json
 { "error": { "code": 400, "message": "Request contains an invalid argument." } }
 ```
 
-然後逐項改 payload 二分：
+Then a bisect over the payload, one field at a time:
 
 ```
 ✗ 原封不動（基準）                    400
@@ -467,17 +494,17 @@ retarget-anything 標明 v2.0 已棄用及原因，還引用了論壇那條腳�
 ✗ 同時：拿掉簽章 + 填 arguments       400   "Function call is missing a thought signature"
 ```
 
-問題在 `arguments`。把它印出來：
+The problem is `arguments`. Printing it:
 
 ```json
 "{\"query\":\"...github video\"}{\"query\":\"...github\"}{\"query\":\"...repo\"}"
 ```
 
-**三段 JSON 黏在一起。**
+Three pieces of JSON glued together.
 
-### 根因
+### Root cause
 
-把 Gemini 的原始串流碎片印出來：
+Printing Gemini's raw stream fragments:
 
 ```
 index=undefined  id=Z6v57hon  name=web_search  args="{\"query\":\"...\"}"
@@ -486,28 +513,30 @@ index=undefined  id=OfPQHMnm  name=web_search  args="{\"query\":\"...\"}"
 index=undefined  id=VHylBMuP  name=web_search  args="{\"query\":\"...\"}"
 ```
 
-**Gemini 的 OpenAI 相容層完全不送 `index`。** 每個 delta 是一個完整的
-tool call，各自帶不同的 `id`。
+Gemini's OpenAI-compatible layer never sends `index`. Each delta is a complete
+tool call carrying its own distinct `id`.
 
-而我們的累積器是照 `index` 分組的（`shared/streaming/openai.ts`）：
+And our accumulator groups by `index` (`shared/streaming/openai.ts`):
 
 ```ts
 const existing = pending.get(call.index) ?? { id: "", name: "", args: "" };
 if (call.function?.arguments) existing.args += call.function.arguments;
 ```
 
-四個 call 的 `index` 都是 `undefined` → 全部落進同一格 →
-`args` 變成四段 JSON 相接 → `JSON.parse` 失敗 → 參數變成 `{}` →
-工具收到空 query → 而那個壞掉的字串被送回下一輪 → 400。
+All four calls have `index` of `undefined` → they all land in one slot → `args`
+becomes four concatenated JSON documents → `JSON.parse` fails → the parameters
+become `{}` → the tool receives an empty query → and that broken string is sent
+back on the next round → 400.
 
-### 為什麼前三課沒事
+### Why the previous three lessons were fine
 
-因為模型剛好**每輪只叫一個工具**。一個的時候，「全部黏在一起」等於「沒黏」。
+Because the model happened to **call one tool per round**. With one, "everything
+glued together" is the same as "nothing glued".
 
-規則 B（「一次規劃 3-4 條 query」）讓模型開始發平行呼叫，
-這個潛伏了三課的 bug 才第一次現形。
+Rule B ("plan 3-4 queries at once") made the model start issuing parallel calls,
+and a bug latent for three lessons surfaced for the first time.
 
-### 修法
+### The fix
 
 ```ts
 const key =
@@ -516,27 +545,28 @@ const key =
   : (lastKey ?? "index:0");
 ```
 
-有 `index` 用 `index`（OpenAI），沒有就用 `id`（Gemini），
-兩個都沒有就接到上一個（保險）。
+Use `index` when present (OpenAI), otherwise `id` (Gemini), and otherwise attach
+to the previous one (a safety net).
 
-修完之後回頭跑 Lesson 21 和 22：沒有退步，而且 Lesson 21 那題從
-4 個工具呼叫就答完了（平行呼叫現在真的能用了）。
+Re-running Lessons 21 and 22 afterwards: no regressions, and Lesson 21's question
+now finishes in 4 tool calls (parallel calls actually work now).
 
-### 這一段的教訓
+### What this section teaches
 
-> **「相容層」只是說協議一樣，不代表行為一樣。**
+> A "compatibility layer" says the protocol is the same, not that the behaviour
+> is.
 
-這是 Lesson 6 Step 7（thought_signature）的同一種病，同一個檔案，
-不同的欄位。中立抽象總會在某個地方漏，而漏的地方通常要靠一個
-**新的使用方式**才會被發現——這次是「抄了別人的 prompt」。
+Same disease as Lesson 6 Step 7 (thought_signature), same file, different field.
+A neutral abstraction always leaks somewhere, and the leak usually takes a **new
+way of using it** to surface — this time, copying somebody else's prompt.
 
 ---
 
-## Step 7：抄 prompt 有用，但只有一半
+## Step 7: copying a prompt works, but only halfway
 
-規則 A（不要用運算子）**有效**：帶運算子的 query 從 3、10 降到 0、1。
+Rule A (no operators) **worked**: queries with operators fell from 3, 10 to 0, 1.
 
-規則 D（不要搜你記得的專案名）**無效**：
+Rule D (do not search for project names you remember) **did not**:
 
 ```
 → web_search(query=HumanPlus Unitree G1 github)
@@ -544,111 +574,120 @@ const key =
 → web_search(query=dex-retargeting github robot)
 ```
 
-它照樣去搜訓練資料裡記得的名字。而且其中一次跑，
-`Pink` / `Pinocchio` 這些語料裡不存在的東西，還是溜進了答案的建議段落，
-而且沒有標 `UNVERIFIED`。
+It searched for remembered names anyway. And in one run, `Pink` and `Pinocchio`
+— things that do not exist in the corpus — still slipped into the answer's
+recommendations, without an `UNVERIFIED` tag.
 
 ```text
 「不要用某種語法」    → 可以用 prompt 約束，因為那是一個明確的格式規則
 「不要想你記得的事」  → prompt 約束不了，因為那是模型的先驗
 ```
 
-**這正是為什麼 deep-research 不用 prompt 去要求模型停止，
-而是用 `breadth/2`、`depth-1` 把停止條件寫進程式碼。**
+**Which is exactly why deep-research does not use a prompt to ask the model to
+stop, but writes the stopping condition into code as `breadth/2` and `depth-1`.**
 
-回到這個系列講過很多次的那句話：
+Back to the sentence this series has repeated many times:
 
-> 能用 harness 保證的事，不要交給 prompt 祈禱。
+> What the harness can guarantee should not be left to prayer in a prompt.
 
-Lesson 21 Step 5（警告沒用、改抽取器才有用）是一次，
-Lesson 22 Step 5（訊號有偏誤）是一次，這是第三次。
+Lesson 21 Step 5 (the warning did nothing, fixing the extractor did) was once,
+Lesson 22 Step 5 (the biased signal) was twice, and this is the third.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `bun run lesson-23:check` 印出 clone 指令 | 參考專案還沒抓下來 | 照著它給的指令 clone |
-| 一堆 `~ 行號漂了` | 上游改版了 | 正常。去看他們為什麼改，通常比原本那行更有價值 |
-| `✗ 找不到` | 那段程式碼被刪或大改 | 同上。這一課的內容以我讀的 commit 為準 |
-| `400 status code (no body)` | 平行工具呼叫的累積 bug | 見 Step 6，已修 |
-| clone 出現在 `git status` | `.git/info/exclude` 沒設 | 見上面「不進版控」那段 |
+| `bun run lesson-23:check` prints clone commands | the reference projects are not checked out | clone with the commands it gives |
+| lots of `~ 行號漂了` | upstream changed | normal. Go see why they changed it; that is usually more valuable than the original line |
+| `✗ 找不到` | that code was deleted or heavily rewritten | as above. This lesson's content is anchored to the commits listed |
+| `400 status code (no body)` | the parallel tool-call accumulation bug | see Step 6, fixed |
+| the clones show up in `git status` | `.git/info/exclude` is not set | see the "stays out of version control" section above |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：讀完 deep-research 的 294 行 ⭐
+### Exercise 1: read all 294 lines of deep-research ⭐
 
-`deep-research/src/deep-research.ts` 一次讀完，然後回答：
+Read `deep-research/src/deep-research.ts` in one sitting, then answer:
 
-1. `learnings` 是在哪一行從「網頁內容」變成「文字結論」的？
-2. 如果某一條 query 逾時了，整個研究會怎麼樣？
-3. `visitedUrls` 有沒有被用來避免重複抓取？
+1. Which line is where `learnings` turns from "page content" into "text
+   conclusions"?
+2. If one query times out, what happens to the whole research?
+3. Is `visitedUrls` used to avoid re-fetching?
 
-第 3 題的答案會讓你意外。**這是這一課最重要的一題。**
+The answer to the third will surprise you. It is the most important question in
+this lesson.
 
-### 練習 2：把 threshold 換成 top-k 的相反 ⭐⭐
+### Exercise 2: swap top-k for a threshold ⭐⭐
 
-我們 Lesson 22 的檢索一律回五筆。照 GPT Researcher 的做法改成門檻制：
-相似度低於某個值就不回。
+Lesson 22's retrieval always returns five. Follow GPT Researcher and make it a
+threshold: below a similarity value, return nothing.
 
-然後跑 Lesson 22 的評估集。nDCG 會變嗎？**recall 會變嗎？**
-（提示：門檻制在「語料裡真的沒有答案」的時候才顯出價值，
-而我們的評估集每一題都有答案——這代表評估集少了一種案例。）
+Then run Lesson 22's evaluation set. Does nDCG change? Does recall? (Hint: a
+threshold only shows its value when the corpus genuinely has no answer, and every
+query in our evaluation set has one — meaning the evaluation set is missing a
+category of case.)
 
-### 練習 3：加上文字密度 ⭐⭐
+### Exercise 3: add text density ⭐⭐
 
-照 crawl4ai `content_filter_strategy.py:568` 的形狀，
-給 Lesson 21 的抽取器加一層「連結密度太高就丟掉」。
+Following the shape of crawl4ai's `content_filter_strategy.py:568`, add a "drop
+it when link density is too high" layer to Lesson 21's extractor.
 
-然後跑 `bun run lesson-21:measure`。在我們這份乾淨的語料上大概沒有差別——
-**那就誠實記下來**，並想想要什麼樣的頁面才測得出差別。
+Then run `bun run lesson-21:measure`. On this clean corpus there will probably be
+no difference — **record that honestly**, and think about what kind of page would
+show one.
 
-### 練習 4：把 researchGoal 抄進來 ⭐⭐
+### Exercise 4: copy researchGoal in ⭐⭐
 
-現在的規則 C 只是叫模型「心裡想清楚」。改成真的讓它輸出：
-每次 `web_search` 都要附一個 `goal` 參數說明想學到什麼。
+Rule C currently just tells the model to be clear in its own head. Make it output
+it for real: every `web_search` must carry a `goal` argument stating what it hopes
+to learn.
 
-觀察：查詢會不會變少、變好？還是它只是多寫一句廢話？
-（這題沒有標準答案，我自己跑的結果是**兩者都有**。）
+Observe: do the queries get fewer and better, or does it just write one more
+throwaway sentence? (No standard answer; the runs behind this lesson produced
+**both**.)
 
-### 練習 5：找一個他們也還沒解決的問題 ⭐⭐⭐
+### Exercise 5: find a problem they have not solved either ⭐⭐⭐
 
-四個專案都讀一點之後，找一個**大家都做得不好**的地方。
+After reading a little of all four projects, find something **everybody does
+badly**.
 
-提示：試著回答「這份報告裡的每一句話，分別來自哪一個 URL 的哪一段？」
-然後去看四個專案分別怎麼處理引用與正文的對應。
+Hint: try answering "for every sentence in this report, which passage of which
+URL does it come from?", then look at how each of the four handles the
+correspondence between citations and body text.
 
-你會發現這件事普遍做得很粗糙。**這是 Lesson 25 的題目。**
+You will find this is generally done very crudely. That is Lesson 25's subject.
 
 ---
 
-## 這一課的對照總表
+## The comparison table
 
-| 我們的做法 | 真實專案 | 誰比較好 |
+| Our approach | The real projects | Who is better |
 |---|---|---|
-| query 一條一條讓模型自己想 | 一次規劃 N 條、禁用運算子、附研究目標 | **他們**，已抄回來 |
-| 抽取只取 `<p>`（後來才修） | 表格清單從一開始就在白名單 | **他們**，我們撞了三次 |
-| 黑名單（12 條 pattern） | 幾乎一樣的黑名單 + 文字密度 | 平手，但他們多一層 |
-| 自建 BM25 + dense + RRF + 訊號 | 只做 dense 門檻過濾 | **看架構**：他們的 sparse 外包給搜尋引擎 |
-| top-k 一律回五筆 | 相似度門檻，可以回空 | **他們**（對 agent 更好） |
-| 停止條件靠模型自己判斷 | `breadth/2`、`depth-1` 寫死 | **他們**，這是 Lesson 24 |
-| 沒有「已讀過的 URL」 | `visited_urls` 且跨子研究共用 | **他們**，這是 Lesson 24 |
-| 有評估集（nDCG/recall/novelty） | 四個專案都**沒有**檢索評估 | **我們** |
+| queries thought up one at a time by the model | plan N at once, ban operators, attach a research goal | **them**, now copied back |
+| extraction took only `<p>` (fixed later) | tables and lists in the allowlist from the start | **them**; we collided three times |
+| a blocklist (12 patterns) | almost the same blocklist plus text density | tie, but they have an extra layer |
+| self-built BM25 + dense + RRF + signals | dense threshold filtering only | **depends on architecture**: their sparse half is outsourced to the search engine |
+| top-k always returns five | a similarity threshold that can return nothing | **them** (better for an agent) |
+| the stopping condition is the model's judgement | `breadth/2` and `depth-1` hardcoded | **them**, and that is Lesson 24 |
+| no "URLs already read" | `visited_urls`, shared across sub-researches | **them**, and that is Lesson 24 |
+| an evaluation set (nDCG/recall/novelty) | none of the four has retrieval evaluation | **us** |
 
-最後一行不是在自誇。這四個專案都是很好的產品，但它們的品質保證主要靠
-使用者回報和眼睛看。**如果你要在自己的領域做這件事，
-評估集是你少數能贏過現成產品的地方**——因為只有你知道你的使用者
-真正在問什麼。
+That last row is not a boast. All four are good products, but their quality
+assurance rests mainly on user reports and eyeballs. **If you are doing this in
+your own domain, an evaluation set is one of the few places you can beat an
+off-the-shelf product** — because only you know what your users are actually
+asking.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 24: Deep Research loop](../lesson-24-research-loop/)**：Step 4 讀到的四個機制，
-自己實作一次。
+[Lesson 24: the Deep Research loop](../lesson-24-research-loop/): implement the
+four mechanisms read in Step 4.
 
 ```text
 breadth / depth 的結構性預算      ← 不問模型「要不要繼續」
@@ -657,5 +696,5 @@ visited_urls 跨層共用              ← 不重複抓
 單一分支失敗不弄垮整輪
 ```
 
-Lesson 22 Step 8 那個「兩次都撞上步數上限」的問題，到那一課才會真的解決——
-而且解法不是更好的 prompt。
+Lesson 22 Step 8's "hit the step ceiling both times" is only genuinely solved
+there — and the solution is not a better prompt.

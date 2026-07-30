@@ -1,18 +1,18 @@
 /**
- * tick()：一次「現在有什麼該跑」。
+ * tick(): one pass of "what should run now".
  *
- * Hermes 的 gateway 每 60 秒呼叫一次 `cron.scheduler.tick()`
- * （`cron/scheduler.py:1-8` 的 docstring）。形狀一樣，只是把時鐘和
- * 「怎麼跑一個工作」都抽成參數，才測得動、才換得掉。
+ * Hermes's gateway calls `cron.scheduler.tick()` every 60 seconds
+ * (the docstring at `cron/scheduler.py:1-8`). The same shape, with the clock and
+ * "how to run a job" extracted as parameters so it can be tested and swapped.
  *
- * 這個檔案本身很短，因為難的部分都在別的檔案：
+ * This file is short, because the hard parts live in other files:
  *
- *   schedule.ts  錯過的那些怎麼辦
- *   ledger.ts    跑到一半死掉怎麼記
- *   guard.ts     哪些工作根本不該被建立
+ *   schedule.ts  what to do about the ones that were missed
+ *   ledger.ts    how to record dying mid-run
+ *   guard.ts     which jobs should never be created
  *
- * **tick 只負責把它們串起來。** 一個排程器如果自己很大，
- * 通常代表這三件事有某一件沒有被單獨想清楚。
+ * **tick only strings them together.** A scheduler that is large in itself usually means
+ * one of those three was never thought through separately.
  */
 
 import { applyCatchUp, type Clock, type Job, missedRuns } from "./schedule.ts";
@@ -20,19 +20,19 @@ import type { Execution, Ledger } from "./ledger.ts";
 
 export interface JobRun {
 	job: Job;
-	/** 這一次對應的排定時間（可能是過去的，補跑時）。 */
+	/** The scheduled time this run corresponds to (possibly in the past, when catching up). */
 	scheduledFor: number;
 	source: Execution["source"];
 }
 
-/** 怎麼跑一個工作。demo 用腳本，`agent.ts` 用真的 agent turn。 */
+/** How to run a job. The demo uses a script; `agent.ts` uses a real agent turn. */
 export type JobRunner = (run: JobRun) => Promise<string>;
 
-/** 同一個工作上一輪還沒跑完，這一輪怎麼辦。 */
+/** What to do when the same job's previous run has not finished. */
 export type OverlapPolicy =
-	/** 跳過，並且記下來。**預設**。 */
+	/** Skip and record it. **The default.** */
 	| "skip"
-	/** 照跑。這是這一課要示範的錯誤版本。 */
+	/** Run anyway. The broken version this lesson demonstrates. */
 	| "allow";
 
 export interface SchedulerOptions {
@@ -45,9 +45,9 @@ export interface SchedulerOptions {
 
 export interface TickReport {
 	ran: { jobId: string; scheduledFor: number; ok: boolean; output?: string; error?: string }[];
-	/** 因為上一輪還在跑而跳過的。 */
+		/** Skipped because the previous run was still going. */
 	skipped: { jobId: string; scheduledFor: number; reason: string }[];
-	/** 補跑政策丟掉的次數。 */
+		/** How many the catch-up policy dropped. */
 	dropped: { jobId: string; count: number; policy: string }[];
 }
 
@@ -68,7 +68,7 @@ export class Scheduler {
 		return [...this.jobs.values()];
 	}
 
-	/** 重開之後先做這件事，再開始 tick。 */
+		/** Do this first after a restart, before ticking. */
 	async recover(): Promise<{ recovered: Execution[]; leftAlone: Execution[] }> {
 		return await this.options.ledger.recoverInterrupted();
 	}
@@ -87,11 +87,11 @@ export class Scheduler {
 				report.dropped.push({ jobId: job.id, count: dropped, policy: job.catchUp });
 			}
 
-			// ⚠️ 不管有沒有真的跑，時間都要推進到最後一個錯過的排定時間。
+				// ⚠️ Whether or not anything ran, time advances to the last missed scheduled time.
 			//
-			// 少了這一行，`skip` 政策會在**每一次 tick** 重新看到同一批
-			// 錯過的排程，於是 dropped 的數字每分鐘都在長 ——
-			// 而且因為它沒有真的執行任何東西，這個 bug 不會有任何症狀。
+				// Without this line, the `skip` policy re-sees the same batch of missed runs on **every tick**,
+				// so the dropped number grows every minute —
+				// and because it executes nothing, that bug has no symptom.
 			job.lastScheduledAt = missed[missed.length - 1] as number;
 
 			for (const scheduledFor of runs) {
@@ -123,9 +123,9 @@ export class Scheduler {
 					report.ran.push({ jobId: job.id, scheduledFor, ok: true, output });
 					log?.(`  ✓ ${job.name}（${execution.id}）`);
 				} catch (error) {
-					// ⚠️ 進程被殺掉的時候**不會走到這裡**，那正是重點：
-					// catch 得到的失敗會被誠實地記成 failed，
-					// catch 不到的失敗會留下一筆 running，等下次重開來判定。
+						// ⚠️ A killed process **never reaches this point**, which is exactly the point:
+						// a failure that can be caught is honestly recorded as failed,
+						// and a failure that cannot leaves a running record for the next restart to judge.
 					const message = error instanceof Error ? error.message : String(error);
 					await ledger.finish(execution.id, false, message);
 					report.ran.push({ jobId: job.id, scheduledFor, ok: false, error: message });

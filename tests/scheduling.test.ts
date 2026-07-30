@@ -1,11 +1,11 @@
 /**
- * 排程與無人值守（Lesson 18）。
+ * Scheduling and unattended running (Lesson 18).
  *
- * 三組，守的都是「錯了不會報錯」的那種東西：
+ * Three groups, all guarding things that fail without raising an error:
  *
- *   schedule  時間推進的方式（用跑完時間推進會讓排程慢慢漂掉）
- *   ledger    終局狀態不可改寫、死亡要證明、pid 會被回收
- *   guard     指令形狀擋得住，散文不能誤擋
+ *   schedule  how time advances (advancing by completion time makes the schedule drift)
+ *   ledger    terminal states are immutable, death must be proved, pids get recycled
+ *   guard     command shapes are blocked and prose is not falsely blocked
  */
 
 import assert from "node:assert/strict";
@@ -64,8 +64,8 @@ describe("到期與補跑（Lesson 18）", () => {
 	});
 
 	test("時間以「排定時間」推進，不受執行耗時影響", () => {
-		// 這一條守的是那個會慢慢漂掉的 bug：每次跑完才推進的話，
-		// 一個每 60 秒的工作每次跑 5 秒，一天之後會漂掉一小時。
+			// This guards the slow-drift bug: advancing only on completion,
+			// a job every 60 seconds that takes 5 seconds per run drifts an hour in a day.
 		const missed = missedRuns(job({ lastScheduledAt: 0 }), 3 * MINUTE + 37_000);
 		assert.deepEqual(missed, [MINUTE, 2 * MINUTE, 3 * MINUTE]);
 	});
@@ -87,8 +87,8 @@ describe("到期與補跑（Lesson 18）", () => {
 	});
 
 	test("⚠ skip 之後時間仍然要推進，否則每次 tick 都重看同一批", async () => {
-		// 這個 bug 完全沒有症狀：它不會執行任何東西，只會讓 dropped
-		// 的數字每分鐘都在長。
+			// This bug has no symptom at all: it executes nothing and merely makes the dropped
+			// number grow every minute.
 		const j = job({ catchUp: "skip", lastScheduledAt: 0 });
 		let now = 10 * MINUTE;
 		const scheduler = new Scheduler({
@@ -134,10 +134,10 @@ describe("執行紀錄（Lesson 18）", () => {
 	});
 
 	/**
-	 * 「第一個進程 claim 完就死掉，第二個進程載入同一份紀錄」。
+		 * "The first process claims and then dies, and a second process loads the same record."
 	 *
-	 * 交接刻意走檔案，不是把 Map 塞過去：**跨進程才是這個機制的使用情境**，
-	 * 用同一個物件測會漏掉序列化那一段。
+		 * The handover deliberately goes through the file rather than passing a Map: **crossing processes is this mechanism's use case**,
+		 * and testing with one object would skip the serialisation entirely.
 	 */
 	async function handover(
 		live: Map<number, number>,
@@ -180,7 +180,7 @@ describe("執行紀錄（Lesson 18）", () => {
 	});
 
 	test("⚠ 拿不到啟動時間 → 當成活著（fail safe）", async () => {
-		// 「證明不了它死了就不能改寫狀態」。反過來設計會產生重複執行。
+			// "If death cannot be proved, state must not be rewritten." The reverse design produces duplicate execution.
 		const live = new Map([[7, 500]]);
 		const blind: OwnerProbe = { exists: () => true, startedAt: () => undefined };
 		const { second } = await handover(live, { probeOverride: blind });
@@ -192,7 +192,7 @@ describe("執行紀錄（Lesson 18）", () => {
 		const result = await second.recoverInterrupted();
 
 		assert.equal(result.recovered[0]?.status, "unknown");
-		// unknown 是終局狀態，不是「待重試」。要不要重跑是工作的性質決定的。
+			// unknown is a terminal state, not "awaiting retry". Whether to re-run is decided by the nature of the job.
 		assert.equal(second.activeFor("j1"), undefined);
 	});
 });
@@ -207,8 +207,8 @@ describe("生命週期守衛（Lesson 18）", () => {
 	});
 
 	test("start 刻意不擋", () => {
-		// 在 daemon 裡面啟動 daemon 是無害的，而且合法的工作可能要
-		// 啟動另一個 profile。擋掉它會製造無法解釋的失敗。
+			// Starting a daemon inside the daemon is harmless, and a legitimate job may need to
+			// start a different profile. Blocking it produces inexplicable failures.
 		assert.equal(containsLifecycleCommand("agentd start"), false);
 	});
 
@@ -228,8 +228,8 @@ describe("生命週期守衛（Lesson 18）", () => {
 	});
 
 	test("錯誤訊息要講替代做法，不能只說不行", () => {
-		// 實測（README Step 6）：講了替代做法之後，模型會改做法並轉告使用者；
-		// 只寫「不允許」的話，Lesson 8 量到的是連續五次繞道。
+			// Measured (README Step 6): with an alternative stated, the model changes approach and tells the user;
+			// with only "not allowed", Lesson 8 measured five consecutive attempts to route around.
 		try {
 			checkLifecycle("agentd restart");
 			assert.fail("should have thrown");

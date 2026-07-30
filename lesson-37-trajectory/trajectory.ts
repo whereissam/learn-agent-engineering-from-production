@@ -1,18 +1,18 @@
 /**
- * Trajectory：append-only 的事件流，加上**算得出來的**查詢。
+ * Trajectory: an append-only event stream, plus **computable** queries.
  *
- * 這個檔案是這一課的主張所在。它只有兩百行，但每一個函式都在示範
- * 同一件事：**換了資料結構之後，原本要靠讀字才能回答的問題變成集合運算。**
+ * This file is where this lesson's thesis lives. It is two hundred lines, and every function demonstrates
+ * the same thing: **with a different data structure, questions that needed reading prose become set operations.**
  *
- *   conflicts()     agent 宣稱成功，環境說失敗   → 對得起來
- *   failureKinds()  三種失敗分得開                → 分得開
- *   batches()       哪些動作是同一次回應發的      → 數得出來
- *   view()          LLM 看得到的那一份            → 算得出來，而不是改寫出來
+ *   conflicts()     the agent claimed success and the environment said failure → they line up
+ *   failureKinds()  three kinds of failure                                     → distinguishable
+ *   batches()       which actions came from one response                       → countable
+ *   view()          the version the LLM sees                                   → computed rather than rewritten
  *
- * 最後一個順帶解掉 Lesson 5 的一個缺陷：壓縮完之後看不出壓縮過。
+ * The last one incidentally fixes a flaw in Lesson 5: after compaction you cannot tell it happened.
  *
- * > **trajectory 是事實的完整紀錄，view 是給模型看的投影。**
- * > 兩者分開之後，壓縮就不再是一次破壞性的改寫。
+ * > **The trajectory is the complete record of fact, and the view is the projection the model sees.**
+ * > Once separated, compaction stops being a destructive rewrite.
  */
 
 import type { ActionEvent, TrajectoryEvent } from "./events.ts";
@@ -20,7 +20,7 @@ import type { ActionEvent, TrajectoryEvent } from "./events.ts";
 export class Trajectory {
 	private readonly events: TrajectoryEvent[] = [];
 
-	/** append-only。**沒有 update、沒有 delete，這是刻意的。** */
+		/** Append-only. **No update and no delete, deliberately.** */
 	add(event: TrajectoryEvent): void {
 		this.events.push(event);
 	}
@@ -30,9 +30,9 @@ export class Trajectory {
 	}
 
 	/**
-	 * LLM 看得到的那一份：套用所有 condensation 之後的投影。
+		 * The version the LLM sees: the projection after applying every condensation.
 	 *
-	 * 對照 `condensation-event.ts:12-14` 的註解
+		 * Against the comment at `condensation-event.ts:12-14`
 	 * （`removed from the View given to the LLM`）。
 	 */
 	view(): TrajectoryEvent[] {
@@ -46,11 +46,11 @@ export class Trajectory {
 	}
 
 	/**
-	 * **把 trajectory 攤平成聊天記錄** —— 也就是 Lesson 1-28 的形狀。
+		 * **Flatten the trajectory into a chat log** — that is, Lessons 1-28's shape.
 	 *
-	 * 這個函式存在的唯一目的是**示範它會丟掉什麼**：
-	 * 三種失敗全部變成一段字串、source 消失、llmResponseId 消失。
-	 * `demo.ts` 用它跟 trajectory 做對照。
+		 * This function exists solely to **demonstrate what that loses**:
+		 * all three failures become one string, source disappears, llmResponseId disappears.
+		 * `demo.ts` uses it as the contrast against the trajectory.
 	 */
 	toChatHistory(): { role: "user" | "assistant" | "toolResult"; content: string }[] {
 		const out: { role: "user" | "assistant" | "toolResult"; content: string }[] = [];
@@ -68,8 +68,8 @@ export class Trajectory {
 				case "observation":
 					out.push({ role: "toolResult", content: event.content });
 					break;
-				// ⚠️ 這兩行就是資訊遺失發生的地方：三種不同性質的失敗
-				// 被壓成同一種東西（一段字串），而且看不出是誰說的。
+					// ⚠️ These two lines are where the information is lost: three failures of different natures
+					// are flattened into one thing (a string), with no way to see who said it.
 				case "user-reject":
 					out.push({ role: "toolResult", content: `Error: ${event.rejectionReason}` });
 					break;
@@ -85,15 +85,15 @@ export class Trajectory {
 	}
 
 	// ───────────────────────────────────────────────────────────
-	// 查詢
+		// Queries
 	// ───────────────────────────────────────────────────────────
 
 	/**
-	 * agent 宣稱成功，但環境說失敗。
+		 * The agent claimed success and the environment said failure.
 	 *
-	 * **這是這一課的核心查詢**，而它之所以寫得出來，只因為
-	 * observation 的 `exitCode` 是一個欄位、`source` 是釘死的。
-	 * 在聊天記錄上，同一個問題是一個自然語言理解問題（見 `demo.ts`）。
+		 * **This is the lesson's core query**, and it is only writable because
+		 * an observation's `exitCode` is a field and its `source` is pinned.
+		 * On a chat log the same question is a natural-language-understanding problem (see `demo.ts`).
 	 */
 	conflicts(): { action: ActionEvent; exitCode: number; claim: string }[] {
 		const out: { action: ActionEvent; exitCode: number; claim: string }[] = [];
@@ -108,7 +108,7 @@ export class Trajectory {
 			);
 			if (!action) continue;
 
-			// 這個動作之後，agent 有沒有說過話。
+				// Did the agent say anything after this action.
 			const index = this.events.indexOf(event);
 			const claim = this.events
 				.slice(index + 1)
@@ -121,7 +121,7 @@ export class Trajectory {
 		return out;
 	}
 
-	/** 三種失敗各自幾次。 */
+		/** How many of each of the three failures. */
 	failureKinds(): { environment: number; rejected: number; scaffold: number } {
 		let environment = 0;
 		let rejected = 0;
@@ -136,7 +136,7 @@ export class Trajectory {
 		return { environment, rejected, scaffold };
 	}
 
-	/** 依 llmResponseId 分組的動作。一組 = 一次 LLM 回應。 */
+		/** Actions grouped by llmResponseId. One group = one LLM response. */
 	batches(): Map<string, ActionEvent[]> {
 		const out = new Map<string, ActionEvent[]>();
 		for (const event of this.events) {
@@ -148,7 +148,7 @@ export class Trajectory {
 		return out;
 	}
 
-	/** 有沒有哪一個動作沒有對應的 observation（Lesson 3 的硬規則）。 */
+		/** Is there an action with no matching observation (Lesson 3's hard rule). */
 	danglingActions(): ActionEvent[] {
 		const answered = new Set<string>();
 		for (const event of this.events) {
@@ -162,7 +162,7 @@ export class Trajectory {
 		);
 	}
 
-	/** JSONL：跟 Lesson 4 的 session 存檔同一個形狀，只是內容換了。 */
+		/** JSONL: the same shape as Lesson 4's session file, with different contents. */
 	toJSONL(): string {
 		return this.events.map((event) => JSON.stringify(event)).join("\n");
 	}
@@ -178,16 +178,16 @@ export class Trajectory {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 在聊天記錄上回答同一個問題（示範它為什麼不行）
+// Answering the same question on a chat log (demonstrating why it does not work)
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 從聊天記錄找「宣稱成功但其實失敗」。
+ * Find "claimed success but actually failed" in a chat log.
  *
- * 只能做字串比對，因為那個資料結構裡**沒有 exit code 這個概念** ——
- * 它被格式化進一段給人看的文字裡了。
+ * Only string comparison is possible, because that data structure **has no concept of an exit code** —
+ * it was formatted away into prose for a human.
  *
- * 這不是一個寫得比較差的實作，**這是那個資料結構能支援的上限。**
+ * This is not a poorly written implementation; **it is the ceiling of what that data structure supports.**
  */
 export function conflictsFromChat(
 	history: { role: string; content: string }[],
@@ -207,7 +207,7 @@ export function conflictsFromChat(
 	return {
 		failureSeen,
 		claimSeen,
-		// 永遠不 confident：兩邊都靠關鍵字猜，而關鍵字表是我編的。
+			// Never confident: both sides guess from keywords, and the keyword list is hand-written.
 		confident: false,
 	};
 }

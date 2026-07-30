@@ -1,9 +1,9 @@
 /**
- * Skill 的格式。
+ * A skill's format.
  *
- * 記憶（Lesson 15）記的是「事實」，skill 記的是「怎麼做」。
+ * Memory (Lesson 15) records **facts**; a skill records **how to do something**.
  *
- * 一個 skill 就是一個 Markdown 檔（Hermes 叫 SKILL.md），前面帶 YAML frontmatter：
+ * A skill is one Markdown file (Hermes calls it SKILL.md) with YAML frontmatter on top:
  *
  *   ---
  *   name: arxiv-search
@@ -15,70 +15,70 @@
  *   ## When to Use
  *   ...
  *
- * 為什麼是檔案而不是資料庫？跟 Lesson 15 的 MEMORY.md 一樣：
- * 你看得懂、能 diff、能進版控、agent 自己也能讀寫。
+ * Why files rather than a database? The same reason as Lesson 15's MEMORY.md:
+ * you can read them, diff them, version them, and the agent can read and write them too.
  *
- * 對照：hermes-agent/agent/skill_utils.py
+ * Source: hermes-agent/agent/skill_utils.py
  */
 
 /**
- * Skill 的中繼資料。
+ * A skill's metadata.
  *
- * `description` 的 60 字元上限**不是美觀問題**，是架構問題。
- * 見 store.ts 的 progressive disclosure 說明。
+ * `description`'s 60-character limit is **not a cosmetic matter** but an architectural one.
+ * See the progressive disclosure explanation in store.ts.
  */
 export interface SkillFrontmatter {
-	/** 小寫連字號，當作 id。 */
+	/** Lowercase with hyphens, used as the id. */
 	name: string;
 	/**
-	 * 一句話。**上限 60 字元。**
+	 * One sentence. **A 60-character limit.**
 	 *
-	 * Hermes 的 authoring standard 對這條特別嚴格，原文：
+ * Hermes's authoring standard is especially strict about this; in the original:
 	 *   > This is the most-violated rule and it is NOT cosmetic: the
 	 *   > system-prompt skill index truncates the description to 60 chars and
 	 *   > loads it every session, so anything past char 60 is silently cut
 	 *   > and never routes.
 	 *
-	 * 也就是：超過 60 字的部分會被靜靜切掉，而且**模型永遠不會知道
-	 * 這個 skill 能做什麼**，於是它永遠不會被叫用。
+	 * That is: anything past 60 characters is silently cut, and **the model never learns
+	 * what this skill can do**, so it never invokes it.
 	 */
 	description: string;
 	version: string;
 	/**
-	 * 作者。
+	 * The author.
 	 *
-	 * Hermes 規定這裡**永遠是固定值**，不准從環境變數、git config
-	 * 或登入帳號填。理由是 skill 會被分享出去，從環境推導出來的名字
-	 * 是使用者沒同意過的隱私外洩。
+	 * Hermes requires this to be a **fixed value** and forbids filling it from environment variables,
+	 * git config or a login account. The reason is that skills get shared, and a name derived from
+	 * the environment is a privacy leak the user never agreed to.
 	 */
 	author: string;
-	/** 限定平台。省略代表跨平台。 */
+	/** Restricted to a platform. Omitted means cross-platform. */
 	platforms?: Array<"macos" | "linux" | "windows">;
 	tags?: string[];
 }
 
-/** 這個 skill 是誰造的。**這個欄位是 Lesson 16 的核心。** */
+/** Who created this skill. **This field is Lesson 16's core.** */
 export type SkillOrigin =
-	/** 人寫的，預設信任。 */
+	/** Written by a human; trusted by default. */
 	| "human"
-	/** agent 提議、還沒被審核。**不會載入。** */
+	/** Proposed by the agent and not yet reviewed. **Never loaded.** */
 	| "proposed"
-	/** agent 提議、人審過了。 */
+	/** Proposed by the agent and reviewed by a human. */
 	| "approved";
 
 export interface Skill {
 	frontmatter: SkillFrontmatter;
-	/** frontmatter 底下的 Markdown 本文。 */
+	/** The Markdown body beneath the frontmatter. */
 	body: string;
 	origin: SkillOrigin;
-	/** 提議的來源，用來追溯。 */
+	/** The proposal's origin, for traceability. */
 	proposedFrom?: {
 		sessionId: string;
-		/** 這個 skill 是從什麼樣的對話萃取出來的。 */
+		/** What kind of conversation this skill was extracted from. */
 		summary: string;
 		createdAt: string;
 	};
-	/** 審核紀錄。 */
+	/** The review record. */
 	review?: {
 		decidedBy: string;
 		decidedAt: string;
@@ -86,7 +86,7 @@ export interface Skill {
 	};
 }
 
-/** 解析 SKILL.md。 */
+/** Parse a SKILL.md. */
 export function parseSkill(raw: string, origin: SkillOrigin = "human"): Skill {
 	const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
 	if (!match?.[1]) {
@@ -96,8 +96,8 @@ export function parseSkill(raw: string, origin: SkillOrigin = "human"): Skill {
 	const [, front, body = ""] = match;
 	const fm: Record<string, unknown> = {};
 
-	// 極簡 YAML：只支援 key: value 跟 key: [a, b]。
-	// 真實系統請用 yaml 套件，這裡是為了不引相依。
+		// Minimal YAML: only key: value and key: [a, b] are supported.
+		// Use a yaml package in a real system; this avoids a dependency.
 	for (const line of front.split("\n")) {
 		const kv = line.match(/^([a-z_.]+):\s*(.*)$/i);
 		if (!kv?.[1]) continue;
@@ -145,22 +145,22 @@ export function renderSkill(skill: Skill): string {
 	return lines.join("\n");
 }
 
-/** description 的硬性上限。超過就永遠不會被路由到。 */
+/** The hard limit on a description. Beyond it, it is never routed to. */
 export const MAX_DESCRIPTION_CHARS = 60;
 
 export interface ValidationIssue {
 	field: string;
 	message: string;
-	/** true = 一定要修，false = 建議修。 */
+	/** true = must fix, false = should fix. */
 	blocking: boolean;
 }
 
 /**
- * 檢查 skill 是否符合規範。
+ * Check whether a skill meets the standard.
  *
- * **這是自動產生 skill 時的第一道閘門。** 模型很會寫出
- * 「A comprehensive skill that seamlessly...」這種描述，
- * 那種東西超過 60 字、會被截斷、而且沒有講清楚能力。
+ * **This is the first gate when skills are generated automatically.** Models are very good at writing
+ * descriptions like "A comprehensive skill that seamlessly...",
+ * which exceed 60 characters, get truncated, and never state a capability.
  */
 export function validateSkill(skill: Skill): ValidationIssue[] {
 	const issues: ValidationIssue[] = [];
@@ -184,7 +184,7 @@ export function validateSkill(skill: Skill): ValidationIssue[] {
 		issues.push({ field: "description", message: "描述要是完整的一句話", blocking: false });
 	}
 
-	// 行銷詞代表描述在講「多好」而不是「能做什麼」
+		// Marketing language means the description says "how good it is" rather than "what it does"
 	const marketing = ["powerful", "comprehensive", "seamless", "advanced", "robust", "強大", "全面"];
 	const hit = marketing.filter((w) => fm.description.toLowerCase().includes(w));
 	if (hit.length > 0) {

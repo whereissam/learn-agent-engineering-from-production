@@ -1,8 +1,8 @@
 /**
  * Action / observation trajectory（Lesson 37）。
  *
- * 這一組守的是「換了資料結構之後，這些問題答得出來」——
- * 也就是這一課的整個主張。每一條都對應 `demo.ts` 的一個情境。
+ * This group guards "with a different data structure these questions are answerable" —
+ * that is, the lesson's whole thesis. Each case matches one of `demo.ts`'s scenarios.
  */
 
 import assert from "node:assert/strict";
@@ -62,8 +62,8 @@ describe("trajectory 查詢（Lesson 37）", () => {
 	});
 
 	test("同一個問題在聊天記錄上答不出來", () => {
-		// 這一條不是在測 `conflictsFromChat` 寫得好不好，是在測
-		// **那個資料結構的上限**：它只能做關鍵字比對，而且永遠不 confident。
+			// This is not testing how well `conflictsFromChat` is written but testing
+			// **that data structure's ceiling**: it can only match keywords, and it is never confident.
 		const trajectory = new Trajectory();
 		trajectory.add(action({ id: "a3" }));
 		trajectory.add({
@@ -73,10 +73,10 @@ describe("trajectory 查詢（Lesson 37）", () => {
 		});
 		trajectory.add({ kind: "message", id: "m3", timestamp: 3, source: "agent", text: "全部綠燈。" });
 
-		// trajectory 照樣查得到（它看的是 exitCode，不是措辭）
+			// The trajectory still finds it (it looks at exitCode, not at wording)
 		assert.equal(trajectory.conflicts().length, 1);
 
-		// 聊天記錄：換一種說法就漏了
+			// The chat log: rephrase it and the detection misses
 		const chat = conflictsFromChat(trajectory.toChatHistory());
 		assert.equal(chat.claimSeen, false, "「全部綠燈」不在關鍵字表裡");
 		assert.equal(chat.confident, false);
@@ -99,7 +99,7 @@ describe("trajectory 查詢（Lesson 37）", () => {
 
 		assert.deepEqual(trajectory.failureKinds(), { environment: 1, rejected: 1, scaffold: 1 });
 
-		// 攤平成聊天記錄之後就分不出來了：三個都是 toolResult。
+			// Flattened into a chat log they become indistinguishable: all three are toolResult.
 		const results = trajectory.toChatHistory().filter((m) => m.role === "toolResult");
 		assert.equal(results.length, 3);
 	});

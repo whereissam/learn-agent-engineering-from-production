@@ -1,57 +1,57 @@
 /**
- * Schema 相容層。
+ * The schema compatibility layer.
  *
- * 探針量出來的東西（見 README）可以歸成兩類，而它們的修法完全不同：
+ * What the probe measured (see the README) falls into two classes with completely different fixes:
  *
- *   結構不支援    provider 直接 400。要**改寫成它吃得下的等價形式**
- *   約束沒人管    API 收下了但沒人強制。要**把約束搬進 description**
+ *   an unsupported structure   the provider returns 400. **Rewrite it into an equivalent form it accepts**
+ *   an unenforced constraint   the API accepts it and nobody enforces it. **Move the constraint into the description**
  *
- * 第二類是這一課的核心。`multipleOf: 15` 寫在 schema 裡，
- * OpenAI 的模型剛好遵守，Gemini 的不遵守，而**兩邊的 API 都不會報錯**。
- * 你唯一能做的是把它講給模型聽。
+ * The second is this lesson's core. `multipleOf: 15` sits in the schema,
+ * OpenAI's model happens to honour it, Gemini's does not, and **neither API raises an error**.
+ * The only thing you can do is say it to the model.
  *
- * 這正是 mastra 那幾個 provider-compat 在做的事。它的 google.ts 有一句
- * 註解把這件事講得很清楚：
+ * Which is exactly what mastra's provider-compat files do. Its google.ts has a comment
+ * that states it plainly:
  *
  *   > Google models support these properties but the model doesn't respect
  *   > them, but it respects them when they're added to the tool description
  *
- * 對照：`mastra/packages/schema-compat/src/provider-compats/`
+ * Source: `mastra/packages/schema-compat/src/provider-compats/`
  */
 
-/** 一個 provider 能吃什麼、會遵守什麼。 */
+/** What a provider accepts and what it honours. */
 export interface CompatTarget {
 	name: string;
 	/**
-	 * 支不支援 tuple 形式的 `items: [A, B, C]`。
+		 * Whether tuple-form `items: [A, B, C]` is supported.
 	 *
-	 * Gemini 的 OpenAI 相容端點會直接回 400（實測）。
+		 * Gemini's OpenAI-compatible endpoint returns 400 outright (measured).
 	 */
 	tupleItems: boolean;
 	/**
-	 * 數值約束（multipleOf / minimum / maximum）模型會不會遵守。
+		 * Whether the model honours numeric constraints (multipleOf / minimum / maximum).
 	 *
-	 * 注意這**不是**「API 支不支援」。API 兩邊都收，
-	 * 差別在模型有沒有照做（Gemini 實測沒有）。
+		 * Note this is **not** "does the API support it". Both APIs accept them;
+		 * the difference is whether the model obeys (measured: Gemini does not).
 	 */
 	enforcesNumeric: boolean;
-	/** 字串約束（minLength / maxLength / pattern）模型會不會遵守。 */
+		/** Whether the model honours string constraints (minLength / maxLength / pattern). */
 	enforcesString: boolean;
 }
 
 /**
- * 實測出來的表。
+ * The measured table.
  *
- * ⚠️ **這張表會過期。** 它是 2026-07 對 gemini-3.6-flash 和 gpt-5 量的結果,
- * 模型改版就可能變。所以真正該進版控的不是這張表，是
- * `bun run lesson-30:probe`，**能重跑的量測才是資產，抄來的常數不是。**
+ * ⚠️ **This table will go stale.** It was measured in 2026-07 against gemini-3.6-flash and gpt-5,
+ * and a model revision can change it. So what belongs in version control is not this table but
+ * `bun run lesson-30:probe`: **a measurement you can re-run is an asset; a constant you copied is not.**
  *
- * 這條跟 Lesson 22 猜錯去重門檻、Lesson 27 抄錯相關性門檻是同一個教訓。
+ * The same lesson as Lesson 22's wrong dedup threshold and Lesson 27's wrongly copied relevance threshold.
  */
 export const TARGETS: Record<string, CompatTarget> = {
 	gemini: { name: "gemini", tupleItems: false, enforcesNumeric: false, enforcesString: true },
 	openai: { name: "openai", tupleItems: true, enforcesNumeric: true, enforcesString: true },
-	/** 沒量過的一律當成最保守。**預設值是給還沒量過的人用的。** */
+		/** Anything unmeasured is treated most conservatively. **Defaults are for people who have not measured yet.** */
 	unknown: { name: "unknown", tupleItems: false, enforcesNumeric: false, enforcesString: false },
 };
 
@@ -62,10 +62,10 @@ export function targetFor(providerName: string): CompatTarget {
 export interface CompatResult {
 	schema: Record<string, unknown>;
 	/**
-	 * 被搬進 description 的約束。
+		 * Constraints that were moved into the description.
 	 *
-	 * 回傳它而不是靜靜塞進去，是為了讓呼叫端**看得到自己做了什麼**。
-	 * 一個安靜地改寫你 schema 的函式，是下一個難查的 bug。
+		 * They are returned rather than silently inserted, so the caller **can see what was done**.
+		 * A function that quietly rewrites your schema is the next hard-to-find bug.
 	 */
 	notes: string[];
 }
@@ -74,10 +74,10 @@ const NUMERIC_KEYS = ["multipleOf", "minimum", "maximum", "exclusiveMinimum", "e
 const STRING_KEYS = ["minLength", "maxLength", "pattern", "format"];
 
 /**
- * 把一份 schema 改寫成某個 provider 吃得下、而且約束講得出來的形式。
+ * Rewrite a schema into a form a given provider accepts, with its constraints stated.
  *
- * **不會修改輸入。** 這一課的整個主題就是「別人的 schema 不是你的」,
- * 就地改寫它會讓呼叫端的資料悄悄變形。
+ * **The input is never modified.** This lesson's whole subject is "somebody else's schema is not yours",
+ * and rewriting it in place would silently deform the caller's data.
  */
 export function compatSchema(
 	schema: Record<string, unknown>,
@@ -96,11 +96,11 @@ function walk(node: unknown, target: CompatTarget, notes: string[], path: string
 	const out: Record<string, unknown> = {};
 
 	for (const [key, value] of Object.entries(input)) {
-		// ── 結構修正：tuple ─────────────────────────────────
+			// ── structural fix: tuple ───────────────────────────
 		//
-		// `items: [A, B, C]` 是 draft-04 的 tuple 寫法。不支援的 provider
-		// 會直接 400，所以改寫成「元素是 A|B|C 的陣列」+ 長度限制,
-		// 再把位置的意義寫進 description（因為 anyOf 表達不了順序）。
+			// `items: [A, B, C]` is draft-04's tuple form. A provider that does not support it
+			// returns 400 outright, so it is rewritten as "an array whose elements are A|B|C" plus a length limit,
+			// with the positional meaning written into the description (because anyOf cannot express order).
 		if (key === "items" && Array.isArray(value) && !target.tupleItems) {
 			out.items = { anyOf: value.map((item) => walk(item, target, notes, path)) };
 			const where = path || "(root)";
@@ -120,10 +120,10 @@ function walk(node: unknown, target: CompatTarget, notes: string[], path: string
 		out[key] = walk(value, target, notes, path);
 	}
 
-	// ── 約束搬家 ─────────────────────────────────────────
+		// ── moving constraints ───────────────────────────────
 	//
-	// 留在 schema 裡（不礙事，而且支援的 provider 會用），
-	// **同時**寫進 notes，由呼叫端接到 description 上。
+		// They stay in the schema (harmless, and a supporting provider uses them),
+		// **and** go into notes, for the caller to attach to the description.
 	if (!target.enforcesNumeric) collect(out, NUMERIC_KEYS, notes, path);
 	if (!target.enforcesString) collect(out, STRING_KEYS, notes, path);
 
@@ -146,7 +146,7 @@ function describe(item: unknown): string {
 	return String(schema?.type ?? "any");
 }
 
-/** 把 notes 接到工具描述後面。 */
+/** Append the notes to a tool description. */
 export function describeWith(description: string, notes: string[]): string {
 	if (notes.length === 0) return description;
 	return `${description}\n\nConstraints you must follow exactly:\n${notes

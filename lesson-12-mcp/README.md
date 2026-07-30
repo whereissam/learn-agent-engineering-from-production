@@ -1,27 +1,30 @@
-# Lesson 12: MCP client 進產品
+# Lesson 12: An MCP Client in a Product
 
-> 前置：[Lesson 8](../lesson-08-permissions/)（風險分級）、
-> [Lesson 2](../lesson-02-tools/)（工具與批准）。
+> [繁體中文](README.zh-TW.md)
 >
-> 把**別人寫的工具**接進你的 agent。協定只有三個方法，
-> 難的全部在「別人的進程不受你控制」。
+> Prerequisites: [Lesson 8](../lesson-08-permissions/) (risk classes),
+> [Lesson 2](../lesson-02-tools/) (tools and approval).
 >
-> 對照原始碼：`openworker/coworker/mcp/`（5 個檔案 647 行）、
+> Connect tools somebody else wrote. The protocol has three methods; all the
+> difficulty is in the fact that somebody else's process is not under your
+> control.
+>
+> Source: `openworker/coworker/mcp/` (5 files, 647 lines),
 > `mastra/packages/mcp/src/{client,server}`
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. MCP 工具跟自己寫的工具，差別到底在哪？
-2. 使用者的設定裡有一台 server 是壞的，agent 該不該起得來？
-3. 為什麼 MCP 工具預設要當成最高風險？
-4. 工具名字為什麼要加一堆前綴，加了會出什麼事？
-5. 一份**你不能改**的 schema 送給模型會怎樣？
+1. What is the actual difference between an MCP tool and one you wrote?
+2. One server in the user's config is broken. Should the agent still start?
+3. Why should an MCP tool default to the highest risk class?
+4. Why prefix tool names, and what does prefixing break?
+5. What happens when you send a model a schema you cannot change?
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
-不需要 API key：
+No API key needed:
 
 ```bash
 bun run lesson-12
@@ -40,10 +43,11 @@ bun run lesson-12
   mcp__fleet__schedule_maintenance  [external]  ← fleet/schedule_maintenance
 ```
 
-三台 server 有兩台是壞的，**這是刻意的**。使用者的 `mcp.json` 裡遲早會有一台
-壞掉（套件更新、token 過期、指令改名），那時候 agent 必須照常啟動。
+Two of the three servers are broken, deliberately. Sooner or later a user's
+`mcp.json` has a broken entry (a package update, an expired token, a renamed
+command), and the agent has to start anyway.
 
-其他玩法：
+Other things to try:
 
 ```bash
 PROVIDER=gemini bun run lesson-12   # 真模型
@@ -54,9 +58,10 @@ TODAY=1 PROVIDER=gemini bun run lesson-12  # Step 6 的對照組
 
 ---
 
-## Step 1：協定小到你可以自己寫一個
+## Step 1: the protocol is small enough to write yourself
 
-`server.ts` 是一個**真的** MCP server，零依賴，不到 200 行。整個協定就三個方法：
+`server.ts` is a real MCP server: zero dependencies, under 200 lines. The whole
+protocol is three methods:
 
 ```
 initialize     握手，交換版本與能力
@@ -64,49 +69,53 @@ tools/list     你有哪些工具
 tools/call     跑一個
 ```
 
-訊息是換行分隔的 JSON-RPC 2.0，走 stdin/stdout。
+Messages are newline-delimited JSON-RPC 2.0 over stdin/stdout.
 
-> **所以 server 絕對不能 `console.log`。**
-> 那會把非 JSON 的東西寫進協定通道，client 那邊會看到一堆解析失敗。
-> 這是自己寫 MCP server 第一個踩的坑，所以這一課所有除錯輸出都走 stderr。
+> Which means a server must never `console.log`. That writes non-JSON into the
+> protocol channel and the client sees a stream of parse failures. It is the
+> first trap of writing an MCP server, so every debug output in this lesson
+> goes to stderr.
 
-還有一個容易搞混的地方，在 `server.ts` 裡標了出來：
+There is one more easily confused point, marked in `server.ts`:
 
 ```ts
 // 工具的錯誤是 `isError: true` 的正常回應，不是 JSON-RPC error。
 reply(id, { content: [{ type: "text", text }], isError });
 ```
 
-**協定層的錯誤**（方法不存在）跟**工具層的錯誤**（機器人找不到）是兩件事。
-混在一起的話，agent 會分不出「該重試」和「該換做法」。
+A protocol-level error (no such method) and a tool-level error (robot not
+found) are different things. Conflate them and the agent cannot tell "retry"
+from "try something else".
 
 ---
 
-## Step 2：跟自己寫的工具，差在「信任」不在協定
+## Step 2: the difference is trust, not protocol
 
-| | 自己寫的工具（Lesson 2） | MCP 工具 |
+| | Your own tool (Lesson 2) | An MCP tool |
 |---|---|---|
-| 跑在哪 | 你的進程 | **別人的進程** |
-| 誰寫的 | 你 | 別人 |
-| 壞掉的樣子 | throw 一個你認得的錯 | 逾時、沉默、進程消失 |
-| 描述是誰寫的 | 你 | **別人**，而且你改不了 |
-| schema 是誰寫的 | 你 | **別人**，而且你改不了 |
+| where it runs | your process | **somebody else's process** |
+| who wrote it | you | somebody else |
+| how it breaks | throws an error you recognise | timeout, silence, a vanished process |
+| who wrote the description | you | **somebody else**, and you cannot change it |
+| who wrote the schema | you | **somebody else**, and you cannot change it |
 
-所以 `client.ts` 有一半的程式碼在處理「它不乖怎麼辦」：逾時、
-進程死掉時叫醒所有等待中的請求、stderr 收集。
+So half of `client.ts` handles misbehaviour: timeouts, waking every pending
+request when the process dies, collecting stderr.
 
-### 逾時：跟 Lesson 9 剛好相反
+### Timeouts: the opposite of Lesson 9
 
-Lesson 9 的 inbox `wait()` **刻意沒有** timeout，這裡卻一定要有。判準是同一條：
+Lesson 9's inbox `wait()` deliberately has no timeout, and here one is
+mandatory. The test is the same:
 
-> **這件事逾時之後，有沒有一個安全的預設行為？**
+> After this times out, is there a safe default action?
 >
-> - inbox 等的是**人的決定**，逾時之後放行或拒絕都不安全 → 不設
-> - MCP 等的是**一個工具結果**，逾時就當它失敗 → 要設
+> - the inbox waits on a human decision, and neither allowing nor refusing on
+>   expiry is safe → no timeout
+> - MCP waits on a tool result, and on expiry you call it failed → timeout
 
 ---
 
-## Step 3：一台壞掉不能拖垮其他台
+## Step 3: one broken server must not take the others down
 
 ```
 ✗ ghost   initialize 逾時（5000ms）    ← 接受連線但永遠不回握手
@@ -114,27 +123,30 @@ Lesson 9 的 inbox `wait()` **刻意沒有** timeout，這裡卻一定要有。�
 （5020ms）
 ```
 
-`ghost` 那種最難處理：**沒有錯誤，只有沉默**。沒有逾時的話 agent 永遠起不來。
+`ghost` is the hard one: no error, only silence. Without a timeout the agent
+never starts.
 
-注意總時間是 **5020ms**，不是兩個逾時加起來。因為連線是平行的：
+Note the total is 5020ms, not the sum of two timeouts, because connections are
+parallel:
 
 ```ts
 const results = await Promise.allSettled(SERVERS.map(...));
 ```
 
-序列連的話，啟動時間會變成所有壞掉 server 的逾時總和。
-三台壞的就是 15 秒，使用者會以為程式當了。
+Connect serially and startup becomes the sum of every broken server's timeout.
+Three broken servers is 15 seconds, and the user assumes the program hung.
 
 ---
 
-## Step 4：名字要加前綴，而前綴會咬你
+## Step 4: names need prefixes, and prefixes bite
 
-模型看到的工具名字是 `mcp__<server>__<tool>`，而且要消毒成
-OpenAI 的規則 `[A-Za-z0-9_-]{1,64}`（對照 `tools.py` 的 `tool_name`）。
+The model sees tool names as `mcp__<server>__<tool>`, sanitised to OpenAI's
+rule `[A-Za-z0-9_-]{1,64}` (compare `tool_name` in `tools.py`).
 
-前綴是必要的：兩台 server 都有 `search` 的時候，模型要分得出來。
+The prefix is necessary: when two servers both have `search`, the model has to
+tell them apart.
 
-**但 64 字的上限會造成碰撞**：
+But the 64-character limit causes collisions:
 
 ```bash
 COLLIDE=1 bun run lesson-12
@@ -152,49 +164,53 @@ COLLIDE=1 bun run lesson-12
   …__create_inc        ← 5 個工具只活下來 4 個
 ```
 
-server 名字 47 個字元，加上 `mcp__` 和 `__` 就吃掉 54，
-工具名字只剩 10 個字元的預算。於是 `create_incident_report` 和
-`create_incident_summary` 被截成同一個名字，**後者靜靜蓋掉前者**。
+The server name is 47 characters, and `mcp__` plus `__` takes it to 54, leaving
+a budget of 10 characters for the tool name. So `create_incident_report` and
+`create_incident_summary` truncate to the same name and the second silently
+overwrites the first.
 
-> **同一台 server 上「前綴相同的兩個工具」是最容易踩到的碰撞形狀**,
-> 比「兩台 server 有同名工具」常見得多，因為同一台 server 的工具
-> 本來就常常共用動詞前綴（`create_`、`list_`、`get_`）。
+> Two tools sharing a prefix on the same server is the collision shape you are
+> most likely to hit, far more common than two servers having a tool with the
+> same name, because tools on one server routinely share a verb prefix
+> (`create_`, `list_`, `get_`).
 
-`openworker` 那份**沒有偵測碰撞**（`tools.py:33` 直接截斷）。
-我們加了一行警告，因為靜靜少一個工具是最難查的那種 bug：
-模型會說「我沒有可以產生完整報告的工具」，而你看設定明明有。
+`openworker` does not detect collisions (`tools.py:33` truncates directly). We
+added a warning, because silently losing a tool is the hardest kind of bug to
+trace: the model says it has no tool for producing a full report, and your
+config plainly lists one.
 
 ---
 
-## Step 5：MCP 工具預設是 EXTERNAL
+## Step 5: MCP tools default to EXTERNAL
 
 ```
 mcp__fleet__list_robots  [external]
 ```
 
-`list_robots` 聽起來完全無害，為什麼是最高風險？
+`list_robots` sounds entirely harmless. Why the highest risk?
 
-> 因為那個名字和那句描述**都是別人寫的**。
-> 它說「List robots in the fleet」不代表它只做這件事。
+> Because that name and that description were both written by somebody else.
+> "List robots in the fleet" does not mean it only does that.
 
-程式碼裡就一行（接回 Lesson 8 的 `risk.ts:128`）：
+In code it is one line, reaching back to Lesson 8's `risk.ts:128`:
 
 ```ts
 const metadata: ToolRiskMetadata = { requiresApproval: true, category: "mcp" };
 // classify() 看到 requiresApproval → RiskClass.EXTERNAL
 ```
 
-`category: "mcp"` 也有用：Lesson 8 Step 5 講過，
-connector 類的工具**不能**用「這個工具都允許」整個放行。
+`category: "mcp"` matters too: as Lesson 8 Step 5 covered, connector-class
+tools cannot be unlocked wholesale with "always allow this tool".
 
-使用者當然可以個別放寬（`riskOverrides`，「這台我信任」），
-但**預設必須保守**，因為預設值是給還沒讀過那台 server 原始碼的人用的。
+Users can of course relax individual entries (`riskOverrides`, "I trust this
+server"), but the default has to be conservative, because a default is for
+people who have not read that server's source.
 
 ---
 
-## Step 6：那份你不能改的 schema ★
+## Step 6: the schema you cannot change
 
-`schedule_maintenance` 的 schema 是故意寫難的，而且它**合法**：
+`schedule_maintenance`'s schema is deliberately awkward, and it is legal:
 
 ```json
 {
@@ -203,27 +219,29 @@ connector 類的工具**不能**用「這個工具都允許」整個放行。
 }
 ```
 
-重點不是它難，是**它不是你寫的**。MCP server 是別人的，你只能照收。
-`openworker` 的做法是原封不動傳下去（`tools.py:_openai_schema`，
-註解寫 "for fidelity"），我們也是。
+The point is not that it is awkward, it is that you did not write it. The MCP
+server belongs to somebody else and you take what you are given. `openworker`
+passes it through untouched (`tools.py:_openai_schema`, whose comment says "for
+fidelity"), and so do we.
 
-### 實測：Gemini 吃得下去
+### Measured: Gemini handles it
 
-真 Gemini 3.6 Flash，跑 3 次，3 次都正確選了 `oneOf` 的 object 分支、
-也正確填了 `notes` 字串：
+Real Gemini 3.6 Flash, three runs, and all three correctly chose the object
+branch of the `oneOf` and correctly filled in the `notes` string:
 
 ```json
 {"robot_id":"R-204","window":{"start":"2026-08-01T02:00:00Z","hours":3},"notes":"更換電池"}
 ```
 
-**所以「provider 吃不下 MCP schema」這個擔心，至少對 Gemini 沒有發生。**
-但這正是 Lesson 30 的起點：一家能吃不代表每家都能，
-而你**沒辦法改那份 schema**，只能在自己這邊加一層相容。
+So the worry that a provider cannot digest an MCP schema did not materialise,
+at least for Gemini. But that is exactly where Lesson 30 starts: one vendor
+coping does not mean all of them do, and you cannot change that schema, only
+add a compatibility layer on your side.
 
-### ⚠️ 但實測抓到另一個東西，而且更嚴重
+### The measurement caught something else, and worse
 
-同樣 3 次，模型填的日期全部是 **2024**-08-01。今天是 2026-07-28,
-使用者說的「8/1」應該是 2026-08-01。
+Across the same three runs, the date the model filled in was 2024-08-01 every
+time. Today is 2026-07-28, and the user's "8/1" meant 2026-08-01.
 
 ```
 ┌ 需要批准
@@ -235,16 +253,18 @@ connector 類的工具**不能**用「這個工具都允許」整個放行。
   ✓ Maintenance scheduled for R-204. On-site team notified.
 ```
 
-權限引擎做對了每一件事：分級正確、攔下來了、**參數就印在批准框上**。
-然後被按了 y，一個錯誤的日期進了一個收不回來的外部操作。
+The permission engine did everything right: correct class, intercepted, and the
+arguments printed in the approval box. Then y was pressed, and a wrong date
+entered an irreversible external operation.
 
-> **批准框顯示了它，不代表有人讀了它。**
-> Lesson 8 解決的是「要不要問」，這一題是「問了之後有沒有人真的看」，
-> 而後者不是權限引擎能解決的。
+> The approval box displayed it. That does not mean anybody read it.
+> Lesson 8 solved "should we ask"; this is "did anybody actually look after we
+> asked", and the permission engine cannot solve the second.
 
-### 原因與修法
+### Cause and fix
 
-模型的 system prompt 裡**沒有今天的日期**，所以它只能用訓練資料的先驗。
+The model's system prompt does not contain today's date, so it can only fall
+back on its training prior.
 
 ```bash
 TODAY=1 PROVIDER=gemini bun run lesson-12
@@ -254,133 +274,143 @@ TODAY=1 PROVIDER=gemini bun run lesson-12
 {"robot_id":"R-204","window":{"start":"2026-08-01T02:00:00Z","hours":3},…}
 ```
 
-3/3 修好。程式碼裡就一行：
+Fixed 3/3. In code it is one line:
 
 ```ts
 (TODAY ? `\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.` : "")
 ```
 
-> **任何會收日期參數的工具，system prompt 裡就必須有今天的日期。**
+> Any tool that takes a date argument requires today's date in the system
+> prompt.
 >
-> 這條放在 MCP 這一課特別重要，因為 MCP 工具的參數是別人定義的，
-> 你不會知道那台 server 收不收日期，除非你去讀它的 schema。
+> That rule matters especially in the MCP lesson, because MCP tool arguments are
+> defined by somebody else, and you do not know whether a server takes dates
+> unless you read its schema.
 
 ---
 
-## 這課刻意不做的事
+## What this lesson deliberately skips
 
-| 沒做 | 為什麼 |
+| Skipped | Why |
 |---|---|
-| HTTP / SSE transport | stdio 已經把協定講完了，換 transport 是傳輸問題 |
-| OAuth（`oauth.py` 240 行） | 見下面「OAuth 那半課」 |
-| resources / prompts | MCP 還有這兩類，但 agent 最常用的是 tools |
-| 動態工具重載 | server 可以通知工具變了。加了會讓這一課變兩倍長 |
+| HTTP / SSE transport | stdio already covers the protocol; changing transport is a transport problem |
+| OAuth (`oauth.py`, 240 lines) | see "the OAuth half-lesson" below |
+| resources and prompts | MCP has these two as well, but agents mostly use tools |
+| dynamic tool reloading | a server can announce that its tools changed. Adding it doubles the lesson |
 
-### OAuth 那半課
+### The OAuth half-lesson
 
-`openworker/coworker/mcp/oauth.py`（240 行）處理遠端 MCP server 的
-OAuth 2.1 + PKCE + 動態註冊（DCR）。這課沒做，但有三個結論值得直接抄：
+`openworker/coworker/mcp/oauth.py` (240 lines) handles OAuth 2.1 plus PKCE plus
+dynamic client registration for remote MCP servers. Not implemented here, but
+three of its conclusions are worth copying directly:
 
-1. **token 不進設定檔。** `mcp.json` 是純文字、而且使用者會互相貼來貼去。
-   token 存在權限 0600 的 SecretStore，profile 是 `mcp-oauth:<server>`
-2. **背景情境不准開瀏覽器。** 它有一個 `InteractiveAuthRequired` 例外，
-   註解裡寫了一次真實事故：
+1. Tokens do not go in the config file. `mcp.json` is plain text and users
+   paste it to each other. Tokens live in a SecretStore with mode 0600, under
+   the profile `mcp-oauth:<server>`.
+2. A background context must not open a browser. It has an
+   `InteractiveAuthRequired` exception, and the comment records a real
+   incident:
 
    > owner-hit 2026-07-20: an authorize page opened at app launch
 
-   原因是某家廠商把 refresh token 作廢，於是**任何**碰到那台 server 的
-   程式碼路徑都會去開授權頁，包括開機時的工具列舉。
-   所以只有「使用者明確點連線」才准互動，其他情境一律丟例外、跳過那台
-3. **例外會被包在 ExceptionGroup 裡。** SDK 的 transport 跑在 anyio
-   task group，所以判斷要遞迴找（`is_auth_required`），
-   直接 `isinstance` 會漏掉
+   The cause was a vendor invalidating refresh tokens, so every code path that
+   touched that server tried to open an authorization page, including tool
+   enumeration at startup. Only an explicit user click may go interactive;
+   everything else raises and skips that server.
+3. The exception arrives wrapped in an ExceptionGroup. The SDK's transport runs
+   in an anyio task group, so the check has to recurse (`is_auth_required`); a
+   plain `isinstance` misses it.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 |
+| Symptom | Cause |
 |---|---|
-| 每台 server 都逾時 | `process.execPath` 不是 bun？這課用它來 spawn 自己 |
-| `bad JSON` 一直出現 | 你的 server 裡有 `console.log`。改成 `process.stderr.write` |
-| 啟動要 15 秒 | 連線變成序列的了。要 `Promise.allSettled` |
-| 工具比預期少一個 | 看 Step 4 的名稱碰撞 |
-| 模型說找不到工具 | 名字截斷之後跟你設定裡寫的不一樣 |
+| Every server times out | is `process.execPath` not bun? This lesson uses it to spawn itself |
+| Constant `bad JSON` | there is a `console.log` in your server. Use `process.stderr.write` |
+| Startup takes 15 seconds | connections became serial. Use `Promise.allSettled` |
+| One tool fewer than expected | see Step 4's name collision |
+| The model says it cannot find a tool | truncation changed the name from what your config says |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 `ghost` 的逾時調到 500ms ⭐
+### Exercise 1: drop `ghost`'s timeout to 500ms ⭐
 
-`MCP_CONNECT_TIMEOUT_MS=500 bun run lesson-12`。
+`MCP_CONNECT_TIMEOUT_MS=500 bun run lesson-12`.
 
-啟動變快了，但問自己：**一台真的很慢的 server 跟一台壞掉的 server，
-你分得出來嗎？** 這個逾時該設多少？
+Startup gets faster, but ask yourself: can you tell a genuinely slow server
+from a broken one? What should that timeout be?
 
-### 練習 2：修好名稱碰撞 ⭐⭐
+### Exercise 2: fix the name collision ⭐⭐
 
-現在只有警告。改成真的解決：碰撞時退回一個雜湊後綴
-（`mcp__acme__create_inc_a1b2`），並且維持一份「模型看到的名字 → 真實工具」
-的對照表。
+Today there is only a warning. Actually solve it: fall back to a hash suffix on
+collision (`mcp__acme__create_inc_a1b2`) and keep a map from the name the model
+sees to the real tool.
 
-做完會發現一件事：**那個對照表必須跟 session 一起存**（Lesson 4），
-不然重開之後舊對話裡的工具呼叫就對不上了。
+Doing it reveals something: that map has to be stored with the session
+(Lesson 4), or tool calls in old conversations stop resolving after a restart.
 
-### 練習 3：讓 `FAIL_MODE=slow` 跑起來 ⭐⭐
+### Exercise 3: make `FAIL_MODE=slow` run ⭐⭐
 
-`tools/call` 會卡 30 秒，而呼叫逾時是 10 秒。
+`tools/call` stalls for 30 seconds against a 10-second call timeout.
 
-觀察逾時之後 agent 做了什麼，然後想：**那個 server 其實還在跑那個工具**。
-如果它是 `schedule_maintenance`，你剛剛可能真的排了一個維修時段，
-卻告訴模型「失敗了」。這題沒有好答案，想清楚問題本身就有價值。
+Watch what the agent does after the timeout, then consider: that server is
+still running the tool. If it were `schedule_maintenance`, you may have just
+booked a maintenance window while telling the model it failed. There is no good
+answer here; understanding the problem is the value.
 
-### 練習 4：加上 include/exclude ⭐
+### Exercise 4: add include/exclude ⭐
 
-`client.ts` 已經支援了，但 `agent.ts` 沒有用。
-給 `fleet` 加 `includeTools: ["list_robots", "get_robot"]`，
-看 `schedule_maintenance` 消失。
+`client.ts` already supports it and `agent.ts` does not use it. Give `fleet`
+`includeTools: ["list_robots", "get_robot"]` and watch
+`schedule_maintenance` disappear.
 
-然後算一下：一台 server 給你 40 個工具、你只要 2 個的話，
-另外 38 個的索引成本是每一輪都在付的（Lesson 16 Step 1）。
+Then do the arithmetic: a server offering 40 tools when you need 2 means you pay
+the indexing cost of the other 38 on every single turn (Lesson 16 Step 1).
 
-### 練習 5：把 MCP 工具接上 Lesson 9 的 inbox ⭐⭐⭐
+### Exercise 5: wire MCP tools into Lesson 9's inbox ⭐⭐⭐
 
-現在批准是問終端機。改成無人值守：MCP 工具需要批准時丟進 inbox。
+Approval currently asks the terminal. Make it unattended: an MCP tool needing
+approval goes to the inbox.
 
-這題會逼你面對一個新問題：**MCP 連線是活的進程**。
-等八小時的話，那個 server 還活著嗎？該不該重連？
-重連之後 tool call id 還有效嗎？
+This forces a new problem: an MCP connection is a live process. After eight
+hours of waiting, is that server still alive? Should you reconnect? Is the tool
+call id still valid afterwards?
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-`openworker/coworker/mcp/`，共 **647 行**（`__init__` 29、`client` 158、
-`config` 129、`oauth` 240、`tools` 91）。行數驗證過。
+`openworker/coworker/mcp/` totals 647 lines (`__init__` 29, `client` 158,
+`config` 129, `oauth` 240, `tools` 91). Line counts verified.
 
-| 這課的概念 | OpenWorker | Mastra |
+| Concept in this lesson | OpenWorker | Mastra |
 |---|---|---|
-| 連線與生命週期 | `client.py` `MCPManager._serve` | `packages/mcp/src/client/client.ts` |
-| 一台一個 task，enter/exit 同一個 task | `client.py:87`（anyio cancel scope 的限制） | |
-| 工具結果壓平 | `client.py` `_result_payload` | |
-| `mcp__<server>__<tool>` 與 64 字上限 | `tools.py:33` `tool_name` | |
-| schema 原封不動傳下去 | `tools.py` `_openai_schema`（"for fidelity"） | `packages/schema-compat/`（**這裡才修**） |
+| connection and lifecycle | `client.py` `MCPManager._serve` | `packages/mcp/src/client/client.ts` |
+| one task per server, enter and exit in the same task | `client.py:87` (an anyio cancel-scope constraint) | |
+| flattening tool results | `client.py` `_result_payload` | |
+| `mcp__<server>__<tool>` and the 64-character limit | `tools.py:33` `tool_name` | |
+| passing the schema through untouched | `tools.py` `_openai_schema` ("for fidelity") | `packages/schema-compat/` (**where it is actually fixed**) |
 | include / exclude | `tools.py` `_filtered` | |
-| MCP 工具 = 需要批准 | `tools.py` `ToolMetadata(requires_approval=…)` | |
-| 設定檔（貼得動 Claude Desktop 的） | `config.py` `load_mcp_servers` | `client/configuration.ts` |
-| OAuth + PKCE + DCR | `oauth.py` | `client/oauth-provider.ts` |
-| 背景情境不准開瀏覽器 | `oauth.py` `InteractiveAuthRequired` | |
+| MCP tool means approval required | `tools.py` `ToolMetadata(requires_approval=…)` | |
+| the config file (paste-compatible with Claude Desktop) | `config.py` `load_mcp_servers` | `client/configuration.ts` |
+| OAuth plus PKCE plus DCR | `oauth.py` | `client/oauth-provider.ts` |
+| no browser in a background context | `oauth.py` `InteractiveAuthRequired` | |
 
-> 兩份實作互為印證很有用：OpenWorker 是 Python、Mastra 是 TypeScript，
-> 形狀卻幾乎一樣。**那個形狀就是 MCP 本身，不是某個人的品味。**
+> Two implementations corroborating each other is useful: OpenWorker is Python,
+> Mastra is TypeScript, and the shape is nearly identical. That shape is MCP
+> itself, not one person's taste.
 
 ---
 
-## 下一課
+## Next lesson
 
-[Lesson 30: 同一個 schema，不同模型不同下場](../lesson-30-schema-compat/)
+[Lesson 30: one schema, different outcomes per model](../lesson-30-schema-compat/)
 
-Step 6 已經把問題擺出來了：**MCP server 給你的 schema 你不能改**。
-Gemini 這次吃下去了，但 `oneOf` 和 `["string","null"]` 在別家不一定過。
-那一課會做一層相容，並且用一份跑遍所有 provider 的契約測試把它釘住。
+Step 6 already laid out the problem: the schema an MCP server hands you is not
+yours to edit. Gemini digested it this time, but `oneOf` and `["string","null"]`
+do not necessarily pass elsewhere. That lesson builds a compatibility layer and
+pins it down with a contract test that runs against every provider.

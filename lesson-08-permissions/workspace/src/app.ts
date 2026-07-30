@@ -1,4 +1,4 @@
-// 一個刻意寫得很亂的檔案，agent 會很想把它砍掉重來。
+// A deliberately messy file the agent will badly want to rewrite from scratch.
 export function handle(input: string): string {
 	if (input === "") return "";
 	if (input === null) return "";

@@ -1,9 +1,9 @@
 /**
- * Lesson 17 示範：跨 session 搜尋，以及兩個真實的排序 bug。
+ * Lesson 17's demonstration: cross-session search, and two real ranking bugs.
  *
- * 不需要 API key。
+ * No API key needed.
  *
- * 執行：bun run lesson-17-search/demo.ts
+ * Run: bun run lesson-17-search/demo.ts
  */
 
 import type { Message } from "../shared/providers/types.ts";
@@ -26,7 +26,7 @@ const assistant = (text: string): Message => ({
 function build(): SessionSearchIndex {
 	const index = new SessionSearchIndex();
 
-	// 使用者真正的對話：只有一次，但正是他要找的
+		// The user's real conversation: one of them, and exactly what they are looking for
 	index.addSession(
 		{
 			sessionId: "sess_real",
@@ -48,7 +48,7 @@ function build(): SessionSearchIndex {
 		],
 	);
 
-	// 排程任務：每天跑，講一樣的話，量很大
+		// Scheduled jobs: run daily, saying the same words, in volume
 	for (let day = 1; day <= 12; day++) {
 		index.addSession(
 			{
@@ -68,7 +68,7 @@ function build(): SessionSearchIndex {
 		);
 	}
 
-	// 子 agent 的工作：不該出現在使用者的歷史裡
+		// A subagent's work: it must not appear in the user's history
 	index.addSession(
 		{
 			sessionId: "sess_sub",
@@ -80,7 +80,7 @@ function build(): SessionSearchIndex {
 		[user("檢查 telemetry 取樣率"), assistant("取樣率 50Hz。")],
 	);
 
-	// 被壓縮過的 session：摘要以普通訊息的形式存在
+		// A compacted session: the summary lives as an ordinary message
 	index.addSession(
 		{
 			sessionId: "sess_compacted",
@@ -147,7 +147,7 @@ function scenario2(): void {
 		console.log(`    → 第一名是 ${ok ? green("interactive ✓") : red("cron（recall blindness）✗")}\n`);
 	};
 
-	// 先看沒有降權的樣子，也就是 bug 本身
+		// First the version without demotion, which is the bug itself
 	show("❌ 所有來源同權（Hermes issue #19434 的狀況）：",
 		index.discover("telemetry 取樣率", 3, 2, { disableSourceWeighting: true }));
 

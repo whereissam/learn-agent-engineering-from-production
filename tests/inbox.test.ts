@@ -1,8 +1,8 @@
 /**
- * Inbox 狀態機（Lesson 9）。
+ * The inbox state machine (Lesson 9).
  *
- * 守的是那條「pending → resolved，只能一次，第一個回答的人贏」的合約。
- * 這是並發相關的行為，眼睛看不出來，只能測。
+ * It guards the contract "pending → resolved, once only, first answer wins".
+ * Concurrency-related behaviour, invisible to the eye and only testable.
  */
 
 import assert from "node:assert/strict";
@@ -58,7 +58,7 @@ describe("狀態機（Lesson 9）", () => {
 		const item = await makeItem(store);
 		await store.resolve(item.id, "deny");
 
-		// 沒有 timeout 保護，卡住的話這個測試會掛住
+			// With no timeout protection, a hang would hang this test
 		assert.equal(await store.wait(item.id), "deny");
 	});
 
@@ -84,7 +84,7 @@ describe("孤兒回收（Lesson 9 Step 5）", () => {
 		const closed = await store.resolveSession("doomed");
 
 		assert.equal(closed, 2);
-		// 沒有釋放的話這行會永遠卡住
+			// Without the release this line would hang forever
 		assert.deepEqual(await Promise.all(waiting), ["session deleted", "session deleted"]);
 		assert.equal(store.get(other.id)?.state, "pending", "不該影響其他 session");
 	});
@@ -116,7 +116,7 @@ describe("approver 可互換（Lesson 9 Step 2）", () => {
 			reason: "需要批准",
 		});
 
-		// 等它把項目建出來
+			// Wait for it to create the item
 		await new Promise((r) => setTimeout(r, 10));
 		const item = store.pending("s1")[0];
 		assert.ok(item, "應該要有一個待處理項目");

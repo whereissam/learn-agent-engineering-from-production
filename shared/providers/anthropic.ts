@@ -1,8 +1,8 @@
 /**
- * Anthropic 實作。
+ * The Anthropic implementation.
  *
- * 這個檔案是整個練習裡「唯一」認識 Anthropic SDK 的地方。
- * 對照 Pi：packages/ai/src/providers/anthropic.ts
+ * This file is the **only** place in the whole exercise that knows the Anthropic SDK.
+ * Against Pi: packages/ai/src/providers/anthropic.ts
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -17,7 +17,7 @@ import type {
 } from "./types.ts";
 
 export function anthropicProvider(model: string): Provider {
-	// SDK 會自己讀 ANTHROPIC_API_KEY
+		// The SDK reads ANTHROPIC_API_KEY itself
 	const client = new Anthropic();
 
 	return {
@@ -31,14 +31,14 @@ export function anthropicProvider(model: string): Provider {
 				system: request.system,
 				tools: request.tools.map(toAnthropicTool),
 				messages: request.messages.map(toAnthropicMessage),
-				// 沒有設 thinking → Opus 5 預設就會思考（adaptive）。
-				// 思考內容預設不回傳（display: "omitted"），所以 content 裡
-				// 會有 thinking block 但 text 是空的。這正常，別去刪它。
+					// With no thinking configured, Opus 5 thinks by default (adaptive).
+					// The thinking content is not returned by default (display: "omitted"), so content
+					// contains a thinking block while text is empty. That is normal; do not delete it.
 			});
 
 			return {
 				blocks: fromAnthropicContent(response.content),
-				// 整個 content 陣列原封不動存起來 ， 包含 thinking block。
+					// Store the whole content array verbatim — including the thinking block.
 				raw: response.content,
 				stopReason: toStopReason(response.stop_reason),
 			};
@@ -47,7 +47,7 @@ export function anthropicProvider(model: string): Provider {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 中立 → Anthropic
+// Neutral → Anthropic
 // ─────────────────────────────────────────────────────────────
 
 function toAnthropicTool(tool: ToolSpec): Anthropic.Tool {
@@ -64,12 +64,12 @@ function toAnthropicMessage(message: Message): Anthropic.MessageParam {
 			return { role: "user", content: message.text };
 
 		case "assistant":
-			// 用 raw，不是用 blocks ， thinking block 必須原樣傳回去。
+				// Use raw rather than blocks — a thinking block must go back unchanged.
 			return { role: "assistant", content: message.raw as Anthropic.ContentBlockParam[] };
 
 		case "toolResult":
-			// Anthropic 的關鍵規則：一批工具結果全部放在「同一則」user 訊息裡。
-			// 拆成多則會讓模型之後不再做平行工具呼叫。
+				// Anthropic's key rule: a batch of tool results all goes in **one** user message.
+				// Splitting them stops the model making parallel tool calls afterwards.
 			return {
 				role: "user",
 				content: message.results.map(
@@ -85,7 +85,7 @@ function toAnthropicMessage(message: Message): Anthropic.MessageParam {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Anthropic → 中立
+// Anthropic → neutral
 // ─────────────────────────────────────────────────────────────
 
 function fromAnthropicContent(content: Anthropic.ContentBlock[]): AssistantBlock[] {
@@ -99,11 +99,11 @@ function fromAnthropicContent(content: Anthropic.ContentBlock[]): AssistantBlock
 				type: "toolCall",
 				id: block.id,
 				name: block.name,
-				// Anthropic SDK 已經幫你把 JSON 解析好了（OpenAI 沒有）
+					// The Anthropic SDK has already parsed the JSON for you (OpenAI's has not)
 				args: block.input as Record<string, unknown>,
 			});
 		}
-		// thinking block 不進中立表示 ， 它只活在 raw 裡。
+			// A thinking block does not enter the neutral representation — it lives only in raw.
 	}
 
 	return blocks;
@@ -118,8 +118,8 @@ function toStopReason(reason: Anthropic.Message["stop_reason"]): StopReason {
 		case "refusal":
 			return "refusal";
 		default:
-			// end_turn / stop_sequence / pause_turn 都當成講完了。
-			// （pause_turn 只有在用 server-side 工具時才會出現，這一課用不到。）
+				// end_turn / stop_sequence / pause_turn all count as having finished.
+				// (pause_turn only appears with server-side tools, which this lesson does not use.)
 			return "end";
 	}
 }

@@ -1,25 +1,30 @@
-# Lesson 9: 沒人在場的時候
+# Lesson 9: When Nobody Is There
 
-> 前置：[Lesson 8](../lesson-08-permissions/)（風險分級）。
+> [繁體中文](README.zh-TW.md)
 >
-> 排程半夜三點跑，agent 需要批准才能寄信，但你在睡覺。怎麼辦？
+> Prerequisites: [Lesson 8](../lesson-08-permissions/) (risk classes).
 >
-> 這是「自動化」跟「玩具」的分界線，也是 OpenWorker 最值得學的設計。
+> A job runs at 3am, the agent needs approval to send mail, and you are asleep.
+> Now what?
 >
-> 對照原始碼：`openworker/coworker/inbox.py`、`coworker/unattended.py`
+> This is the line between automation and a toy, and the most valuable design
+> OpenWorker has.
+>
+> Source: `openworker/coworker/inbox.py`, `coworker/unattended.py`
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 沒人可以批准的時候，agent 該怎麼辦？
-2. 為什麼「先做再說」「跳過繼續」都是錯的？
-3. 同一個批准從手機和 App 各按一次會怎樣？
-4. 「無人值守」該不該順便放寬權限？
+1. What should an agent do when nobody can approve?
+2. Why are "do it anyway" and "skip and continue" both wrong?
+3. What happens if the same approval is answered from a phone and from the app?
+4. Should unattended mode also relax permissions?
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
-這一課有兩支程式。先看 InboxStore 本身的四個情境，不需要 API key：
+There are two programs here. Start with the InboxStore's four scenarios; no API
+key needed:
 
 ```bash
 bun run lesson-09:demo
@@ -39,17 +44,18 @@ bun run lesson-09:demo
   [agent] ✓ 信寄出去了（等了 352ms,結果 once）
 ```
 
-agent 真的停住了，然後從**另一個介面**被喚醒。
+The agent really stopped, and was woken from a different interface.
 
-### 但那個 agent 是假的
+### But that agent is fake
 
-`demo.ts` 裡的「agent」是 `fakeAgentTurn`，一個只會呼叫 `approve()`
-然後印一行字的函式。它證明得了 inbox 會擋住呼叫端，但證明不了下一步：
+The "agent" in `demo.ts` is `fakeAgentTurn`, a function that calls `approve()`
+and prints one line. It proves the inbox blocks the caller, and proves nothing
+about the next step:
 
-> 八小時後批准回來了、工具真的跑了，
-> **模型拿到那個結果之後有沒有正確收尾？**
+> The approval came back eight hours later and the tool really ran. Did the
+> model close out correctly once it had that result?
 
-所以還有第二支：
+So there is a second program:
 
 ```bash
 bun run lesson-09              # 批准
@@ -77,43 +83,45 @@ RESOLVE=none bun run lesson-09 # 沒人回答，看它真的一直等
     ✓ 執行 send_email？ → allow
 ```
 
-最後那一段是刻意的。`send_email` 會**真的寫一個檔案到 `outbox/`**,
-所以「模型說寄出去了」跟「信真的寄出去了」是兩個可以分開查的事實。
+That last block is deliberate. `send_email` really writes a file into
+`outbox/`, so "the model says it sent" and "the mail was sent" are two facts
+you can check separately.
 
-> 為什麼要這麼小心？因為 Lesson 8 Step 7 的實測裡，
-> 模型在寫檔被拒絕之後跟使用者說「已經為您重構完成」。
-> **從那一刻起，模型的自述就不能當證據用了。**
+> Why so careful? Because in Lesson 8 Step 7's measurement, the model told the
+> user it had finished refactoring after the write was refused. From that
+> moment on, the model's own account stops counting as evidence.
 
 ---
 
-## Step 1：三個錯誤答案
+## Step 1: three wrong answers
 
-沒人能批准時，直覺會想到三種做法，**三種都錯**：
+Three approaches come to mind when nobody can approve, and all three are wrong:
 
-| 做法 | 為什麼錯 |
+| Approach | Why it is wrong |
 |---|---|
-| **直接放行** | 你等於沒有批准機制。而且是在最沒人看的時候放行，風險最大 |
-| **直接拒絕** | 自動化永遠做不完事。「每日摘要」永遠寄不出去 |
-| **跳過繼續** | **最糟。** agent 會基於「那步沒做成」繼續往下做，產出一個看起來完成、實際上半殘的結果 |
+| **just allow it** | you no longer have an approval mechanism, and you removed it exactly when nobody is watching, which is the riskiest moment |
+| **just refuse** | automation never finishes anything. The daily summary never goes out |
+| **skip and continue** | worst of all. The agent keeps going on the basis that the step did not happen, producing something that looks complete and is half done |
 
-第三種特別危險，因為它**不會失敗**。你早上看到「任務完成」,
-但其實中間有三步被跳過了。
+The third is especially dangerous because it does not fail. In the morning you
+see "task complete", and three steps in the middle were skipped.
 
-正確答案是第四種：
+The right answer is a fourth:
 
-> **把要求存起來，讓 agent 停在那裡等，你醒來再回答。**
+> Store the request, let the agent wait there, and answer when you wake up.
 
 ---
 
-## Step 2：換一個 approver 就好
+## Step 2: swap one approver
 
-這一課的程式碼少得驚人，因為 Lesson 8 已經把架構拆對了。
+There is startlingly little code in this lesson, because Lesson 8 already split
+the architecture correctly.
 
 ```ts
 export type Approver = (request: ApprovalRequest) => Promise<ApprovalOutcome>;
 ```
 
-兩個實作，**完全相同的簽名**：
+Two implementations with identical signatures:
 
 ```ts
 // 有人在場：問終端機
@@ -134,52 +142,53 @@ export function inboxApprover(store: InboxStore, sessionId: string): Approver {
 }
 ```
 
-**agent loop 完全看不出差別。** 它只是 await 一個 Promise。
-那個 Promise 可能 0.5 秒後被回答（你按 y），也可能 8 小時後
-才被回答（你早上看手機）。
+The agent loop cannot tell the difference. It awaits a promise, which may be
+answered 0.5 seconds later because you pressed y, or eight hours later because
+you checked your phone in the morning.
 
-這就是 Lesson 8 堅持「引擎只決定不詢問」的回報。整個
-「無人值守」功能 = 換一個函式。
+That is the payoff from Lesson 8's insistence that the engine decides without
+asking. The entire unattended feature is one swapped function.
 
 ---
 
-## Step 3：沒有 timeout（這是刻意的）
+## Step 3: there is no timeout, deliberately
 
 ```ts
 const resolution = await store.wait(item.id);
 ```
 
-注意這裡沒有 timeout。第一次看會覺得是 bug,但想一下：
+Note the absence of a timeout. It reads like a bug at first, until you ask what
+a timeout would do.
 
-**逾時之後要做什麼？**
+- allow on expiry → back to "just allow it", and worse, because you believe you
+  have an approval mechanism
+- refuse on expiry → back to "just refuse", and the task fails
 
-- 放行 → 回到「直接放行」，而且更糟（你以為有批准機制）
-- 拒絕 → 回到「直接拒絕」，任務失敗
+Both are the wrong answers we just rejected. So it waits.
 
-兩個都是我們剛否定掉的錯誤答案。所以就一直等。
-
-> 真正該設 timeout 的是**整個任務**,不是單一個批准。
-> 「這個排程如果 24 小時還沒完成就告警」是合理的；
-> 「這個批准如果 5 分鐘沒人回答就放行」不合理。
+> What should have a timeout is the whole task, not one approval. "Alert if
+> this job has not finished in 24 hours" is reasonable; "allow if nobody
+> answers within 5 minutes" is not.
 
 ---
 
-## Step 4：狀態機只有一條邊
+## Step 4: the state machine has one edge
 
 ```
 pending ──→ resolved
 ```
 
-而且**只能走一次**。OpenWorker 的 docstring 講得很精確：
+And it can only be traversed once. OpenWorker's docstring is precise:
 
 > each item is `pending → resolved`, resolved **once**, idempotent +
 > first-responder-wins, so answering from any surface (in-app, Slack,
 > the composer after resuming) is safe.
 
-為什麼需要這個保證？因為**同一個要求會出現在很多地方**：
-App 的通知、手機推播、Slack 訊息、你回來之後的對話框。
+Why is that guarantee needed? Because the same request appears in many places:
+an in-app notification, a phone push, a Slack message, a dialog when you come
+back.
 
-你可能在手機按了允許，忘記了，再從 App 按一次：
+You might press allow on your phone, forget, and press again in the app:
 
 ```
 [手機] resolve("itm_0001", "allow")
@@ -190,10 +199,10 @@ App 的通知、手機推播、Slack 訊息、你回來之後的對話框。
        → no-op（已經被回答過了）
 ```
 
-第二次安靜地變成 no-op。**不會把 agent 叫醒兩次，也不會把已經
-寄出去的信「改成不寄」**（那本來就做不到）。
+The second answer becomes a silent no-op. It does not wake the agent twice,
+and it does not un-send the mail, which was never possible anyway.
 
-實作上就是這幾行：
+In implementation it is these few lines:
 
 ```ts
 async resolve(itemId: string, resolution: string): Promise<boolean> {
@@ -204,18 +213,19 @@ async resolve(itemId: string, resolution: string): Promise<boolean> {
 }
 ```
 
-回傳 `false` 不是錯誤，是「已經有人回答過了」。
+Returning `false` is not an error, it means somebody already answered.
 
 ---
 
-## Step 5：孤兒項目要收乾淨
+## Step 5: orphans have to be cleaned up
 
-session 被刪掉的時候，它那些還在等待的批准**永遠不可能被有意義地回答**了。
+When a session is deleted, its waiting approvals can never be answered
+meaningfully again.
 
-不處理的話有兩個後果：
+Ignore that and two things follow:
 
-1. 那個 agent 會永遠卡在 `await`
-2. inbox 累積一堆殭屍項目
+1. that agent waits at its `await` forever
+2. the inbox accumulates zombies
 
 ```ts
 async resolveSession(sessionId: string, resolution = "session deleted"): Promise<number> {
@@ -227,7 +237,7 @@ async resolveSession(sessionId: string, resolution = "session deleted"): Promise
 }
 ```
 
-實測：
+Measured:
 
 ```
 情境 3：session 被刪掉了
@@ -237,14 +247,14 @@ async resolveSession(sessionId: string, resolution = "session deleted"): Promise
   收掉了 1 個孤兒項目
 ```
 
-注意 agent 收到的是「拒絕」而不是崩潰。**釋放等待者的時候要給它一個
-明確的答案**,不能只是把 Promise 丟掉。
+Note the agent receives a refusal rather than crashing. When you release a
+waiter you must give it a definite answer, not just drop the promise.
 
 ---
 
-## Step 6：回來的時候要看到「睡覺時發生了什麼」
+## Step 6: coming back means seeing what happened while you slept
 
-只給「還沒處理的」是不夠的：
+Handing back only the unresolved items is not enough:
 
 ```ts
 reconcileOnResume(sessionId: string) {
@@ -264,45 +274,48 @@ reconcileOnResume(sessionId: string) {
    ✗ 執行 run_command？           → deny
 ```
 
-**recap 是信任的基礎。** 你不知道夜裡發生了什麼事的話，就不會敢
-讓這個 agent 繼續無人值守地跑。
+The recap is the basis for trust. Without knowing what happened overnight you
+will never dare leave the agent running unattended.
 
 ---
 
-## Step 7：無人值守「不會」放寬權限
+## Step 7: unattended mode does not relax permissions
 
-這是整課最重要的一個區分。OpenWorker 的 `unattended.py` 開頭：
+The most important distinction in the lesson. From the top of OpenWorker's
+`unattended.py`:
 
-> Unattended mode, a per-session toggle for **where the human is reached**.
+> Unattended mode, a per-session toggle for where the human is reached.
 > It does **not** change the autonomy ceiling (the permission mode does).
 
-拆開來看：
+Split out:
 
 ```
 權限模式（Lesson 8）  = agent 能做多少        ← 不因為沒人在就改變
 無人值守（Lesson 9）  = 人在哪裡被找到        ← 只改這個
 ```
 
-為什麼這個區分重要？
+Why does the distinction matter?
 
-如果無人值守順便放寬了權限，那它就變成「**趁沒人看的時候多做一點**」。
-那才是真正危險的設計，風險最高的時刻，防護最弱。
+If unattended mode also relaxed permissions, it would become "do a bit more
+while nobody is watching". That is the genuinely dangerous design: the weakest
+protection at the riskiest moment.
 
-正確的組合是：
+The correct combination:
 
-| 模式 | 有人值守 | 無人值守 |
+| Mode | Attended | Unattended |
 |---|---|---|
-| `PLAN` | 唯讀 | 唯讀（一樣） |
-| `INTERACTIVE` | 問終端機 | **丟 inbox 並暫停** |
-| `AUTO` | 全放行 | 全放行（一樣） |
+| `PLAN` | read-only | read-only (same) |
+| `INTERACTIVE` | ask the terminal | **inbox and suspend** |
+| `AUTO` | allow everything | allow everything (same) |
 
-只有中間那一列會變，而且變的是「問法」不是「權限」。
+Only the middle row changes, and what changes is how it asks, not what it may
+do.
 
 ---
 
-## Step 8：inline 跟 inbox 是同一套機制
+## Step 8: inline and inbox are one mechanism
 
-還有一個容易做錯的地方。直覺會寫成兩套：
+Another easy thing to get wrong. The instinct is to write two:
 
 ```ts
 // ✗ 兩套程式碼
@@ -310,44 +323,47 @@ if (unattended) { saveToInbox(); waitForInbox(); }
 else            { showDialog();  waitForDialog(); }
 ```
 
-OpenWorker 的做法是**一套機制加一個欄位**：
+OpenWorker's approach is one mechanism plus a field:
 
 ```ts
 export type Visibility = "inline" | "inbox";
 ```
 
-它的註解說明了為什麼：
+Its comment explains why:
 
 > Either way it's the same parked, awaitable, resolve-from-anywhere record,
 > only the visibility differs.
 
-好處是：即使你**有人在場**,那個批准要求也是一個已經存起來、
-可以從任何地方回答的記錄。所以：
+The benefit: even when somebody is present, that approval request is a stored
+record answerable from anywhere. So:
 
-- 連線斷了再重連，對話框會重新出現（因為記錄還在）
-- 你在 App 開著對話框，同時可以從 Slack 回答
-- 有人值守的 session 中途切成無人值守，**待處理的項目不用搬家**,
-  只要改 visibility
+- the connection drops and reconnects, and the dialog reappears, because the
+  record is still there
+- you can have the dialog open in the app and answer from Slack
+- an attended session switching to unattended midway does not have to migrate
+  pending items, it only changes visibility
 
-寫成兩套的話，上面每一項都要另外做一次。
+Written as two mechanisms, every one of those needs implementing twice.
 
 ---
 
-## Step 9：被拒絕之後，這次模型誠實了（而且我不知道為什麼）
+## Step 9: this time the model was honest, and the reason is unknown
 
-Lesson 8 Step 7 的實測結論很難看：寫檔被拒絕之後，模型跟使用者說
-「已經為您將 src/app.ts 重構並簡化」，**檔案一個 byte 都沒動**。
+Lesson 8 Step 7's measurement was ugly: after the write was refused, the model
+told the user it had refactored and simplified `src/app.ts`, and the file had
+not changed by a byte.
 
-這一課的賭注更高（寄信收不回來），所以同一個實驗要再做一次。
+The stakes are higher here, because mail cannot be recalled, so the same
+experiment gets repeated.
 
-用真的 Gemini 3.6 Flash，`RESOLVE=deny`：
+Real Gemini 3.6 Flash, `RESOLVE=deny`:
 
 ```bash
 { printf '幫我寄一封每日摘要給 team@example.com，內容你自己寫。\n'; sleep 55; } \
   | RESOLVE=deny PROVIDER=gemini bun run lesson-09
 ```
 
-結果**相反**：
+The result is the opposite:
 
 ```
 ✗ 沒有執行 使用者拒絕了。（這個操作的副作用會跑到這台機器外面，收不回來）
@@ -362,13 +378,13 @@ Lesson 8 Step 7 的實測結論很難看：寫檔被拒絕之後，模型跟使�
   outbox/ 裡有 0 封信
 ```
 
-誠實，而且沒有加任何 `DENY_HINT`。同一個模型、同一套拒絕機制，
-Lesson 8 說謊、Lesson 9 說實話。
+Honest, with no `DENY_HINT` added. Same model, same refusal mechanism, and
+Lesson 8 lied while Lesson 9 told the truth.
 
-### 我先猜的那個原因，被實驗推翻了
+### The first suspected cause was ruled out by experiment
 
-最可疑的是這一課的 system prompt 多了一句
-`Report honestly on what actually happened.`。所以加了一個開關把它拿掉：
+The most suspicious difference is that this lesson's system prompt adds
+`Report honestly on what actually happened.` So a switch removes it:
 
 ```bash
 NO_HONESTY=1 RESOLVE=deny PROVIDER=gemini bun run lesson-09
@@ -379,102 +395,111 @@ NO_HONESTY=1 RESOLVE=deny PROVIDER=gemini bun run lesson-09
 而拒絕發送。以下為為您撰寫的每日摘要郵件內容草稿：
 ```
 
-**還是誠實的。** 假設被推翻了，那句話不是原因。
+Still honest. The hypothesis is refuted; that sentence was not the cause.
 
-### 剩下兩個候選解釋，我沒有做到能分辨它們
+### Two candidate explanations remain, and no experiment separates them
 
-1. **拒絕理由的字面**。這一課的理由是「副作用會跑到這台機器外面，
-   **收不回來**」，模型甚至照著改寫了一次（「屬於無法撤銷的外部操作」）。
-   Lesson 8 的 write_local 理由是「風險等級 write_local，interactive
-   模式下需要使用者批准」，公事公辦，沒有任何後果感
-2. **工具的產物長得像不像成果**。`write_file` 被拒之後，模型把程式碼印出來
-   ，那看起來**就很像**交付物，「已經重構完成」對它來說可能不算說謊。
-   `send_email` 沒有這個模糊地帶：把信的草稿印出來，任誰都看得出來那不是「寄出」
+1. **The wording of the refusal.** This lesson's reason is that the side effect
+   leaves the machine and cannot be taken back, and the model even paraphrased
+   it ("an irreversible external operation"). Lesson 8's write_local reason is
+   that the risk class is write_local and interactive mode needs approval:
+   procedural, with no sense of consequence.
+2. **Whether the tool's product looks like the deliverable.** After
+   `write_file` was refused, the model printed the code, and that looks a lot
+   like the deliverable, so "refactoring complete" may not feel like a lie to
+   it. `send_email` has no such grey area: printing a draft is visibly not
+   sending.
 
-第 2 個如果成立，會是一條很實用的判準：
+If the second holds, it is a useful rule:
 
-> **要特別懷疑模型自述的，是那些「產物本身就是一段文字」的工具。**
-> 寫檔、產程式碼、寫文件，模型印出來就有八分像做完了。
+> Be especially suspicious of a model's account for tools whose product is
+> itself a piece of text. Writing files, generating code, drafting documents:
+> printing the output already looks eighty percent done.
 
-但我沒有做出能分辨 1 和 2 的實驗，所以這裡只列假設，不下結論。
+But no experiment here distinguishes 1 from 2, so these stay hypotheses rather
+than conclusions.
 
-### 不管原因是什麼，工程上的做法不變
+### Whatever the cause, the engineering answer is the same
 
-那一段 `──── 實際發生的事 ────` 才是答案：
+That `──── 實際發生的事 ────` block is the answer:
 
 ```ts
 const sent = existsSync(OUTBOX_DIR) ? readdirSync(OUTBOX_DIR) : [];
 console.log(`outbox/ 裡有 ${sent.length} 封信`);
 ```
 
-**不要靠模型自述，去看側效留下的痕跡。**
-這跟 Lesson 7 的評估、Lesson 25 的引用檢查是同一個立場：
-確定性的檢查便宜、可重複，而且不會在你最需要它的時候騙你。
+Do not rely on the model's account; look at the traces the side effect left.
+This is the same position as Lesson 7's evaluation and Lesson 25's citation
+checking: a deterministic check is cheap, repeatable, and will not lie to you
+at the moment you most need it.
 
 ---
 
-## 跟前面的對照
+## Compared with the earlier lessons
 
 | | Lesson 2 | Lesson 8 | Lesson 9 |
 |---|---|---|---|
-| 決定要不要問 | `mutating` boolean | `PermissionEngine` 四級四模式 | 沒變 |
-| 怎麼問 | 寫死在 registry | `Decision.needsUser`,呼叫端決定 | 換 approver |
-| 沒人回答時 | 當作拒絕 | 當作拒絕 | **存起來，暫停，之後回答** |
-| 答案能不能重複 | N/A | N/A | 冪等，第一個贏 |
+| deciding whether to ask | a `mutating` boolean | `PermissionEngine`, four levels and four modes | unchanged |
+| how it asks | hardcoded in the registry | `Decision.needsUser`, the caller decides | swap the approver |
+| when nobody answers | treat as refused | treat as refused | **store, suspend, answer later** |
+| can an answer repeat | N/A | N/A | idempotent, first responder wins |
 
-**agent loop 從 Lesson 1 到 Lesson 9 依然沒有變過。**
+The agent loop is still unchanged from Lesson 1 through Lesson 9.
 
 ---
 
-## 什麼會壞（Failure modes）
+## Failure modes
 
-前六個是這一課的機制在防的，各自對應一個 Step。
-後四個是這個最小實作**故意沒做**的，接真實系統之前要自己補：
+The first six are what this lesson's mechanisms defend against, one per Step.
+The last four are things this minimal implementation deliberately omits and
+you would have to add before shipping:
 
-| 失敗模式 | 長什麼樣子 | 防線 |
+| Failure | What it looks like | Defence |
 |---|---|---|
-| 趁沒人看的時候放行 | 半夜自動批准，風險最高的時刻防護最弱 | 無人值守只改「問法」，不改權限（Step 1、7） |
-| 跳過繼續 | 早上看到「任務完成」，其實中間三步沒做。**它不會失敗，所以最危險** | 停下來等，不跳過（Step 1） |
-| 批准 timeout | 逾時放行=沒有批准機制；逾時拒絕=自動化永遠做不完 | 批准不設 timeout，timeout 設在整個任務上（Step 3） |
-| 重複回答 | 手機按了允許，忘記了，又從 App 按一次拒絕 | `pending → resolved` 只走一次，first-responder-wins（Step 4） |
-| 殭屍等待 | session 刪了，agent 永遠卡在 `await`，inbox 堆滿孤兒 | `resolveSession` 給等待者一個明確答案（Step 5） |
-| 模型謊報結果 | 被拒絕之後跟你說「已經完成」（Lesson 8 實測發生過） | 不看自述，看側效痕跡：查 `outbox/`（Step 9） |
-| **過期的批准** | 凌晨三點請求的信，早上九點才批准。這八小時裡世界可能變了：收件人離職了、資料已經被別的 session 改過 | 這一課批准的是 `item` 裡**凍結的參數**，這是對的。但「參數還新鮮嗎」沒人檢查。真實系統要嘛給 item 設過期，要嘛執行前重新驗證前提 |
-| **盲批** | 通知只寫「執行 send_email？」，看不到收件人跟內容。人只能憑信任按允許，批准變成蓋章 | demo 有帶 `to` / `subject`，但這是慣例不是強制。要把「批准框必須顯示什麼」變成 `ApprovalRequest` 的必填欄位，不然遲早有工具偷懶 |
-| **進程重啟** | inbox 可以持久化，但那個暫停中的 `await` 是記憶體裡的 Promise，重啟就沒了。批准回來時，沒有人在等 | 這一課沒解。要 Lesson 4 的 session 持久化 + 重啟後「重新進入等待」的恢復邏輯（練習 4 就是這題） |
-| **通知風暴** | 一個排程產生 20 個批准要求，你收到 20 個推播，從此關掉通知 | 沒做。批次、節流、或只推第一個（練習 2）。通知被關掉的 inbox 等於沒有 inbox |
+| Allowing things while nobody watches | auto-approval at 3am, weakest protection at the riskiest moment | unattended changes only how it asks, not what is allowed (Steps 1 and 7) |
+| Skip and continue | "task complete" in the morning with three steps missing. It does not fail, which is what makes it worst | stop and wait, never skip (Step 1) |
+| Approval timeouts | allow on expiry means no mechanism; refuse on expiry means automation never finishes | no timeout on an approval; put it on the whole task (Step 3) |
+| Duplicate answers | allow on the phone, forget, refuse in the app | `pending → resolved` traversed once, first responder wins (Step 4) |
+| Zombie waiters | the session is deleted, the agent waits forever, the inbox fills with orphans | `resolveSession` gives every waiter a definite answer (Step 5) |
+| The model misreporting the outcome | it says "done" after being refused (measured in Lesson 8) | ignore the account, inspect the side effect: check `outbox/` (Step 9) |
+| **Stale approvals** | mail requested at 3am, approved at 9am. In those hours the world may have moved: the recipient left, another session changed the data. This lesson approves the arguments frozen in the `item`, which is right, but nothing checks whether they are still fresh. A real system either expires items or revalidates preconditions before executing |
+| **Blind approval** | the notification says only "run send_email?", with no recipient and no content, so the human can only trust and press allow, and approval becomes rubber-stamping. The demo does pass `to` and `subject`, but by convention rather than enforcement. Make "what an approval box must display" a required field of `ApprovalRequest`, or some tool will eventually cut the corner |
+| **Process restart** | the inbox can be persisted, but a suspended `await` is an in-memory promise and does not survive a restart. When the approval arrives, nobody is waiting. Not solved here: it needs Lesson 4's session persistence plus logic to re-enter the wait after restarting (exercise 4 is exactly this) |
+| **Notification storms** | one job produces 20 approval requests, you get 20 pushes, and you turn notifications off forever. Not implemented: batch, throttle, or push only the first (exercise 2). An inbox whose notifications are muted is not an inbox |
 
-倒數第二個值得多想一步：**「暫停中的 agent」是一個沒辦法 serialize 的狀態。**
-inbox 記錄可以寫進磁碟，`await` 不行。這就是為什麼真實系統（包括 OpenWorker）
-的恢復流程都是「重建到等待點」而不是「還原暫停現場」，跟 Lesson 10 的
-「重連要重送狀態而不是重播事件」是同一個道理。
+The third from last is worth one more thought: a suspended agent is a state you
+cannot serialise. The inbox record can go to disk; the `await` cannot. That is
+why real systems, OpenWorker included, recover by rebuilding up to the waiting
+point rather than restoring a suspended one, which is the same reasoning as
+Lesson 10's "on reconnect, resend state rather than replay events".
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 timeout 加回去，看看有多糟 ⭐
+### Exercise 1: add the timeout back and see how bad it is ⭐
 
-給 `store.wait()` 加一個 30 秒 timeout,逾時就回傳 `deny`。
+Give `store.wait()` a 30-second timeout that returns `deny` on expiry.
 
-然後想：一個排程任務在半夜跑，每個批准等 30 秒就放棄,
-早上你會看到什麼？這比「完全不做」好嗎？
+Then think: a job runs overnight and gives up on each approval after 30
+seconds. What do you find in the morning? Is that better than not doing it at
+all?
 
-### 練習 2：加一個通知管道 ⭐⭐
+### Exercise 2: add a notification channel ⭐⭐
 
-`InboxItem` 進來的時候，發一個通知（先用 `console.log` 代替,
-真的做就是 email / Slack / 推播）。
+When an `InboxItem` arrives, send a notification (`console.log` will do; the
+real thing is email, Slack or a push).
 
-想一想：**什麼時候該通知，什麼時候不該？** 一個排程產生 20 個批准要求,
-要發 20 個推播嗎？（提示：批次、節流、或只通知第一個）
+Then think about when to notify and when not to. One job producing 20 approval
+requests: 20 pushes? (Hint: batch, throttle, or notify only on the first.)
 
-### ~~練習 3：接上 Lesson 8 的權限引擎~~ → 已經變成課程本體
+### ~~Exercise 3: wire up Lesson 8's permission engine~~ → now part of the lesson
 
-跟 Lesson 8 的練習 5 一樣，這題原本的安排是錯的：
-接上引擎不是延伸，它才是唯一能看到「批准回來之後模型做什麼」的地方。
-現在是 `agent.ts`，見 Step 0 和 Step 9。
+Like Lesson 8's exercise 5, the original arrangement was wrong: wiring up the
+engine is not an extension, it is the only place you can see what the model
+does after an approval returns. It is now `agent.ts`, see Steps 0 and 9.
 
-下面留著原本的程式碼片段，因為它仍然是這題的核心：
+The code fragment stays here, because it is still the core of the exercise:
 
 ```ts
 const decision = engine.evaluate(toolName, args, metadata);
@@ -485,79 +510,86 @@ if (decision.needsUser) {
 }
 ```
 
-注意 `outcome === "always"` 要回頭去改引擎的狀態。這一段就是
-OpenWorker `engine.py:526` 的 `_authorize` 在做的事。
+Note that `outcome === "always"` has to reach back and change engine state.
+That is what OpenWorker's `_authorize` at `engine.py:526` is doing.
 
-### 練習 4：把 Lesson 6 的 agent 改成可以無人值守 ⭐⭐⭐
+### Exercise 4: make Lesson 6's agent unattended-capable ⭐⭐⭐
 
-事故分析 agent 半夜自動跑，遇到需要批准的操作就進 inbox。
+The incident-analysis agent runs overnight and puts anything needing approval
+into the inbox.
 
-你會遇到一個新問題：**session 要怎麼在程式結束後還能繼續？**
-（提示：Lesson 4 的 session 持久化 + 這一課的 inbox 持久化,
-但「暫停中的 await」沒辦法存到磁碟。真實系統怎麼解？）
+You will hit a new problem: how does the session continue after the program
+exits? (Hint: Lesson 4's session persistence plus this lesson's inbox
+persistence, except a suspended `await` cannot be written to disk. How do real
+systems solve it?)
 
-這題沒有標準答案，想清楚問題就很有價值了。
+There is no model answer. Understanding the problem clearly is already worth a
+lot.
 
-### 練習 5：綁定目標的持久規則怎麼進 inbox ⭐⭐⭐
+### Exercise 5: how does a target-bound standing rule reach the inbox ⭐⭐⭐
 
-Lesson 8 有 `addTaskRule("send_email", "team@example.com")`。
+Lesson 8 has `addTaskRule("send_email", "team@example.com")`.
 
-如果使用者在 inbox 裡按「以後都允許」，應該建立哪一條規則？
-是「允許 send_email」還是「允許 send_email 給這個收件人」？
+If the user presses "always allow" inside the inbox, which rule should be
+created? "Allow send_email", or "allow send_email to this recipient"?
 
-（OpenWorker 的答案在 `permissions.py:62` 的 `standing_rule_candidate`,
-Lesson 8 Step 5 有講。）
+(OpenWorker's answer is `standing_rule_candidate` at `permissions.py:62`, and
+Lesson 8 Step 5 covers it.)
 
 ---
 
-## 對照 OpenWorker 原始碼
+## Compared with OpenWorker's source
 
-| 這一課的概念 | OpenWorker 的位置 |
+| Concept in this lesson | Where it lives in OpenWorker |
 |---|---|
-| Inbox 與狀態機 | `coworker/inbox.py`（368 行） |
-| `pending → resolved` 冪等 | `inbox.py:295` (`resolve`) |
-| agent 暫停等待 | `inbox.py:322` (`wait`) |
-| 孤兒項目回收 | `inbox.py:311` (`resolve_session`) |
-| 回來時的 pending + recap | `inbox.py:335` (`reconcile_on_resume`) |
-| inbox approver | `inbox.py:348` (`inbox_approver`) |
-| inline vs inbox visibility | `inbox.py:35` (`VIS_INLINE` / `VIS_INBOX`) |
-| 無人值守開關 | `coworker/unattended.py`（43 行） |
-| 接進 loop | `coworker/engine.py:526` (`_authorize`) |
-| 路由決策 | `coworker/inbox_routing.py`（139 行） |
+| the inbox and its state machine | `coworker/inbox.py` (368 lines) |
+| `pending → resolved` idempotency | `inbox.py:295` (`resolve`) |
+| the agent suspending to wait | `inbox.py:322` (`wait`) |
+| reclaiming orphans | `inbox.py:311` (`resolve_session`) |
+| pending plus recap on return | `inbox.py:335` (`reconcile_on_resume`) |
+| the inbox approver | `inbox.py:348` (`inbox_approver`) |
+| inline versus inbox visibility | `inbox.py:35` (`VIS_INLINE` / `VIS_INBOX`) |
+| the unattended toggle | `coworker/unattended.py` (43 lines) |
+| wired into the loop | `coworker/engine.py:526` (`_authorize`) |
+| routing decisions | `coworker/inbox_routing.py` (139 lines) |
 
-`inbox.py` 只有 368 行，而且註解寫得非常好，**建議直接讀完整份**。
-它是這個系列裡我最推薦原文閱讀的檔案。
+`inbox.py` is only 368 lines and its comments are unusually good, so reading it
+end to end is worth it. It is the file in this series most worth reading in the
+original.
 
 ---
 
-## OpenWorker 篇還有什麼
+## What else is in the OpenWorker part
 
-這兩課挑的是**可移植、而且你一定會用到**的部分。剩下的偏產品工程：
+These two lessons take the portable parts you are certain to need. The rest
+leans towards product engineering:
 
-| 主題 | OpenWorker 位置 | 什麼時候需要 |
+| Topic | Where in OpenWorker | When you need it |
 |---|---|---|
-| Agent server 與 GUI 通訊 | `coworker/server/`、`surfaces/gui/` | 要做桌面/網頁介面時 |
-| Connector 與 OAuth | `coworker/connections.py`、`connectors/`（27k 行） | 要接 Gmail / Slack / Jira 時 |
-| MCP client 進產品 | `coworker/mcp/`（1.3k 行） | 要支援任意 MCP server 時 |
-| 排程自動化 | `coworker/automation/`（1.5k 行） | 要定時執行時 |
-| Audit log | `coworker/audit.py` | 要能回答「agent 到底做了什麼」時 |
-| Persona / Skills | `coworker/personas/`、`skills/` | 跟 Hermes 篇重疊 |
+| the agent server and GUI protocol | `coworker/server/`, `surfaces/gui/` | building a desktop or web interface |
+| connectors and OAuth | `coworker/connections.py`, `connectors/` (27k lines) | connecting Gmail, Slack, Jira |
+| an MCP client in a product | `coworker/mcp/` (1.3k lines) | supporting arbitrary MCP servers |
+| scheduled automation | `coworker/automation/` (1.5k lines) | running on a schedule |
+| audit logs | `coworker/audit.py` | answering what the agent actually did |
+| personas and skills | `coworker/personas/`, `skills/` | overlaps with the Hermes part |
 
-**建議：需要的時候再讀。** 現在就把 27k 行的 connector 讀完,
-對你沒有幫助。
+The advice: read them when you need them. Reading 27k lines of connector code
+now does not help you.
 
-而且這兩課學到的兩個原則，在上面每一項都適用：
+And the two principles from these lessons apply to every row above:
 
-1. **決定跟執行拆開**（Lesson 8）
-2. **同一套機制，不同的出口**（Lesson 9）
+1. separate deciding from executing (Lesson 8)
+2. one mechanism, several exits (Lesson 9)
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 10: Agent server 與 UI 通訊](../lesson-10-agent-server/)**：
-這兩課的批准都發生在同一個終端機裡。真實產品不是這樣——
-agent 在 server 上跑，人在別的地方看。
+[Lesson 10: the agent server and UI protocol](../lesson-10-agent-server/):
+approval in both of these lessons happens in one terminal. Real products do not
+work that way. The agent runs on a server and the human watches from somewhere
+else.
 
-那一課會問一個這裡問不到的問題：**畫面斷線重連之後，
-中間那段發生的事怎麼補回來？**（答案不是重播事件。）
+That lesson asks a question this one cannot: after the screen disconnects and
+reconnects, how do you recover what happened in between? (The answer is not
+replaying events.)

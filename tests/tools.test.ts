@@ -1,10 +1,10 @@
 /**
- * 工具層的不變條件。
+ * The tool layer's invariants.
  *
- * 這些測試存在的理由：**課程裡宣稱的行為，要有東西擋著它不被改壞。**
- * 每一個 test 名稱都對應某一課講過的一句話。
+ * Why these tests exist: **behaviour the lessons claim needs something stopping it being broken.**
+ * Every test name matches a sentence some lesson stated.
  *
- * 執行：bun test
+ * Run: bun test
  */
 
 import assert from "node:assert/strict";
@@ -35,8 +35,8 @@ describe("路徑限制（Lesson 1-2）", () => {
 	});
 
 	test("擋掉字首相同但不同目錄的路徑", () => {
-		// /tmp/agent-lessons-test-root-evil 的字首跟 ROOT 一樣，
-		// 用 startsWith 而沒加分隔符的話會被放行
+			// /tmp/agent-lessons-test-root-evil shares a prefix with ROOT,
+			// so startsWith without a separator would allow it through
 		assert.throws(() => resolveInRoot(ROOT, "/tmp/agent-lessons-test-root-evil/x"), /escapes/);
 	});
 

@@ -1,13 +1,13 @@
 /**
- * Lesson 7: 評估執行器
+ * Lesson 7: the evaluation runner
  *
- * 對每一個案例跑一次 agent，然後用確定性的規則評分。
+ * Run the agent once per case, then score with deterministic rules.
  *
- * 執行：
- *   bun run lesson-07-evaluation/eval.ts                跑全部案例
- *   bun run lesson-07-evaluation/eval.ts real-fall      只跑一個
- *   bun run lesson-07-evaluation/eval.ts --save base    存成基準，之後可以比較
- *   bun run lesson-07-evaluation/eval.ts --compare base 跟基準比，看有沒有退步
+ * Run:
+ *   bun run lesson-07-evaluation/eval.ts                every case
+ *   bun run lesson-07-evaluation/eval.ts real-fall      one case only
+ *   bun run lesson-07-evaluation/eval.ts --save base    save a baseline for later comparison
+ *   bun run lesson-07-evaluation/eval.ts --compare base compare against the baseline and see regressions
  */
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -19,12 +19,12 @@ import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { StreamingProvider } from "../shared/streaming/types.ts";
 
 /**
- * 跟 Lesson 6 一樣自備 fake provider。
+ * Like Lesson 6, this brings its own fake provider.
  *
- * ⚠️ 用 `PROVIDER=fake` 跑評估**只能驗證管線本身有沒有壞**
- * （案例讀得到嗎、rubric 算得出來嗎、`--save` / `--compare` 正常嗎），
- * **不能拿來判斷 agent 好不好**——假 provider 每個案例都演同一套動作，
- * 分數沒有意義。真正的評估一定要用真模型。
+ * ⚠️ Running the evaluation with `PROVIDER=fake` **only verifies the pipeline itself**
+ * (do the cases load, does the rubric compute, do `--save` / `--compare` work),
+ * **and cannot judge whether the agent is good** — the fake provider acts out the same actions
+ * for every case, so the scores are meaningless. A real evaluation needs a real model.
  */
 function selectProvider(): StreamingProvider {
 	if (process.env.PROVIDER?.toLowerCase() === "fake") return fakeTelemetryProvider();
@@ -45,7 +45,7 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 
 // ─────────────────────────────────────────────────────────────
-// 從真實資料算出「事實」，用來驗證模型引用的數字
+// Compute "the facts" from the real data, to validate the numbers the model cites
 // ─────────────────────────────────────────────────────────────
 
 async function loadFacts(sessionId: string): Promise<TelemetryFacts> {
@@ -65,15 +65,15 @@ async function loadFacts(sessionId: string): Promise<TelemetryFacts> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 跑一個案例
+// Run one case
 // ─────────────────────────────────────────────────────────────
 
 async function runCase(testCase: EvalCase): Promise<CaseResult> {
 	const provider = selectProvider();
 	const started = Date.now();
 
-	// 每個案例都從乾淨的報告目錄開始，
-	// 不然會讀到上一次跑的結果，測試就失去意義。
+	// Every case starts from a clean report directory,
+	// or it reads the previous run's results and the test becomes meaningless.
 	const reportPath = resolve(REPORT_DIR, `${testCase.sessionId}.json`);
 	await rm(reportPath, { force: true });
 
@@ -81,7 +81,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 
 	const ctx: ToolContext = {
 		root: DATA_DIR,
-		// 評估時全部自動批准。真實的批准流程要另外測。
+		// Everything is auto-approved during evaluation. A real approval flow is tested separately.
 		approve: async () => {
 			toolCalls++;
 			return true;
@@ -93,23 +93,23 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 		{ role: "user", text: `Session ${testCase.sessionId}。${testCase.prompt}` },
 	];
 
-	// 重試。
+	// Retries.
 	//
-	// 真實的 API 會偶發失敗（我實測到 Gemini 會間歇性回 400 no body，
-	// 同一個案例手動跑又完全正常）。沒有重試的話，你的評估分數會混進
-	// 網路噪音，然後你會以為是 prompt 改壞了。
+	// A real API fails intermittently (Gemini was measured returning 400 no body sporadically,
+	// while the same case run by hand worked fine). Without retries your evaluation scores mix in
+	// network noise, and you conclude the prompt change broke something.
 	//
-	// 重點：只重試「基礎設施錯誤」，不要重試「模型答錯」。
-	// 模型答錯就是答錯，重試到它答對只是在自欺欺人。
+	// The point: retry **infrastructure errors** only, never "the model answered wrongly".
+	// A wrong answer is a wrong answer, and retrying until it is right is self-deception.
 	const MAX_ATTEMPTS = 3;
 	let error: string | undefined;
 
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 		const controller = new AbortController();
-		// 單一嘗試的硬性上限，避免一個壞掉的案例卡住整輪評估
+		// A hard cap per attempt, so one broken case cannot stall the whole evaluation
 		const timer = setTimeout(() => controller.abort(), 180_000);
 
-		// 每次重試都從乾淨的對話開始
+		// Every retry starts from a clean conversation
 		messages.length = 0;
 		messages.push({ role: "user", text: `Session ${testCase.sessionId}。${testCase.prompt}` });
 
@@ -120,7 +120,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 			if (attempt < MAX_ATTEMPTS) {
-				// 指數退避
+				// Exponential backoff
 				await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
 			}
 		} finally {
@@ -128,7 +128,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 		}
 	}
 
-	// 數一下總共呼叫了幾次工具（含唯讀的）
+	// Count how many tool calls there were in total (including read-only ones)
 	toolCalls = messages
 		.filter((m) => m.role === "assistant")
 		.reduce((n, m) => n + (m.role === "assistant" ? m.blocks.filter((b) => b.type === "toolCall").length : 0), 0);
@@ -137,7 +137,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 	try {
 		report = JSON.parse(await readFile(reportPath, "utf8")) as IncidentReport;
 	} catch {
-		// 沒寫報告，report 保持 null，rubric 會判定失敗
+		// No report written, so report stays null and the rubric judges it a failure
 	}
 
 	const facts = await loadFacts(testCase.sessionId);
@@ -151,7 +151,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 		checks,
 		score,
 		maxScore,
-		// 通過的條件：沒有危險錯誤，而且分數達 70%
+		// The passing condition: no dangerous error, and a score of at least 70%
 		passed: !criticalFailure && score / maxScore >= 0.7,
 		criticalFailure,
 		toolCalls,
@@ -161,7 +161,7 @@ async function runCase(testCase: EvalCase): Promise<CaseResult> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 輸出
+// Output
 // ─────────────────────────────────────────────────────────────
 
 function printCase(result: CaseResult): void {
@@ -206,7 +206,7 @@ function printSummary(results: CaseResult[]): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 基準比較（回歸測試）
+// Baseline comparison (regression testing)
 // ─────────────────────────────────────────────────────────────
 
 interface Baseline {
@@ -295,9 +295,9 @@ async function main(): Promise<void> {
 	const saveLabel = saveIdx >= 0 ? args[saveIdx + 1] : undefined;
 	const compareLabel = compareIdx >= 0 ? args[compareIdx + 1] : undefined;
 
-	// 只有旗標真的存在時，才把它後面那個值排除掉。
-	// （寫成 `i !== saveIdx + 1` 會有 off-by-one：旗標不存在時 saveIdx 是 -1，
-	//  -1 + 1 = 0，於是第一個位置參數就被吃掉了。這是我實測才發現的。）
+		// Only exclude the following value when the flag really exists.
+		// (Writing `i !== saveIdx + 1` has an off-by-one: without the flag saveIdx is -1,
+		//  and -1 + 1 = 0, so the first positional argument gets eaten. Found by measurement.)
 	const consumed = new Set<number>();
 	if (saveIdx >= 0) consumed.add(saveIdx + 1);
 	if (compareIdx >= 0) consumed.add(compareIdx + 1);

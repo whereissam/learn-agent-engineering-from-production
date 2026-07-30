@@ -1,26 +1,26 @@
 /**
- * 稽核：把一份**已經存下來的** session 讀進來，問它有沒有說謊。
+ * The audit: read back a session that was **already persisted** and ask whether it lies.
  *
- * 為什麼稽核的對象是存檔而不是記憶體裡的物件：中斷的重點就是
- * 「進程沒了之後，留下來的東西還能不能相信」。記憶體裡的狀態下一秒就消失，
- * 存檔會活到你下次 `--resume`。
+ * Why the audit targets the saved file rather than the object in memory: the whole point of interruption is
+ * whether what is left behind can be trusted once the process is gone. In-memory state vanishes a second later;
+ * the saved file lives until your next `--resume`.
  *
- * 五條規則，每一條都對應一種**不會丟例外**的壞掉方式（設計原則 7）。
- * 這一課的整個判定就是這五條，沒有 LLM 裁判。
+ * Five rules, each matching a way of breaking that **throws nothing** (design principle 7).
+ * This lesson's entire verdict is those five rules, with no LLM judge.
  */
 
 import { isInFlight, type AssistantMessage, type Part } from "./parts.ts";
 
 export type ViolationKind =
-	/** 存檔裡還有 pending / running 的東西。 */
+	/** Storage still holds something pending / running. */
 	| "in-flight-in-storage"
-	/** 有開始時間、沒有結束時間。 */
+	/** It has a start time and no end time. */
 	| "unfinished-span"
-	/** 訊息自己沒有結束時間 → session 永遠是 busy。 */
+	/** The message itself has no end time → the session is busy forever. */
 	| "message-never-completed"
-	/** 終局狀態，但沒有任何結果內容。 */
+	/** A terminal state with no result content at all. */
 	| "terminal-without-result"
-	/** 檔案系統說變了，session 說沒有。 */
+	/** The filesystem says it changed and the session says it did not. */
 	| "unrecorded-patch";
 
 export interface Violation {
@@ -32,11 +32,11 @@ export interface Violation {
 export interface AuditInput {
 	message: AssistantMessage;
 	/**
-	 * 外面的世界說哪些檔案變了。
+		 * Which files the outside world says changed.
 	 *
-	 * 刻意是參數而不是在這裡算：這一課的主題是「紀錄一致不一致」，
-	 * 「怎麼知道檔案真的變了」是 [Lesson 29](../lesson-29-evidence/) 的題目。
-	 * 那一課的 `snapshot.patch()` 就是這個參數的真實版本。
+		 * Deliberately a parameter rather than computed here: this lesson's subject is whether the record is consistent,
+		 * and "how do you know a file really changed" is [Lesson 29](../lesson-29-evidence/)'s subject.
+		 * That lesson's `snapshot.patch()` is this parameter's real version.
 	 */
 	changedFiles?: string[];
 }
@@ -45,11 +45,11 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 	const out: Violation[] = [];
 
 	for (const part of message.parts) {
-		// ── 1. 存檔裡不該有「正在進行」的東西 ──────────────────
+			// ── 1. Storage must hold nothing "in progress" ─────────
 		//
-		// 這是最重要的一條。一個 pending 的工具在畫面上會長成一個
-		// 轉圈圈的 spinner，而那個 spinner 會轉到宇宙盡頭 ——
-		// 因為要負責把它變成 completed 的那個進程已經不在了。
+			// The most important rule. A pending tool renders on screen as a spinner,
+			// and that spinner turns until the end of the universe —
+			// because the process responsible for turning it into completed is gone.
 		if (part.type === "tool" && (part.state.status === "pending" || part.state.status === "running")) {
 			out.push({
 				kind: "in-flight-in-storage",
@@ -58,7 +58,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 			});
 		}
 
-		// ── 2. 有開始沒有結束 ────────────────────────────────
+			// ── 2. Started with no end ────────────────────────────
 		if (isInFlight(part) && part.type !== "tool") {
 			out.push({
 				kind: "unfinished-span",
@@ -74,10 +74,10 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 			});
 		}
 
-		// ── 3. 終局狀態卻沒有結果 ────────────────────────────
+			// ── 3. A terminal state with no result ────────────────
 		//
-		// 這一條擋的是「把狀態改成 error 就當作處理完了」。
-		// 沒有內容的 error 對下游（和使用者）等於沒有訊息。
+			// This blocks "changing the status to error counts as handling it".
+			// An error with no content is no message at all to downstream (and to the user).
 		if (part.type === "tool") {
 			if (part.state.status === "completed" && part.state.output.trim() === "") {
 				out.push({
@@ -96,7 +96,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 		}
 	}
 
-	// ── 4. 訊息本身沒有結束 ────────────────────────────────
+		// ── 4. The message itself never finished ───────────────
 	if (message.time.completed === undefined) {
 		out.push({
 			kind: "message-never-completed",
@@ -105,7 +105,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 		});
 	}
 
-	// ── 5. 檔案變了但沒記 ──────────────────────────────────
+		// ── 5. Files changed and it was not recorded ───────────
 	if (changedFiles !== undefined && changedFiles.length > 0) {
 		const recorded = new Set(message.snapshot?.files ?? []);
 		for (const file of changedFiles) {
@@ -122,7 +122,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 	return out;
 }
 
-/** 印表格用。 */
+/** For printing the table. */
 export function summarise(violations: Violation[]): string {
 	if (violations.length === 0) return "—";
 	const counts = new Map<ViolationKind, number>();

@@ -1,12 +1,12 @@
 /**
- * Token 會計實驗：證明 `total ≠ input + output`。
+ * The token accounting experiment: proving `total ≠ input + output`.
  *
  *   bun run lesson-26:probe
  *
- * 這個實驗要用真模型（沒有 usage 就沒得量），所以需要金鑰。
- * 它是 Lesson 26 唯一需要金鑰的部分，其他都能離線跑。
+ * This experiment needs a real model (no usage means nothing to measure), so a key is required.
+ * It is the only part of Lesson 26 that needs one; everything else runs offline.
  *
- * 為什麼值得單獨寫一支：因為這件事**只要量一次，你對成本的直覺就永久改變**。
+ * Why it deserves its own program: because **measuring this once changes your intuition about cost permanently**.
  */
 
 import { selectStreamingProvider } from "../shared/streaming/index.ts";

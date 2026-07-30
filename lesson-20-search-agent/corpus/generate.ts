@@ -1,22 +1,22 @@
 /**
- * 把 pages.ts 產生成兩份東西：
+ * Generate two things from pages.ts:
  *
- *   pages/*.html   ← 一個爬蟲會看到的樣子（有導覽列、廣告、cookie 橫幅、footer）
- *   index.json     ← 一個搜尋引擎已經整理好的樣子（純文字）
+ *   pages/*.html   ← what a crawler sees (navigation, ads, cookie banners, footers)
+ *   index.json     ← what a search engine has already tidied up (plain text)
  *
- * 為什麼要分成兩份？因為這正好是 Lesson 20 和 Lesson 21 的分界：
+ * Why two? Because that is exactly the boundary between Lesson 20 and Lesson 21:
  *
- *   Lesson 20（這一課）  只用 index.json。假裝「有人已經幫你把網頁清乾淨了」，
- *                        專心看檢索本身的問題。
- *   Lesson 21            改成從 pages/*.html 自己抽正文，
- *                        然後跟 index.json 的純文字對答案——
- *                        你的抽取器有沒有把導覽列和廣告一起吃進去？
+ *   Lesson 20 (this one)  uses index.json only. It pretends somebody already cleaned the pages
+ *                         for you, and concentrates on retrieval's own problems.
+ *   Lesson 21             extracts the body from pages/*.html itself,
+ *                         then checks against index.json's plain text —
+ *                         did your extractor swallow the navigation and the ads too?
  *
- * HTML 裡的雜訊是刻意加的。真實網頁的正文常常只佔整頁的 10-20%，
- * 剩下的都是導覽、推薦閱讀、訂閱表單、追蹤腳本。
- * 如果語料是乾淨的，Lesson 21 就沒東西可學。
+ * The noise in the HTML is deliberate. A real page's body is often only 10-20% of it,
+ * with the rest navigation, related reading, subscription forms and tracking scripts.
+ * With a clean corpus, Lesson 21 would have nothing to teach.
  *
- * 執行：bun run lesson-20-search-agent/corpus/generate.ts
+ * Run: bun run lesson-20-search-agent/corpus/generate.ts
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -26,7 +26,7 @@ import { type Page, PAGES } from "./pages.ts";
 const OUT = import.meta.dirname;
 const PAGES_DIR = resolve(OUT, "pages");
 
-/** URL → 檔名。同時當成這一課的 document id。 */
+/** URL → filename. Also this lesson's document id. */
 export function slugFor(url: string): string {
 	return url
 		.replace(/^https?:\/\//, "")
@@ -36,10 +36,10 @@ export function slugFor(url: string): string {
 }
 
 /**
- * 把一頁包成看起來像真的網頁的 HTML。
+ * Wrap one page into HTML that looks like a real web page.
  *
- * 注意 groundTruth **沒有**出現在輸出裡。跟 Lesson 6 一樣：
- * 答案只留在原始碼，不會流到 agent 看得到的地方。
+ * Note groundTruth does **not** appear in the output. As in Lesson 6:
+ * the answer stays in the source and never flows anywhere the agent can see.
  */
 function renderHtml(page: Page): string {
 	const year = page.published.slice(0, 4);
@@ -116,7 +116,7 @@ function escapeHtml(text: string): string {
 
 // ─────────────────────────────────────────────────────────────
 
-/** index.json 裡一筆文件的樣子。搜尋引擎和工具都讀這個型別。 */
+/** What one document in index.json looks like. Both the search engine and the tools read this type. */
 export interface IndexedPage {
 	id: string;
 	url: string;
@@ -124,9 +124,9 @@ export interface IndexedPage {
 	title: string;
 	published: string;
 	kind: Page["kind"];
-	/** 正文純文字。**這是「已經被清乾淨」的版本**，Lesson 21 要自己做出這個。 */
+	/** The body as plain text. **This is the already-cleaned version**, which Lesson 21 has to produce itself. */
 	text: string;
-	/** 對應的 HTML 檔名，Lesson 21 會用到。 */
+	/** The matching HTML filename, used by Lesson 21. */
 	html: string;
 }
 

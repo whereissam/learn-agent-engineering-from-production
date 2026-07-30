@@ -1,25 +1,25 @@
 /**
- * 領域工具：機器人 telemetry。
+ * Domain tools: robot telemetry.
  *
- * 這是第 3 層。跟 Lesson 2 的 read_file / write_file 比，最大的差別是：
+ * This is layer 3. Against Lesson 2's read_file / write_file, the biggest difference:
  *
- *   通用工具：把「一份資料」交給模型，讓模型自己想辦法
- *   領域工具：把「一個問題」交給你的程式碼算，只把結論交給模型
+ *   a general tool: hand the model **a pile of data** and let it work things out
+ *   a domain tool:  hand **a question** to your code and give the model only the conclusion
  *
- * 具體來說，如果我只提供 read_file，模型就得讀進 700 筆 JSON 樣本，
- * 自己在腦內做統計。那會發生三件事：
- *   1. token 爆炸（一個 session 就 100KB）
- *   2. 算術出錯（LLM 做數值統計很不可靠）
- *   3. 結果不可重現（同樣資料問兩次可能得到不同答案）
+ * Concretely, offering only read_file would make the model read 700 JSON samples
+ * and do statistics in its head. Three things would follow:
+ *   1. a token explosion (100KB for one session)
+ *   2. arithmetic errors (LLMs are very unreliable at numeric statistics)
+ *   3. irreproducible results (asking twice about the same data can give different answers)
  *
- * 所以 query_telemetry 回傳的是「統計摘要」而不是原始樣本，
- * find_anomalies 用**確定性的程式碼**找出候選區間，
- * 模型只負責它擅長的部分：解讀、串連證據、寫報告。
+ * So query_telemetry returns a statistical summary rather than raw samples,
+ * find_anomalies finds candidate intervals with **deterministic code**,
+ * and the model handles what it is good at: interpreting, connecting evidence, writing the report.
  *
- * 這是領域工具設計最重要的一條原則：
+ * The most important principle in domain tool design:
  *
- *   > 能用程式算出來的，就不要交給模型算。
- *   > 模型負責判斷和敘述，不負責統計。
+ *   > What a program can compute must not be given to the model to compute.
+ *   > The model judges and narrates; it does not do statistics.
  */
 
 import { readFile } from "node:fs/promises";
@@ -29,7 +29,7 @@ import type { Tool } from "../../shared/tools/registry.ts";
 const DATA_DIR = resolve(import.meta.dirname, "../data/sessions");
 
 // ─────────────────────────────────────────────────────────────
-// 資料存取
+// Data access
 // ─────────────────────────────────────────────────────────────
 
 interface Sample {
@@ -52,7 +52,7 @@ interface SessionMeta {
 	video_offset_ms: number;
 }
 
-/** 讀過的 session 快取在記憶體裡，同一輪對話不用重複讀檔。 */
+/** Sessions already read are cached in memory, so one turn does not re-read files. */
 const cache = new Map<string, Sample[]>();
 
 async function loadIndex(): Promise<SessionMeta[]> {
@@ -64,8 +64,8 @@ async function loadSamples(sessionId: string): Promise<Sample[]> {
 	const cached = cache.get(sessionId);
 	if (cached) return cached;
 
-	// session id 是模型給的，一樣當成不可信輸入。
-	// 這裡用白名單比對而不是路徑檢查，因為 id 的格式我們自己完全知道。
+	// The session id comes from the model, so it is untrusted input like everything else.
+	// An allowlist comparison is used rather than a path check, because we know the id format exactly.
 	if (!/^sess_\d{3}$/.test(sessionId)) {
 		throw new Error(
 			`Invalid session_id "${sessionId}". Expected the form sess_001. ` +
@@ -140,11 +140,11 @@ export const getSessionTool: Tool = {
 
 		const samples = await loadSamples(sessionId);
 
-		// 資料品質檢查是「工具的責任」，不是模型的責任。
+			// Data quality checks are **the tool's** responsibility, not the model's.
 		//
-		// 如果不主動報告資料有洞，模型會很自然地假設資料是完整的，
-		// 然後對一段根本沒有資料的時間做出結論。這是 agent 產生
-		// 幻覺結論最常見的來源之一：不是模型在唬爛，是工具沒說實話。
+			// Without an unprompted report that the data has holes, the model naturally assumes it is complete
+			// and draws conclusions about a period with no data at all. This is one of the most common
+			// sources of hallucinated conclusions: not the model making things up, but the tool not telling the truth.
 		const gaps = findGaps(samples, meta.sample_rate_hz);
 
 		const lines = [
@@ -189,7 +189,7 @@ function findGaps(
 		const cur = samples[i];
 		if (!prev || !cur) continue;
 		const delta = cur.t_ms - prev.t_ms;
-		// 容忍 2 倍的抖動，超過就當成洞
+			// Tolerate 2x jitter; beyond that it counts as a hole
 		if (delta > expected * 2.5) {
 			gaps.push({ start_ms: prev.t_ms, end_ms: cur.t_ms, duration_ms: delta });
 		}
@@ -240,8 +240,8 @@ export const queryTelemetryTool: Tool = {
 
 		const window = samples.filter((s) => s.t_ms >= start && s.t_ms <= end);
 
-		// 空窗要明確說，而且要說「為什麼」。
-		// 只回 "no data" 的話模型不知道是查錯範圍還是真的沒資料。
+			// An empty window must be stated explicitly, along with **why**.
+			// Returning only "no data" leaves the model unsure whether the range was wrong or the data is genuinely absent.
 		if (window.length === 0) {
 			const first = samples[0]?.t_ms ?? 0;
 			const last = samples.at(-1)?.t_ms ?? 0;
@@ -271,8 +271,8 @@ export const queryTelemetryTool: Tool = {
 			);
 		}
 
-		// 觸地狀態是區分「跌倒」和「蹲下」的關鍵訊號，
-		// 所以不能只是丟一堆 boolean，要直接算出結論。
+			// Ground contact is the signal that distinguishes a fall from a crouch,
+			// so rather than dumping a pile of booleans, compute the conclusion directly.
 		const airborne = window.filter((s) => s.foot_contact.every((c) => !c));
 		lines.push("");
 		if (airborne.length === 0) {
@@ -299,14 +299,14 @@ function fmt(n: number): string {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 用確定性的規則找出候選異常區間。
+ * Find candidate anomaly intervals with deterministic rules.
  *
- * 注意這個工具**不下結論**。它不說「這是跌倒」，只說「這裡有東西值得看」。
- * 判斷是不是跌倒是模型的工作，因為那需要綜合多個訊號和上下文。
+ * Note this tool **draws no conclusion**. It does not say "this is a fall", only "something here is worth looking at".
+ * Deciding whether it is a fall is the model's job, because that needs several signals and context combined.
  *
- * 這個分工很重要：
- *   規則負責 recall（不要漏掉），模型負責 precision（判斷真假）。
- * 反過來做（讓模型掃全部資料找異常）既貴又不可靠。
+ * This division of labour matters:
+ *   rules handle recall (miss nothing), the model handles precision (judge what is real).
+ * The reverse (having the model scan all the data for anomalies) is both expensive and unreliable.
  */
 export const findAnomaliesTool: Tool = {
 	name: "find_anomalies",
@@ -354,7 +354,7 @@ export const findAnomaliesTool: Tool = {
 			return `${sessionId}: no anomalies above threshold. The session looks nominal.`;
 		}
 
-		// 把相鄰的命中合併成區間，不然會吐出幾百行
+			// Merge adjacent hits into intervals, or it would emit hundreds of lines
 		const windows: Array<{ start: number; end: number; signals: Set<string> }> = [];
 		for (const hit of hits.sort((a, b) => a.t_ms - b.t_ms)) {
 			const last = windows.at(-1);
@@ -417,8 +417,8 @@ export const getVideoFrameTool: Tool = {
 			);
 		}
 
-		// 真實系統這裡會去解影格然後丟給 vision model。
-		// 這個課程用文字描述代替，重點是教「時鐘對齊」這件事。
+			// A real system would decode the frame here and hand it to a vision model.
+			// This lesson substitutes a text description; the point is teaching clock alignment.
 		const samples = await loadSamples(sessionId);
 		const nearest = samples.reduce((best, s) =>
 			Math.abs(s.t_ms - t) < Math.abs(best.t_ms - t) ? s : best,

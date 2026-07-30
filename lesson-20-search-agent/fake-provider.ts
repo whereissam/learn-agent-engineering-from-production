@@ -1,24 +1,24 @@
 /**
- * 這一課專用的假 provider。
+ * The fake provider specific to this lesson.
  *
- * 為什麼不用 `shared/streaming/fake.ts`？因為那一支是寫給 Lesson 1-5 的
- * coding agent 的，它會去呼叫 list_files / read_file，
- * 在這一課只會換來兩次「Unknown tool」，然後吐一段跟搜尋無關的罐頭文字。
+ * Why not `shared/streaming/fake.ts`? Because that one was written for the Lesson 1-5
+ * coding agent and calls list_files / read_file,
+ * which here earns two "Unknown tool" results followed by a canned paragraph unrelated to search.
  *
- * 這裡演的軌跡是**刻意錯的**：
+ * The trajectory it acts out is **deliberately wrong**:
  *
- *   1. 搜尋一次
- *   2. 直接根據 snippet 下結論
+ *   1. search once
+ *   2. conclude straight from the snippet
  *
- * 它會很有自信地說「retarget-anything 支援 Unitree G1」，
- * 而這在語料裡是錯的——那一頁的第四段寫著 G1 profile 已經棄用，
- * 但 snippet 只截到第一段。
+ * It confidently says "retarget-anything supports the Unitree G1",
+ * which is false in this corpus — that page's fourth paragraph says the G1 profile is deprecated,
+ * and the snippet only reached the first.
  *
- * 這不是在黑模型。真模型跑起來會比這個小心一點（README 有實際軌跡），
- * 但**錯的方向是一樣的**：只有 snippet 的時候，
- * 你沒有任何辦法知道自己漏掉了第四段。
+ * This is not a smear on models. A real model is more careful than this (the README has real trajectories),
+ * and **the direction of the error is the same**: with only a snippet,
+ * you have no way to know you missed the fourth paragraph.
  *
- * 用法：PROVIDER=fake bun run lesson-20
+ * Usage: PROVIDER=fake bun run lesson-20
  */
 
 import type {
@@ -57,7 +57,7 @@ export function fakeSearchProvider(): StreamingProvider {
 		async *stream(request: ModelRequest, signal?: AbortSignal): AsyncIterable<StreamEvent> {
 			const turn = step++;
 
-			// 第一輪：搜尋
+				// Round one: search
 			if (turn === 0 && request.tools.length > 0) {
 				yield* say(OPENING, signal);
 				if (signal?.aborted) return yield aborted();
@@ -78,7 +78,7 @@ export function fakeSearchProvider(): StreamingProvider {
 				return;
 			}
 
-			// 第二輪：只看 snippet 就下結論。這正是這一課要你看到的失敗。
+				// Round two: conclude from the snippet alone. Exactly the failure this lesson wants you to see.
 			if (turn === 1) {
 				yield* say(ANSWER, signal);
 				if (signal?.aborted) return yield aborted();
@@ -93,7 +93,7 @@ export function fakeSearchProvider(): StreamingProvider {
 				return;
 			}
 
-			// 之後：腳本演完了
+				// Afterwards: the script is finished
 			const outro =
 				"（這個假 provider 只有一段寫死的腳本，演完了。\n" +
 				"想繼續問，換成真模型：bun run lesson-20\n" +

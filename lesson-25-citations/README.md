@@ -1,21 +1,26 @@
-# Lesson 25: 引用與評估
+# Lesson 25: Citations and Evaluation
 
-> 前置：[Lesson 7](../lesson-07-evaluation/)（確定性評分）、
-> [Lesson 24](../lesson-24-research-loop/)（研究產出的證據）。
+> [繁體中文](README.zh-TW.md)
 >
-> AI Search 主線的最後一課（26、27 是續篇）。它要抓的是一種**看起來完全合規**的錯。
+> Prerequisites: [Lesson 7](../lesson-07-evaluation/) (deterministic scoring),
+> [Lesson 24](../lesson-24-research-loop/) (the evidence research produces).
+>
+> The last lesson of the AI Search main line (26 and 27 are follow-ups). What it
+> catches is a mistake that **looks entirely compliant**.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 報告裡每一句話都掛著網址，怎麼知道那一頁真的說了那句話？
-2. 這聽起來像語義判斷，為什麼不用 LLM 當裁判？
-3. 一個「土」的確定性檢查，抓得到多少？抓不到什麼？
+1. Every sentence in the report carries a URL — how do you know that page really
+   says it?
+2. This sounds like a semantic judgement; why not use an LLM as the judge?
+3. How much does a crude deterministic check catch? What does it miss?
 
 ---
 
-## Step 0：一個真實的錯
+## Step 0: a real mistake
 
-這是 Lesson 24 真的跑出來的報告裡的一句話（`fixtures.ts` 一字未改）：
+This is a sentence from a report Lesson 24 actually produced (`fixtures.ts`, not
+one character changed):
 
 ```markdown
 * **軟體授權**：代碼庫本身採用 MIT 授權發布，但其運作所需的預訓練姿勢骨幹
@@ -25,10 +30,10 @@
    https://blog.kinelabs.dev/humanoid-mimic-0-7)
 ```
 
-三個網址。第一個和第三個都真的講了授權。**第二個是一篇討論腳步滑動的
-論壇文章，從頭到尾沒提過授權。**
+Three URLs. The first and the third genuinely discuss licensing. **The second is
+a forum thread about foot sliding that never mentions licensing at all.**
 
-這叫**引用嫁接**（citation grafting）：
+This is **citation grafting**:
 
 ```text
 網址是真的
@@ -37,23 +42,27 @@
 但這一頁不支持這句話
 ```
 
-它比整段幻覺危險，因為**每一層檢查都會放它過**。
-你點進去、看到一篇真的技術文章、於是相信了整句話。
+It is more dangerous than a wholesale hallucination, because **every layer of
+checking lets it through**. You click, see a genuine technical article, and
+believe the whole sentence.
 
 ---
 
-## Step 1：為什麼不用 LLM 當裁判
+## Step 1: why not use an LLM as the judge
 
-「這句話有沒有被這一頁支持」聽起來就是語義判斷，找個模型評分很自然。
-但 Lesson 7 那條原則在這裡一樣成立：
+"Is this sentence supported by this page" sounds exactly like a semantic
+judgement, and having a model score it feels natural. But Lesson 7's principle
+holds here too:
 
-> **評分要是確定性的，否則你沒辦法回答「剛才那個改動有沒有讓事情變糟」。**
+> Scoring must be deterministic, or you cannot answer "did that change make
+> things worse".
 
-裁判自己會飄的話，`--compare` 就沒有意義——你分不出來是系統退步了，
-還是裁判今天心情不一樣。Lesson 22 Step 5 那個「平均上升但一題崩塌」
-就是靠確定性評分抓到的。
+If the judge itself drifts, `--compare` becomes meaningless — you cannot tell
+whether the system regressed or the judge is in a different mood today. Lesson 22
+Step 5's "average rose while one query collapsed" was caught precisely by
+deterministic scoring.
 
-所以這一課用一個很土的方法：
+So this lesson uses a very crude method:
 
 ```text
 1. 從句子裡抽出可查核的「原子」：數字、版本、日期、識別字、授權名稱
@@ -62,18 +71,19 @@
 4. 所有來源都找不到的原子  → 這個數字是編的或改過的
 ```
 
-**它不檢查語義，只檢查「這些具體的東西在不在」。**
+It checks no semantics, only whether these specific things are present.
 
 ---
 
-## Step 2：跑起來
+## Step 2: run it
 
 ```bash
 bun run lesson-25
 ```
 
-四份報告：一份是 Lesson 24 的真實輸出，三份是從它**故意改壞**的
-（改法寫在 `fixtures.ts` 的程式碼裡，你可以自己核對）。
+Four reports: one is Lesson 24's real output, three are **deliberately corrupted**
+versions of it (the corruptions are written in `fixtures.ts` so you can check them
+yourself).
 
 ```
 Lesson 24 的真實輸出（一個字沒改）
@@ -92,19 +102,21 @@ Lesson 24 的真實輸出（一個字沒改）
   ✓ uncited 6 ≥ 5
 ```
 
-三份改壞的都被抓到了。但**最有意思的是第一份**。
+All three corrupted versions are caught. But **the first one is the interesting
+part**.
 
 ---
 
-## Step 3：檢查器在真實輸出裡找到什麼
+## Step 3: what the checker found in the real output
 
 ```bash
 bun run lesson-25 -- --show real
 ```
 
-真實報告 12 條 claim、68 個原子，找到三個問題，**三個都是真的**：
+The real report has 12 claims and 68 atoms, and three problems were found, **all
+three genuine**:
 
-### 1. 一條完全沒有引用的斷言
+### 1. An assertion with no citation at all
 
 ```
 ✗ 目前有兩個主要的 Open Source 專案可用於將影片動作重定向至 Unitree G1：
@@ -112,11 +124,12 @@ bun run lesson-25 -- --show real
     沒有引用
 ```
 
-這是報告的**核心結論**，而它一個來源都沒掛。下面的細項都有引用，
-但最重要的那句沒有。這很典型：模型把引用放在「細節」上，
-卻覺得「總結」不需要來源。
+This is the report's **central conclusion**, and it carries no source. Every
+detail below it has citations, but the most important sentence does not. Very
+typical: the model attaches citations to "details" and feels a "summary" needs no
+source.
 
-### 2. 引用嫁接
+### 2. Citation grafting
 
 ```
 ✗ * **軟體授權**：代碼庫本身採用 MIT 授權發布…
@@ -125,121 +138,133 @@ bun run lesson-25 -- --show real
     https://blog.kinelabs.dev/humanoid-mimic-0-7        支持 2 個原子
 ```
 
-就是 Step 0 那條。**檢查器自己找到了我用眼睛才發現的東西。**
+That is Step 0's sentence. The checker found by itself what previously took a
+pair of eyes.
 
-### 3. 一個沒有來源的詞
+### 3. A word with no source
 
 ```
 ✗ 執行需使用 Python 3.11 與 CUDA 12，純 CPU 推論速度比 GPU 推論慢約 40 倍
     查無來源：GPU
 ```
 
-來源的原文是：
+The source's original text is:
 
 ```text
 CPU-only inference works but runs roughly 40x slower
 ```
 
-它說「純 CPU 比較慢 40 倍」，**沒有說跟誰比**。報告補上了「比 GPU」——
-合理的推論，但那是模型加的，不是來源說的。
+It says "CPU-only is roughly 40x slower" and **never says slower than what**. The
+report supplied "than GPU" — a reasonable inference, but the model added it; the
+source did not say it.
 
-這種「小小的補完」正是報告最常見的失真方式，而且它幾乎不可能靠人工抽查發現。
+That kind of small completion is the most common way a report distorts, and it is
+nearly impossible to find by manual spot-checking.
 
 ---
 
-## Step 4：我自己踩的三個坑（都在評估這一側）★
+## Step 4: three traps, all on the evaluation side
 
-這一課最值得記的部分，是**評估本身出錯的三次**。
-評估錯了比系統錯了更危險，因為它會叫你去修一個沒壞的東西。
+The part of this lesson most worth keeping is the **three times the evaluation
+itself was wrong**. A broken evaluation is more dangerous than a broken system,
+because it sends you to fix something that is not broken.
 
-### 坑 1：切句子的佔位符壞了，所有引用都變成空的
+### Trap 1: the sentence-splitter's placeholders broke, so every citation went empty
 
-第一版的 `splitSentences` 先把網址換成佔位符、切完再換回來。
-佔位符寫壞了（本該是空白的地方變成了別的字元），於是**沒有任何網址被還原**。
+The first version of `splitSentences` replaced URLs with placeholders, split, and
+then restored them. The placeholder was written wrongly (a character that should
+have been whitespace was something else), so **no URL was ever restored**.
 
-結果：
+Result:
 
 ```
 claims 12  uncited 12  atoms 82  unsupported 82  grafted 0
 ```
 
-**每一條都是「沒有引用」、每一個原子都是「查無來源」。**
-而程式沒有報錯，四份報告都「跑完了」。
+Every claim "has no citation" and every atom "has no source". And the program
+raised nothing; all four reports "completed".
 
-如果我只看「有沒有跑完」，我會以為 Lesson 24 的報告爛到極點。
+Looking only at "did it complete", Lesson 24's report would have looked
+catastrophically bad.
 
-修法不是修佔位符，是**把佔位符整個拿掉**——`。！？` 不會出現在網址裡，
-ASCII 的 `.` 只有後面接空白才切，網址裡的點後面不會有空白。
-**少一個機制就少一個會壞的地方。**
+The fix is not fixing the placeholder but **removing placeholders entirely** —
+`。！？` never appear inside a URL, and an ASCII `.` only splits when followed by
+whitespace, which never happens after a dot inside a URL. One less mechanism is
+one less thing that can break.
 
-### 坑 2：評估讀的來源，跟 agent 讀的來源不是同一份
+### Trap 2: the source the evaluation reads is not the source the agent read
 
-修好之後，關節映射那條被判成：
+After that fix, the joint-mapping claim was judged:
 
 ```
 查無來源：7, 9, 3, 17, 15, left_hip_pitch, left_knee, rad/s
 ```
 
-但那些數字**明明就在頁面上**。
+But those numbers are **plainly on the page**.
 
-原因：Lesson 21 的 `fetcher.ts` 對 `unitree.com/g1/developer` 會回一份
-**動態產生的長文件**（那份 SDK 遷移指南），而我的評估直接讀
-`corpus/index.json` 裡的短版。
+The cause: Lesson 21's `fetcher.ts` returns a **dynamically generated long
+document** for `unitree.com/g1/developer` (that SDK migration guide), while the
+evaluation read the short version straight from `corpus/index.json`.
 
 ```text
-agent 讀到的   ≠   我拿來對答案的
+agent 讀到的   ≠   拿來對答案的
 ```
 
-於是**正確的引用被判成幻覺**。修法是讓評估走跟 `runQuery` 完全一樣的
-`fetchPage` + `extractMain` 路徑。
+So **correct citations were judged hallucinated**. The fix is making the
+evaluation go through exactly the same `fetchPage` plus `extractMain` path as
+`runQuery`.
 
-> **評估的來源必須跟系統實際看到的來源是同一份。**
-> 這句話聽起來很廢，但它是這一課最貴的一行。
+> The evaluation's sources must be the same sources the system actually saw.
+> That sounds trivial, and it is the most expensive line in this lesson.
 
-### 坑 3：正規化把相鄰的數字黏在一起
+### Trap 3: normalisation glued adjacent numbers together
 
-還剩兩個誤判：「2026 年 6 月」的 `6`、「Apache License… 2004 年 1 月」的 `2004`。
+Two false positives remained: the `6` in "2026 年 6 月" and the `2004` in
+"Apache License… 2004 年 1 月".
 
-來源是英文的（`released June 2026`），我做了月份轉換 `june → 6`，
-然後把所有空白拿掉方便比對：
+The sources are English (`released June 2026`), so month conversion turned
+`june → 6`, and then all whitespace was removed to make comparison easier:
 
 ```text
 "released June 2026"  →  "released 6 2026"  →  "released62026"
 原子 6 的比對條件是「前後不能接數字」  →  後面接著 2  →  判定查無來源
 ```
 
-修法：**數字和識別字要用不同的正規化**。識別字去空白
-（讓 `Apache-2.0` 和 `Apache - 2.0` 相等），數字保留單一空白當邊界。
+The fix: **numbers and identifiers need different normalisation**. Identifiers
+drop whitespace (so `Apache-2.0` equals `Apache - 2.0`), while numbers keep a
+single space as a boundary.
 
-三個坑修完之後，真實報告從「14 個查無來源」變成「5 個」，
-而剩下的 5 個**全部是真的問題**。
+With all three traps fixed, the real report went from "14 unsourced" to "5", and
+the remaining 5 are **all genuine problems**.
 
 ---
 
-## Step 5：這個方法抓不到什麼（先講清楚）
+## Step 5: what this method cannot catch (stated up front)
 
-| 抓得到 | 抓不到 |
+| Catches | Misses |
 |---|---|
-| 引用了沒說這件事的來源 | 原子都在，但因果關係說反了 |
-| 數字被改掉或編出來 | 「A 比 B 好」這種沒有原子的主觀句 |
-| 事實句完全沒有引用 | 來源說「不支援」，報告寫成「支援」 |
-| 引用了不存在的網址 | 斷章取義（引用真的存在，但語境相反） |
+| citing a source that does not say it | all atoms present but the causality reversed |
+| numbers altered or invented | subjective sentences with no atoms, like "A is better than B" |
+| factual sentences with no citation at all | the source says "unsupported" and the report says "supported" |
+| citing a URL that does not exist | quoting out of context (the citation exists, the context is opposite) |
 
-最後一格特別要小心：**一句話的原子全部找得到，不代表這句話是對的。**
+The last cell deserves particular care: finding all of a sentence's atoms does not
+make the sentence true.
 
-那為什麼還值得做？
+So why is it worth doing?
 
-> 寧可要一個抓得到 70% 問題的確定性檢查，
-> 也不要一個號稱抓得到 95%、但自己每次結果都不一樣的 LLM 裁判。
+> Better a deterministic check that catches 70% of problems than an LLM judge
+> claiming 95% whose results differ every run.
 
-而且它便宜（不用模型）、可重現、可以進 CI、可以做回歸。
-剩下那 30% 要靠人工抽查——但抽查的範圍已經被縮小到「原子都對得上」的那些句子了。
+And it is cheap (no model), reproducible, CI-able, and regression-testable. The
+remaining 30% needs manual spot-checking — but the scope of that checking has been
+narrowed to the sentences whose atoms all line up.
 
 ---
 
-## Step 6：回歸比較
+## Step 6: regression comparison
 
-跟 Lesson 7 一樣的形狀：
+Same shape as Lesson 7:
 
 ```bash
 bun run lesson-25 -- --save      # 存成基準
@@ -251,82 +276,90 @@ bun run lesson-25 -- --compare   # 之後每次改動都比一次
   ✓ 所有指標跟基準一致
 ```
 
-改了 Lesson 24 的 prompt、換了模型、調了 breadth 之後，跑這個。
-**指標變差會直接指出來，而且指得出是哪一份、哪個指標。**
+Run this after changing Lesson 24's prompt, switching models, or adjusting
+breadth. A worse metric is stated outright, along with which report and which
+metric.
 
-沒有這一步，你只有「感覺好像變好了」。
+Without this step, all you have is "feels like it got better".
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
-| 所有 claim 都是「沒有引用」 | 報告格式不是「句尾括號放網址」 | 改 `report.ts` 的 `URL_PATTERN` 和註腳解析 |
-| 正確的引用被判成嫁接 | 評估讀的來源跟系統讀的不一樣 | 見 Step 4 坑 2 |
-| `還沒有基準` | 沒跑過 `--save` | `bun run lesson-25 -- --save` |
+| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| every claim reads "no citation" | the report format is not "URLs in parentheses at the end of a sentence" | change `URL_PATTERN` and footnote parsing in `report.ts` |
+| correct citations judged as grafted | the evaluation reads different sources from the system | see Step 4, trap 2 |
+| `還沒有基準` | `--save` has never run | `bun run lesson-25 -- --save` |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 Lesson 24 的輸出接進來 ⭐⭐
+### Exercise 1: wire Lesson 24's output in ⭐⭐
 
-現在 fixtures 是寫死的。改成讀 Lesson 24 跑出來的報告
-（把 `demo.ts` 加一個 `--json` 輸出，或直接存檔）。
+The fixtures are hardcoded. Read Lesson 24's actual report instead (add a `--json`
+output to `demo.ts`, or just write it to a file).
 
-然後：**跑三次同一個問題，看三份報告的指標差多少。**
-這會告訴你 Lesson 24 的穩定性，而那是目前完全沒量過的東西。
+Then: run the same question three times and see how far the metrics differ across
+the three reports. That tells you Lesson 24's stability, which is something
+nothing has measured so far.
 
-### 練習 2：加「語境相反」的檢查 ⭐⭐⭐
+### Exercise 2: add an "opposite context" check ⭐⭐⭐
 
-Step 5 說抓不到「來源說不支援、報告寫成支援」。
+Step 5 says it cannot catch "the source says unsupported, the report says
+supported".
 
-想一個確定性的方法。提示：否定詞（not、no longer、deprecated、
-不再、已棄用）在來源和 claim 裡的出現情況，可以做一個很粗但有用的訊號。
+Devise a deterministic method. Hint: the presence of negations (not, no longer,
+deprecated, 不再, 已棄用) in the source versus in the claim makes a crude but
+useful signal.
 
-先想清楚它的誤判率會有多高，再決定要不要做。
+Work out its false-positive rate first, then decide whether to build it.
 
-### 練習 3：把它變成 Lesson 24 的閘門 ⭐⭐
+### Exercise 3: make it a gate in Lesson 24 ⭐⭐
 
-現在是事後評估。改成：`writeReport` 產出報告之後，
-**先驗一次**，發現嫁接就把那條引用拿掉再輸出。
+Right now it evaluates after the fact. Change it: after `writeReport` produces the
+report, **verify first**, and strip a grafted citation before output.
 
-思考題：拿掉引用會讓那句話變成「裸露斷言」，是不是反而更糟？
-還是該把整句話拿掉？誰來決定？
+To think about: stripping the citation turns that sentence into a bare assertion —
+is that worse? Or should the whole sentence go? Who decides?
 
-### 練習 4：換一個領域跑跑看 ⭐⭐⭐
+### Exercise 4: run it on a different domain ⭐⭐⭐
 
-這是這一課真正的作業。把你自己領域的一份 AI 產出報告丟進來
-（把來源正文放進 corpus map 就好）。
+This is the real homework. Feed in an AI-generated report from your own domain
+(just put the source bodies into the corpus map).
 
-你大概會發現三件事：
+You will probably find three things:
 
-1. 原子抽取要調（你的領域有你的識別字格式）
-2. 誤判會比這裡多（真實來源比我們的語料雜）
-3. **它還是會抓到東西**——而且通常是你讀十遍都不會發現的那種
+1. Atom extraction needs tuning (your domain has its own identifier formats)
+2. There will be more false positives than here (real sources are messier than this
+   corpus)
+3. **It will still catch things** — usually the kind you would not find in ten
+   readings
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-| 這一課的概念 | 對照 |
+| Concept in this lesson | Reference |
 |---|---|
-| 確定性 rubric、`--save` / `--compare` | 本系列 [Lesson 7](../lesson-07-evaluation/) |
-| 證據綁來源 | 本系列 `lesson-24-research-loop/state.ts` 的 `Learning.sources` |
-| 長報告怎麼寫又不掉引用 | `gpt-researcher/gpt_researcher/actions/report_generation.py`（309 行） |
+| deterministic rubric, `--save` / `--compare` | this series' [Lesson 7](../lesson-07-evaluation/) |
+| evidence bound to sources | this series' `Learning.sources` in `lesson-24-research-loop/state.ts` |
+| writing a long report without losing citations | `gpt-researcher/gpt_researcher/actions/report_generation.py` (309 lines) |
 
-> 四個真實專案（deep-research、gpt-researcher、firecrawl、crawl4ai）
-> **都沒有引用驗證**。它們產生引用，但沒有任何一個回頭檢查引用是否成立。
-> 這不是他們差——是這件事只有領域內的人做得出來，因為只有你知道
-> 你的來源長什麼樣、你的使用者在乎哪種錯。
+> None of the four real projects (deep-research, gpt-researcher, firecrawl,
+> crawl4ai) **has citation verification**. They produce citations, but not one of
+> them goes back to check the citations hold. That is not a knock on them — this
+> is something only someone inside the domain can do, because only you know what
+> your sources look like and which errors your users care about.
 
 ---
 
-## AI Search 篇到這裡
+## The AI Search part ends here
 
-六課下來，從「一個 agent 加一個搜尋工具」走到「一條可以量測的研究管線」：
+Six lessons, from "one agent plus one search tool" to "a measurable research
+pipeline":
 
 ```text
 20  搜尋回來的不是網頁，是 snippet；query 決定你看到頁面的哪一面
@@ -337,15 +370,18 @@ Step 5 說抓不到「來源說不支援、報告寫成支援」。
 25  引用要驗；評估自己也會錯
 ```
 
-每一課都有一段實測記錄，而且**每一課的結論都跟開工前的預期不一樣**。
-那些差異才是這一篇真正的內容。
+Every lesson has a measurement record, and **every lesson's conclusion differs
+from the prediction made before the work started**. Those differences are what
+this part is actually about.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 26: 成本與預算](../lesson-26-cost/)**：這六課從來沒有量過錢。
-gpt-researcher 把 `cost_callback` 串進**每一個** LLM 呼叫，我們一個都沒有。
+[Lesson 26: cost and budget](../lesson-26-cost/): none of these six lessons ever
+measured money. gpt-researcher threads a `cost_callback` through **every** LLM
+call; here there is not one.
 
-那一課會量到一件反直覺的事：**`total` 遠大於 `input + output`**，
-而中間那段差額不但要付錢，還會吃掉你的 `maxTokens` 額度。
+That lesson measures something counter-intuitive: `total` is far larger than
+`input + output`, and the difference not only costs money but eats into your
+`maxTokens` allowance.

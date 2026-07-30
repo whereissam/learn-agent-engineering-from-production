@@ -1,23 +1,23 @@
 /**
- * Lesson 10 - 終端機 client
+ * Lesson 10 - the terminal client
  *
- * 這是「GUI」。它長得像終端機，但它跟一個 Tauri 視窗、一個 React 頁面
- * 做的事完全一樣：
+ * This is the "GUI". It looks like a terminal, and it does exactly what a Tauri window
+ * or a React page does:
  *
- *   1. 連上事件流
- *   2. 把收到的事件畫成畫面
- *   3. 把使用者的動作變成上行請求
+ *   1. connect to the event stream
+ *   2. paint the events it receives onto a screen
+ *   3. turn the user's actions into upstream requests
  *
- * 它**不知道** agent loop 長什麼樣，不 import 任何 provider 或 tool。
- * 這就是重點：UI 只認識事件型別，不認識 agent。
+ * It **does not know** what the agent loop looks like, and imports no provider and no tool.
+ * That is the point: a UI knows event types, not the agent.
  *
- * 執行：
+ * Run:
  *   bun run lesson-10-agent-server/client.ts            # session "main"
- *   bun run lesson-10-agent-server/client.ts demo-2     # 換一個 session
+ *   bun run lesson-10-agent-server/client.ts demo-2     # a different session
  *
- * 指令：
- *   /interrupt   中斷正在跑的 turn（Ctrl+C 也可以）
- *   /exit        離開 client（server 上的 turn 會繼續跑）
+ * Commands:
+ *   /interrupt   interrupt the running turn (Ctrl+C works too)
+ *   /exit        leave the client (the turn on the server keeps running)
  */
 
 import { LineReader } from "../shared/repl.ts";
@@ -37,7 +37,7 @@ const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 let running = false;
 
 // ─────────────────────────────────────────────────────────────
-// 收事件 → 畫畫面
+// Receive events → paint the screen
 // ─────────────────────────────────────────────────────────────
 
 function render(event: ServerEvent): void {
@@ -49,10 +49,10 @@ function render(event: ServerEvent): void {
 			if (event.naive) console.log(yellow("server 跑在 NAIVE 模式：重連不會補畫面"));
 			break;
 
-		// ── 重連的關鍵 ────────────────────────────────────
+			// ── the key to reconnecting ───────────────────────
 		//
-		// 收到 state 就把畫面整個重畫。這比「接續播放」簡單得多，
-		// 而且不會有「我到底漏了哪幾則」這種問題，因為根本不需要知道。
+			// On receiving state, repaint the whole screen. Far simpler than "resume playback",
+			// and it has no "which entries did I miss" problem, because it never needs to know.
 		case "state":
 			if (event.messages.length > 0) {
 				console.log(dim("─── 這個 session 目前的內容 ───"));
@@ -109,7 +109,7 @@ function render(event: ServerEvent): void {
 	}
 }
 
-/** 把 message 陣列畫成人看得懂的文字。GUI 裡這段就是渲染器。 */
+/** Paint the message array as text a human can read. In a GUI this is the renderer. */
 function transcript(messages: Message[]): string[] {
 	const lines: string[] = [];
 	for (const message of messages) {
@@ -143,8 +143,8 @@ function first(text: string): string {
 // ─────────────────────────────────────────────────────────────
 // SSE
 //
-// 手寫的 parser，因為 Node 沒有內建 EventSource，而這段只有十幾行。
-// 真實的 GUI 會用 EventSource 或 WebSocket，行為一樣。
+// A hand-written parser, because Node has no built-in EventSource and this is a dozen lines.
+// A real GUI would use EventSource or WebSocket, with the same behaviour.
 // ─────────────────────────────────────────────────────────────
 
 async function listen(signal: AbortSignal): Promise<void> {
@@ -172,7 +172,7 @@ async function listen(signal: AbortSignal): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 上行
+// Upstream
 // ─────────────────────────────────────────────────────────────
 
 async function post(action: string, body?: unknown): Promise<void> {
@@ -194,10 +194,10 @@ async function main(): Promise<void> {
 	const streamAbort = new AbortController();
 
 	/**
-	 * Ctrl+C 在這裡的意思**不是**「殺掉程式」，而是「中斷 server 上的 turn」。
+		 * Ctrl+C here does **not** mean "kill the program" but "interrupt the turn on the server".
 	 *
-	 * 這是 Lesson 3 那個 handleInterrupt 的分散式版本：一樣的分岔
-	 * （有東西在跑就中斷，閒著才離開），只是中斷要跨進程送過去。
+		 * The distributed version of Lesson 3's handleInterrupt: the same branch
+		 * (interrupt when something is running, leave only when idle), with the interruption crossing a process boundary.
 	 */
 	const onInterrupt = (): void => {
 		if (running) {
@@ -230,8 +230,8 @@ async function main(): Promise<void> {
 				await post("interrupt");
 				continue;
 			}
-			// 送出去之後**什麼都不畫**。等 turn_start 事件回來才畫。
-			// 這樣第二個視窗看到的東西才會跟這裡一樣。
+				// After sending, **paint nothing**. Wait for the turn_start event to come back.
+				// That way a second window sees the same thing this one does.
 			await post("message", { text: input });
 		}
 	} finally {

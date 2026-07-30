@@ -1,14 +1,14 @@
 /**
- * 引用評估執行器。
+ * The citation evaluation runner.
  *
- *   bun run lesson-25                    跑四份報告
- *   bun run lesson-25 -- --show real     看某一份的逐條判定
- *   bun run lesson-25 -- --save          存成基準
- *   bun run lesson-25 -- --compare       跟基準比，看有沒有退步
+ *   bun run lesson-25                    run four reports
+ *   bun run lesson-25 -- --show real     see one report's per-claim verdicts
+ *   bun run lesson-25 -- --save          save a baseline
+ *   bun run lesson-25 -- --compare       compare against the baseline and see regressions
  *
- * `--save` / `--compare` 直接沿用 Lesson 7 的形狀。**沒有回歸比較的評估
- * 只能告訴你「現在幾分」，不能告訴你「剛才那個改動有沒有弄壞東西」**，
- * 而後者才是評估真正的用途（Lesson 22 Step 5 就是靠它抓到崩塌的）。
+ * `--save` / `--compare` reuse Lesson 7's shape directly. **An evaluation with no regression comparison
+ * can only tell you today's score, not whether that change broke something**,
+ * and the latter is what an evaluation is really for (Lesson 22 Step 5 caught its collapse that way).
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -30,20 +30,20 @@ const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 /**
- * 建立「網址 → 來源正文」。
+ * Build "URL → source body text".
  *
- * ⚠️ **這裡一定要走跟 agent 完全相同的抓取路徑。**
+ * ⚠️ **This must go through exactly the same fetch path as the agent.**
  *
- * 第一版我直接讀 `corpus/index.json` 的純文字，結果關節映射那條被判成
- * 「7、9、3、17、15、left_knee 全部查無來源」——但那些數字明明在頁面上。
+ * The first version read plain text from `corpus/index.json` directly, and the joint-mapping claim was judged
+ * "7, 9, 3, 17, 15 and left_knee all unsourced" — while those numbers are plainly on the page.
  *
- * 原因是 Lesson 21 的 `fetcher.ts` 對 `unitree.com/g1/developer` 這個網址
- * 會回一份**動態產生的長文件**（那份 SDK 遷移指南），而 index.json 裡存的
- * 是短版。**agent 讀到的東西和我拿來對答案的東西不一樣，
- * 於是正確的引用被判成幻覺。**
+ * The cause is that Lesson 21's `fetcher.ts` returns a **dynamically generated long document** for
+ * `unitree.com/g1/developer` (that SDK migration guide), while index.json holds the short version.
+ * **What the agent read and what the evaluation checked against were different,
+ * so correct citations were judged hallucinated.**
  *
- * 這是評估自己的 bug，而且是最危險的那種：它會讓你去「修」一個沒壞的東西。
- * 教訓：**評估的來源必須跟系統實際看到的來源是同一份**。
+ * A bug in the evaluation itself, and the most dangerous kind: it sends you to "fix" something that is not broken.
+ * The lesson: **the evaluation's sources must be the same sources the system actually saw**.
  */
 function loadCorpus(): Map<string, string> {
 	let pages: IndexedPage[];
@@ -55,13 +55,13 @@ function loadCorpus(): Map<string, string> {
 
 	const corpus = new Map<string, string>();
 	for (const page of pages) {
-		// 走 fetcher + extractMain，跟 Lesson 24 的 runQuery 一模一樣
+			// Through fetcher plus extractMain, exactly as Lesson 24's runQuery does
 		const result = fetchPage(page.url);
 		const text = result.ok
 			? extractMain(result.html, { includeStructures: true }).text
 			: "";
-		// 抓不到的頁面（robots / 403 / JS 空殼）退回索引裡的文字，
-		// 因為 agent 至少看得到 snippet
+			// Pages that cannot be fetched (robots / 403 / a JS shell) fall back to the index's text,
+			// because the agent at least sees the snippet
 		corpus.set(page.url, `${page.title}\n${text || page.text}`);
 	}
 	return corpus;
@@ -69,17 +69,17 @@ function loadCorpus(): Map<string, string> {
 
 export interface Scorecard {
 	id: string;
-	/** 有實際內容的句子總數 */
+		/** How many sentences have actual content */
 	claims: number;
-	/** 完全沒有附引用的句子 */
+		/** Sentences with no citation at all */
 	uncited: number;
-	/** 可查核的原子總數 */
+		/** How many checkable atoms there are */
 	atoms: number;
-	/** 沒有任何來源支持的原子 */
+		/** Atoms supported by no source */
 	unsupportedAtoms: number;
-	/** 被引用、但一個原子都不支持的來源次數 */
+		/** How many cited sources support not one atom */
 	grafted: number;
-	/** 引用了語料裡根本沒有的網址 */
+		/** Cited URLs absent from the corpus entirely */
 	unknownSources: number;
 }
 
@@ -93,8 +93,8 @@ function score(report: string, corpus: Map<string, string>): {
 	const card: Scorecard = {
 		id: "",
 		claims: claims.length,
-		// 「沒有原子的句子」通常是過渡句，不該被算成裸露斷言。
-		// 只有「講了具體的事卻沒附來源」才算。
+			// A sentence with no atoms is usually a transition and must not count as a bare assertion.
+			// Only "stated something concrete with no source" counts.
 		uncited: claims.filter((c, i) => c.sources.length === 0 && (verdicts[i]?.atoms.length ?? 0) > 0)
 			.length,
 		atoms: verdicts.reduce((sum, v) => sum + v.atoms.length, 0),
@@ -165,7 +165,7 @@ for (const fixture of FIXTURES) {
 			`unsupported ${card.unsupportedAtoms}  grafted ${card.grafted}  unknown ${card.unknownSources}`,
 	);
 
-	// 對照「我埋了什麼」和「檢查器抓到什麼」
+		// Compare "what was planted" against "what the checker caught"
 	const checks: Array<[string, number, number | undefined]> = [
 		["grafted", card.grafted, fixture.expect.graftedAtLeast],
 		["unsupported", card.unsupportedAtoms, fixture.expect.unsupportedAtomsAtLeast],
@@ -205,7 +205,7 @@ if (args.includes("--save")) {
 		for (const key of ["claims", "uncited", "atoms", "unsupportedAtoms", "grafted"] as const) {
 			if (before[key] !== card[key]) {
 				changed++;
-				// 對這些指標來說「變多」就是變差（claims 除外，它只是規模）
+					// For these metrics, more is worse (except claims, which is only scale)
 				const worse = key !== "claims" && card[key] > before[key];
 				const arrow = `${before[key]} → ${card[key]}`;
 				console.log(`  ${worse ? red("✗") : yellow("~")} ${card.id}.${key}  ${arrow}`);

@@ -1,22 +1,22 @@
 /**
- * 這一課的四個 LLM 步驟。
+ * This lesson's four LLM steps.
  *
- * 注意每一個都是**單次呼叫、輸入輸出明確、沒有工具**：
+ * Note that each is a **single call with clear inputs and outputs and no tools**:
  *
- *   clarify         問題 → 3 個澄清問題
- *   generateQueries 問題 + 已知 → N 條查詢
- *   extractLearnings 查詢 + 網頁內容 → 結論 + 後續問題
- *   writeReport     全部結論 → 報告
+ *   clarify          the question → 3 clarifying questions
+ *   generateQueries  the question plus what is known → N queries
+ *   extractLearnings a query plus page content → conclusions plus follow-up questions
+ *   writeReport      all conclusions → the report
  *
- * 這是 research loop 跟 agent loop 最大的形狀差異：
+ * This is the biggest difference in shape between a research loop and an agent loop:
  *
  * ```text
- * Agent loop        一個大模型 + 一堆工具 + 一個沒人知道會跑幾輪的迴圈
- * Research loop     一個程式 + 四個小的、可測試的模型呼叫
+ * Agent loop        one big model plus a pile of tools plus a loop nobody can bound
+ * Research loop     one program plus four small, testable model calls
  * ```
  *
- * 每一個步驟都可以單獨測、單獨換模型、單獨算成本。
- * **這才是為什麼 Deep Research 產品跑得完，而我們 Lesson 22 的 agent 跑不完。**
+ * Every step can be tested, re-modelled and costed on its own.
+ * **That is why Deep Research products finish and Lesson 22's agent does not.**
  */
 
 import type { StreamingProvider } from "../shared/streaming/types.ts";
@@ -25,10 +25,10 @@ import type { Learning, ResearchState } from "./state.ts";
 import { summarizeLearnings } from "./state.ts";
 
 /**
- * 抄 deep-research/src/prompt.ts 的 system prompt，加上今天的日期。
+ * The system prompt is copied from deep-research/src/prompt.ts, plus today's date.
  *
- * 「今天是哪一天」對研究型任務特別重要：模型的訓練資料有截止日，
- * 但它不知道自己現在在哪一天，所以會把三年前的東西當成最新的。
+ * "What day is it" matters especially for research tasks: a model's training data has a
+ * cutoff, and it does not know what day it is now, so it treats three-year-old things as new.
  */
 function systemPrompt(today: string): string {
 	return `You are an expert researcher. Today is ${today}.
@@ -55,14 +55,14 @@ async function ask(
 		}),
 	);
 
-	// 輸出被 token 上限砍斷的話一定要說。
+		// Output cut off by the token limit must always be reported.
 	//
-	// 第一次跑真模型時，報告在一個網址中間斷掉：`(https://github.com/kin`
-	// ——沒有錯誤、沒有警告，看起來就像模型寫完了。
-	// 12 條證據餵進去，3000 token 寫不完。
+		// On the first real-model run the report stopped mid-URL at `(https://github.com/kin`
+		// — no error, no warning, and it looked exactly like the model had finished.
+		// 12 pieces of evidence went in and 3000 tokens could not hold the answer.
 	//
-	// 這跟 Lesson 21 Step 5 是同一種病：**沉默的截斷比明顯的失敗危險。**
-	// Lesson 2 的工具輸出截斷會明講「我截掉了」，這裡也要。
+		// Same disease as Lesson 21 Step 5: **a silent truncation is more dangerous than an
+		// obvious failure.** Lesson 2's tool output says "I truncated this", and so must this.
 	if (response.stopReason === "max_tokens") {
 		state.trace.push(`      ⚠ 輸出撞到 ${maxTokens} token 上限，內容不完整`);
 		state.budget.truncatedOutputs++;
@@ -74,29 +74,29 @@ async function ask(
 		.join("\n");
 }
 
-/** 寫死「今天」，理由跟 Lesson 22 的 `TODAY` 一樣：可重現。 */
+/** "Today" is hardcoded, for the same reason as Lesson 22's `TODAY`: reproducibility. */
 const TODAY = "2026-07-27";
 
 // ─────────────────────────────────────────────────────────────
-// 防禦性 JSON 解析
+// Defensive JSON parsing
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 模型說要回 JSON，不代表它會回 JSON。
+ * A model saying it will return JSON does not mean it will return JSON.
  *
- * Lesson 23 讀到 gpt-researcher 有一整個函式在處理這件事
- * （`actions/query_processing.py:6` 的 `_normalize_sub_queries`），
- * 而且它用的是 `json_repair.loads` 而不是 `json.loads`。當時覺得有點誇張，
- * 自己寫一次就知道不誇張了：
+ * Lesson 23 found gpt-researcher has a whole function for this
+ * (`_normalize_sub_queries` at `actions/query_processing.py:6`), using `json_repair.loads`
+ * rather than `json.loads`. That looked excessive at the time, and writing one makes clear
+ * it is not:
  *
- *   - 前後包著 ```json 圍欄
- *   - 前面加一句「好的，以下是查詢：」
- *   - 回一個物件 `{queries: [...]}` 而不是陣列
- *   - 回一個裸字串
+ *   - wrapped in ```json fences
+ *   - prefixed with "Sure, here are the queries:"
+ *   - an object `{queries: [...]}` instead of an array
+ *   - a bare string
  *
- * 四種都遇過。所以這裡不 assert 格式，而是**盡量把它救回來**，
- * 救不回來就回空陣列讓呼叫端決定怎麼辦——
- * **絕對不要讓一次格式失誤炸掉整個研究。**
+ * All four have happened. So this does not assert a format but **tries to rescue it**, and
+ * returns an empty array when it cannot, leaving the caller to decide —
+ * **never let one formatting slip blow up the whole research run.**
  */
 function parseJson(text: string): unknown {
 	const cleaned = text
@@ -108,13 +108,13 @@ function parseJson(text: string): unknown {
 		try {
 			return JSON.parse(candidate);
 		} catch {
-			// 再試著抓出第一個看起來像 JSON 的區塊
+			// Then try to pull out the first block that looks like JSON
 			const match = /[[{][\s\S]*[\]}]/.exec(candidate);
 			if (match) {
 				try {
 					return JSON.parse(match[0]);
 				} catch {
-					// 繼續試下一個候選
+					// Try the next candidate
 				}
 			}
 		}
@@ -122,7 +122,7 @@ function parseJson(text: string): unknown {
 	return undefined;
 }
 
-/** 把「可能是陣列、可能包在物件裡、可能是單一字串」統一成陣列。 */
+/** Normalise "maybe an array, maybe wrapped in an object, maybe a single string" into an array. */
 function toArray(parsed: unknown, keys: string[]): unknown[] {
 	if (Array.isArray(parsed)) return parsed;
 	if (parsed && typeof parsed === "object") {
@@ -136,18 +136,18 @@ function toArray(parsed: unknown, keys: string[]): unknown[] {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 0：研究之前先問清楚（deep-research/src/feedback.ts）
+// Step 0: ask before researching (deep-research/src/feedback.ts)
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 產生澄清問題。
+ * Generate clarifying questions.
  *
- * deep-research 在開始研究**之前**會先問使用者 3 個問題
- * （`src/feedback.ts`，整個檔案 28 行）。這是很便宜的一步，
- * 但省下來的可能是整輪錯方向的研究。
+ * deep-research asks the user 3 questions **before** starting research (`src/feedback.ts`,
+ * 28 lines in total). A very cheap step that can save a whole round of research in the
+ * wrong direction.
  *
- * 這裡預設不會真的等使用者回答（demo 用 `--ask` 才會），
- * 因為它的教學價值在於**讓你看到模型覺得哪裡不清楚**。
+ * Here it does not actually wait for an answer by default (only the demo's `--ask` does),
+ * because its teaching value is **seeing what the model finds unclear**.
  */
 export async function clarify(
 	provider: StreamingProvider,
@@ -169,24 +169,24 @@ export async function clarify(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 1：生查詢
+// Step 1: generate queries
 // ─────────────────────────────────────────────────────────────
 
 export interface PlannedQuery {
 	query: string;
-	/** 為什麼要搜這一條。抄 deep-research 的 researchGoal（`deep-research.ts:66`）。 */
+	/** Why this search. Copied from deep-research's researchGoal (`deep-research.ts:66`). */
 	goal: string;
 }
 
 /**
- * 產生這一層要跑的查詢。
+ * Generate the queries for this level.
  *
- * 四條規則是 Lesson 23 從真實專案抄回來的，這次寫進程式而不是靠 agent 自律：
- *
- *   不要用搜尋運算子           gpt-researcher/prompts.py:250
- *   一次生 N 條、彼此不相似     deep-research.ts:54
- *   每條附研究目標             deep-research.ts:66
- *   已經搜過的不要再搜         我們自己加的，Lesson 22 Step 8 的教訓
+ * The four rules were copied from real projects in Lesson 23, and this time they are in code
+ * rather than left to the agent's self-discipline:
+ *   no search operators           gpt-researcher/prompts.py:250
+ *   generate N at once, dissimilar deep-research.ts:54
+ *   each carries a research goal   deep-research.ts:66
+ *   do not repeat past searches    added here, the lesson from Lesson 22 Step 8
  */
 export async function generateQueries(
 	provider: StreamingProvider,
@@ -229,7 +229,7 @@ export async function generateQueries(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 2：把網頁壓成 learnings
+// Step 2: compress pages into learnings
 // ─────────────────────────────────────────────────────────────
 
 export interface PageContent {
@@ -242,29 +242,30 @@ export interface Extraction {
 	learnings: Learning[];
 	followUps: string[];
 	/**
-	 * 這一次萃取為什麼沒有產出（有產出時是 undefined）。
+		 * Why this extraction produced nothing (undefined when it did produce something).
 	 *
-	 * 這個欄位是實測之後加的。第一次跑真模型時，有一條 query 抓了四頁、
-	 * 然後回報「0 條結論」——**而且沒有任何訊息說為什麼**。
+		 * This field was added after a measurement. On the first real-model run, one query
+		 * fetched four pages and then reported "0 conclusions" — **with no message saying why**.
 	 *
-	 * 那是 Lesson 21 Step 5 那個「靜默失敗」的同一張臉：
-	 * 管線沒有壞、沒有例外、只是什麼都沒發生。
-	 * 所以這裡強制自己講出原因。
+		 * That is the same face as Lesson 21 Step 5's silent failure:
+		 * the pipeline is not broken, nothing threw, and nothing happened.
+		 * So this forces the reason to be stated.
 	 */
 	failure?: "parse-failed" | "no-learnings" | "sources-filtered";
-	/** 因為引用了沒抓過的網址而被丟掉的條數。 */
+		/** How many were dropped for citing a URL that was never fetched. */
 	droppedForSources: number;
 }
 
 /**
- * 這是整個 loop 的壓縮閥。
+ * This is the whole loop's compression valve.
  *
- * 進去的是好幾頁正文（幾千到幾萬字），出來的是最多 N 條一句話結論。
- * **下一輪只帶結論走，不帶網頁走。** 沒有這一步，研究到第三層 context 就爆了。
- *
- * 對照 `deep-research.ts:102`。我們多做一件事：**每條結論要標出處**。
- * deep-research 的 learning 是純字串，所以寫報告時無法把句子對回來源
- * （見 `state.ts` 的 Learning 註解）。
+ * In go several pages of body text (thousands to tens of thousands of characters); out come
+ * at most N one-sentence conclusions.
+ * **The next round carries conclusions, not pages.** Without this step, context explodes by
+ * the third level.
+ * Against `deep-research.ts:102`. One thing is added here: **every conclusion carries its
+ * sources**. deep-research's learning is a plain string, so a report cannot map a sentence
+ * back to a source (see the Learning comment in `state.ts`).
  */
 export async function extractLearnings(
 	provider: StreamingProvider,
@@ -276,8 +277,8 @@ export async function extractLearnings(
 ): Promise<Extraction> {
 	if (pages.length === 0) return { learnings: [], followUps: [], droppedForSources: 0 };
 
-	// 每頁裁一段就好。deep-research 是裁到 25k token（`:93`），
-	// 我們的語料短很多，用字元數近似即可。
+		// One trimmed passage per page. deep-research trims to 25k tokens (`:93`);
+		// this corpus is much shorter, so a character count approximates it.
 	const documents = pages
 		.map((p) => `<source url="${p.url}" title="${p.title}">\n${p.text.slice(0, 4000)}\n</source>`)
 		.join("\n\n");
@@ -311,17 +312,17 @@ export async function extractLearnings(
 			const rawSources = Array.isArray(record.sources) ? record.sources : [];
 			return {
 				text: String(record.text ?? record.learning ?? "").trim(),
-				// 只留真的抓過的網址。模型很愛「順手」補一個看起來合理的 URL，
-				// 而那正是 Lesson 21 Step 6 看到的引用嫁接。
-				// 這裡用程式擋掉，不用 prompt 拜託。
+					// Keep only URLs that were really fetched. Models love to helpfully add a
+					// plausible-looking URL, which is exactly the citation grafting seen in Lesson 21
+					// Step 6. A program blocks it here, rather than a prompt asking nicely.
 				sources: rawSources.map((s) => String(s).trim()).filter((s) => known.has(s)),
 				depth,
 			};
 		})
-		.filter((l) => l.text.length > 0);
-
-	// 分開算：有內容但來源被過濾掉的，跟根本沒產出，是兩件不同的事。
+	// Counted separately: content whose sources were filtered out, and no output at all, are different things.
 	const withSources = learnings.filter((l) => l.sources.length > 0);
+		// Counted separately: producing content whose sources were filtered out and producing
+		// nothing at all are different things.
 	const droppedForSources = learnings.length - withSources.length;
 
 	const followUps = toArray(
@@ -343,17 +344,17 @@ export async function extractLearnings(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 3：寫報告
+// Step 3: write the report
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 把所有 learnings 寫成報告。
+ * Turn all the learnings into a report.
  *
- * 關鍵在於：**模型在這一步看不到任何網頁**，只看得到 learnings。
- * 所以它寫得出來的東西，上限就是前面萃取到的證據。
+ * The key: **the model sees no web pages at this step**, only learnings.
+ * So the ceiling on what it can write is the evidence extracted earlier.
  *
- * 這是刻意的。如果這一步又把網頁塞進去，你就回到「一大坨 context
- * 進去、一大坨字出來」，也就沒辦法追溯每句話的來源了。
+ * That is deliberate. Put pages back in at this step and you are back to "a huge blob of
+ * context in, a huge blob of text out", with no way to trace any sentence to its source.
  */
 export async function writeReport(
 	provider: StreamingProvider,
@@ -378,8 +379,8 @@ export async function writeReport(
 			"say explicitly what could not be established.\n" +
 			"- Lead with the answer, then the evidence, then the caveats.\n" +
 			"- Answer in the same language as the question.",
-		// 報告長度會隨證據條數成長。12 條證據配 3000 token 會寫不完，
-		// 而且會斷在句子中間。這個數字要跟 breadth/depth 一起調。
+			// Report length grows with the evidence count. 12 pieces with 3000 tokens does not
+			// finish, and stops mid-sentence. This number is tuned together with breadth/depth.
 		6000,
 	);
 }

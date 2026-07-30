@@ -1,25 +1,32 @@
-# Lesson 22: 檢索與排序
+# Lesson 22: Retrieval and Ranking
 
-> 前置：[Lesson 20](../lesson-20-search-agent/)（BM25 baseline）、
-> [Lesson 21](../lesson-21-crawl/)（fetch_page）。
+> [繁體中文](README.zh-TW.md)
 >
-> 這一課要打掉一個很普遍的印象：**AI Search ≠ 把文件丟進向量資料庫取 top 5。**
+> Prerequisites: [Lesson 20](../lesson-20-search-agent/) (the BM25 baseline),
+> [Lesson 21](../lesson-21-crawl/) (`fetch_page`).
+>
+> This lesson demolishes a very common impression: AI search is not "throw the
+> documents into a vector database and take the top 5".
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. BM25 到底哪裡不夠？dense retrieval 又哪裡不夠？
-2. 兩份排名怎麼合成一份？（分數尺度完全不同怎麼加）
-3. 「這頁是內容農場」要怎麼**算**出來，而不是自己標？
-4. 加了一個新訊號，怎麼知道它有沒有把別的地方弄壞？
-5. **排序變好，agent 就會變好嗎？**
+1. Where exactly is BM25 not enough? Where is dense retrieval not enough?
+2. How do two rankings combine into one? (The score scales are completely
+   different — how do you add them?)
+3. How do you **compute** "this page is a content farm" rather than labelling it
+   yourself?
+4. After adding a new signal, how do you know it did not break something else?
+5. If ranking improves, does the agent improve?
 
-第 4 題和第 5 題的答案都是實測出來的，而且都跟我原本的預期不一樣。
+The answers to the fourth and fifth are both measured, and both differ from what
+was expected.
 
 ---
 
-## Step 0：先看數字
+## Step 0: the numbers first
 
-這一課的每一個階段都是可以量的。八個查詢、分級標註、確定性評分：
+Every stage of this lesson is measurable. Eight queries, graded relevance
+judgements, deterministic scoring:
 
 ```bash
 bun run lesson-22:eval
@@ -41,146 +48,155 @@ q8-dataset               1.000       1.000       1.000       1.000       1.000  
 平均 novelty@5           0.950       0.975       0.975       1.000       1.000       1.000
 ```
 
-**0.655 → 0.845。** 但這張表最有價值的不是最後那個數字，是中間那些
-**變差的格子**。它們每一個都是一次實測踩到的坑，後面會一個一個講。
+0.655 → 0.845. But the most valuable thing in that table is not the last number;
+it is the cells in the middle that **got worse**. Each one is a trap found by
+measurement, and each is covered below.
 
-> 沒有金鑰也能跑：embedding 已經算好放在 `embed/cache.json` 一起進版控。
-> 只有你加新的 query 或新的文件才需要 `bun run lesson-22:embed`。
+> No key needed: the embeddings are precomputed in `embed/cache.json` and
+> committed. Only new queries or new documents require
+> `bun run lesson-22:embed`.
 
 ---
 
-## Step 1：BM25 的三種死法
+## Step 1: three ways BM25 dies
 
-Lesson 20 用的 BM25 在三題上表現很好（0.920、0.932、1.000），
-在另外三題上很慘。看它們慘在哪：
+The BM25 from Lesson 20 does well on three queries (0.920, 0.932, 1.000) and
+terribly on three others. Where they go wrong:
 
-| query | BM25 | 為什麼 |
+| Query | BM25 | Why |
 |---|---|---|
-| q2「把影片動作轉到人形機器人的開源專案」 | **0.000** | 斷不出任何英文字。不是排錯，是**完全沒有結果** |
-| q1 open source video to humanoid retargeting for unitree g1 | 0.233 | SEO 農場關鍵字最多，正確答案排第八 |
-| q5 which project is actively maintained | 0.337 | 「還活著嗎」沒有任何頁面會寫，字面上根本沒得比對 |
+| q2 "把影片動作轉到人形機器人的開源專案" | **0.000** | not one English token comes out. Not mis-ranked but **no results at all** |
+| q1 open source video to humanoid retargeting for unitree g1 | 0.233 | the SEO farm has the most keywords, and the right answer ranks eighth |
+| q5 which project is actively maintained | 0.337 | no page ever writes "am I still alive", so there is nothing literal to match |
 
-三種死法其實是同一個原因：**BM25 只認得字面。**
+All three deaths have one cause: BM25 only knows the literal.
 
-q5 特別值得看。使用者真正想知道的是「最近有沒有在更新」，
-而這件事寫在**日期**裡，不在文字裡。**有些問題的答案不在正文，
-在中繼資料裡**——這是 Step 4 品質訊號存在的理由。
+q5 is especially worth a look. What the user wants to know is "has this been
+updated recently", and that lives **in the dates, not in the text. Some
+questions have answers that are not in the body but in the metadata** — which is
+why the quality signals in Step 4 exist.
 
 ---
 
-## Step 2：Dense retrieval，以及它自己也不夠
+## Step 2: dense retrieval, and how it is not enough either
 
-把文字變成向量，用意思找而不是用字找。
+Turn text into vectors and find by meaning instead of by word.
 
 ```bash
 bun run lesson-22:eval --show q2
 ```
 
-中文查詢在 BM25 是 0.000，在 dense 是 0.598。實測的餘弦相似度：
+The Chinese query scores 0.000 on BM25 and 0.598 on dense. Measured cosine
+similarities:
 
 ```
 cos("video to humanoid retargeting", "把影片動作轉到人形機器人") = 0.817
 cos("video to humanoid retargeting", "sous vide cooking times")  = 0.449
 ```
 
-**跨語言是免費送的。** 沒有做翻譯，也沒有雙語詞表，
-就只是兩段文字在同一個向量空間裡剛好離得近。
+Cross-language comes free. There is no translation and no bilingual glossary;
+two pieces of text simply happen to land near each other in the same vector
+space.
 
-### 維度是一個取捨，不是「越大越好」
+### Dimensionality is a trade-off, not "bigger is better"
 
-`gemini-embedding-001` 預設 3072 維，API 可以指定較小的維度。實測：
+`gemini-embedding-001` defaults to 3072 dimensions and the API accepts smaller
+ones. Measured:
 
 ```
 dims=256    cos(英文, 中文)=0.861    cos(英文, 烹飪文)=0.569    差距 0.29
 dims=768    cos(英文, 中文)=0.817    cos(英文, 烹飪文)=0.449    差距 0.37
 ```
 
-要看的不是「跟中文有多像」，是**兩者的差距**。256 維連完全無關的
-烹飪文章都給 0.569，鑑別力被壓扁了。這一課用 768。
+What matters is not "how similar to the Chinese" but **the gap between the two**.
+At 256 dimensions even a completely unrelated cooking article scores 0.569; the
+discrimination is flattened. This lesson uses 768.
 
-### 但 dense 單獨用會輸
+### But dense alone loses
 
-看那些 dense 比 BM25 差的格子：
+Look at the cells where dense is worse than BM25:
 
 ```
 q3 retarget-anything g1 profile deprecated 2026 sdk    BM25 0.920  →  dense 0.834
 q7 foot sliding contact solver flat sole humanoid      BM25 1.000  →  dense 0.877
 ```
 
-這兩題都有很**精確的字串**（專案名、版本號、術語）。
-dense 會把它們稀釋成「大概是講這個主題」，於是相近主題的頁面全都擠上來。
+Both have very **precise strings** in them (project names, version numbers,
+terminology). Dense dilutes those into "roughly about this topic", and every page
+on a nearby topic crowds in.
 
 ```text
 BM25   認得罕見的專有名詞，看不懂同義詞和其他語言
 Dense  抓得到意思，精確字串反而會被稀釋
 ```
 
-**兩者的失敗方式是互補的**，所以正解不是二選一。
+**Their failure modes are complementary**, so the answer is not to pick one.
 
 ---
 
-## Step 3：RRF——不需要調權重的融合
+## Step 3: RRF — fusion with no weights to tune
 
-兩份排名要合成一份。最直覺的做法是加權相加，但立刻卡住：
-BM25 分數是 2.771，cosine 是 0.83，**尺度完全不同**。
-要相加就得先正規化，而正規化方式本身又變成一個要調的參數。
+Two rankings have to become one. The intuitive approach is a weighted sum, and it
+gets stuck immediately: a BM25 score is 2.771 and a cosine is 0.83, **completely
+different scales**. Adding them requires normalisation first, and the choice of
+normalisation becomes another parameter to tune.
 
-RRF 直接繞過去：**只看名次，不看分數。**
+RRF sidesteps it: look only at ranks, not scores.
 
 ```ts
 score(d) = Σ  1 / (K + rank_i(d))     // K = 60
 ```
 
-在 BM25 排第一、在 dense 排第三 → `1/61 + 1/63`。沒有權重要調。
+First on BM25 and third on dense gives `1/61 + 1/63`. No weights to tune.
 
 ```
 BM25 0.655   Dense 0.689   →   RRF 0.720
 ```
 
-比兩個單獨用都好，而且**沒有引入任何需要調的參數**。
-這就是為什麼 RRF 在實務上這麼常見：它便宜、沒有參數、
-而且通常打得贏調過的加權和。
+Better than either alone, and **it introduces no parameter that needs tuning**.
+Which is why RRF is so common in practice: it is cheap, parameter-free, and
+usually beats a tuned weighted sum.
 
 ---
 
-## Step 4：品質訊號要「算」出來，不能自己標
+## Step 4: quality signals must be computed, not labelled
 
-這是這一課最容易寫成作弊的地方。
+This is the easiest place in the lesson to write cheating code.
 
-語料的 `pages.ts` 裡有一個 `kind: "spam"` 欄位，我大可以在排序時讀它，
-然後說「你看，農場被壓下去了」。**但那什麼都沒教到**——
-真實的網頁不會自己承認是農場。
+The corpus's `pages.ts` has a `kind: "spam"` field, and the ranker could just
+read it and then claim "look, the farm got pushed down". **That teaches
+nothing** — real pages do not confess to being farms.
 
-所以三個訊號全部只用頁面本身算得出來的東西：
+So all three signals use only things computable from the page itself:
 
-### 新鮮度：指數衰減，不是門檻
+### Freshness: exponential decay, not a threshold
 
 ```ts
 freshness = exp(-ln2 * days / 540)    // 半衰期 18 個月
 ```
 
-為什麼不是「一年以上就丟掉」？因為**舊不等於錯**。
-arXiv 論文放三年還有用，SDK 文件三個月就可能過期。
-衰減是一個溫和的偏好，門檻是一刀切。
+Why not "discard anything over a year old"? Because **old is not wrong**. An
+arXiv paper is useful after three years; an SDK document can be stale in three
+months. Decay is a mild preference; a threshold is a cleaver.
 
-### 權威度：手動維護的網域先驗
+### Authority: a hand-maintained domain prior
 
 ```ts
 "unitree.com": 1.0    "github.com": 0.9    "discourse.ros.org": 0.7
 "robotblog.example.com": 0.3    "top-robotics-tools.example.net": 0.1
 ```
 
-這是一份人工表。看起來很土，但**真實系統也是這樣做的**
-（domain authority、trust rank 都是同一件事的複雜版）。
-它是先驗，不是判決：一個高權威網域的無關頁面照樣排不上去。
+This is a manual table. It looks crude, but **real systems do the same thing**
+(domain authority and trust rank are elaborate versions of it). It is a prior,
+not a verdict: an irrelevant page on a high-authority domain still does not rank.
 
-### 關鍵字堆砌：唯一真正「算」出來的那個
+### Keyword stuffing: the only one genuinely computed
 
 ```ts
 最高頻的詞出現幾次 / 總詞數
 ```
 
-實測語料的分佈：
+The measured distribution over the corpus:
 
 ```
  60 字   "retargeting" × 12  = 20.0%   ← SEO 農場
@@ -189,34 +205,37 @@ arXiv 論文放三年還有用，SDK 文件三個月就可能過期。
  96 字   "profile"     ×  3  =  3.1%   ← 正常
 ```
 
-正常文章 3-4%，農場 8% 以上。門檻設在 4%-10% 之間線性。
+Normal articles sit at 3-4%, farms at 8% and above. The threshold ramps linearly
+between 4% and 10%.
 
-加上這三個訊號之後：**0.720 → 0.845**，q1 從 0.318 跳到 0.705，
-q5 從 0.144 跳到 0.616。
+With those three signals added: **0.720 → 0.845**, q1 jumping from 0.318 to
+0.705 and q5 from 0.144 to 0.616.
 
 ---
 
-## Step 5：評估抓到了一個我沒看到的迴歸 ★
+## Step 5: the evaluation caught a regression nobody saw
 
-這一段是整課最重要的。
+This is the most important section in the lesson.
 
-第一版的堆砌偵測**只看比例**。跑完評估，平均從 0.720 升到 0.768，
-看起來很成功。但逐題看：
+The first version of stuffing detection **looked only at the ratio**. After the
+evaluation, the average rose from 0.720 to 0.768, which looks like a success. But
+per query:
 
 ```
 q8-dataset      1.000  →  0.131      ← 崩了
 ```
 
-如果只看平均分數，這個崩塌會被其他題的進步蓋掉。
+Looking only at the average, that collapse is buried under the other queries'
+gains.
 
-### 診斷
+### Diagnosis
 
 ```bash
 bun run lesson-22:eval --show q8
 ```
 
-那個資料集頁面在 BM25 和 dense **都排第一**，加了訊號之後
-直接掉出前五名。把每一頁的堆砌分數印出來：
+That dataset page ranked **first in both BM25 and dense**, and after the signals
+were added it fell out of the top five. Printing every page's stuffing score:
 
 ```
  60 字   "retargeting" × 12  = 20.0%  → stuff 1.00   SEO 農場      ✓ 該罰
@@ -225,18 +244,20 @@ bun run lesson-22:eval --show q8
  25 字   "food"        ×  2  =  8.0%  → stuff 0.67   烹飪文章      ✗ 冤枉
 ```
 
-**比例對短文件有系統性偏誤。** 一份 25 字的授權檔本來就會一直講
-license，那不是作弊，是它就這麼短。
+A ratio is systematically biased against short documents. A 25-word licence file
+is going to keep saying "license"; that is not cheating, that is just how short
+it is.
 
-### 修法
+### The fix
 
-加一個絕對次數的門檻：重複少於 5 次的，不管比例多高都不算堆砌。
+Add an absolute-count threshold: fewer than 5 repeats is never stuffing, however
+high the ratio.
 
 ```ts
 if (top < MIN_REPEATS) return 0;
 ```
 
-三個冤枉的全部歸零，農場（12 次）照樣被抓。
+All three false positives go to zero, and the farm (12 repeats) is still caught.
 
 ```
 平均 nDCG@5   0.768（有 bug）  →  0.845（修好）
@@ -244,61 +265,64 @@ q8-dataset    0.131            →  1.000
 q7            0.920            →  1.000
 ```
 
-### 這一段真正的教訓
+### What this section is actually teaching
 
-> **平均分數上升，不代表沒有東西壞掉。**
+> A rising average does not mean nothing broke.
 
-如果沒有逐題的表格，我會很開心地把 0.768 寫進 README，
-然後帶著一個「短頁面一律被降權」的 bug 繼續往下寫三課。
+Without the per-query table, 0.768 would have gone happily into the README and
+three more lessons would have been written on top of a "short pages are always
+demoted" bug.
 
-這跟 Lesson 7 那次抓到「agent 沒有回報影片時鐘偏移」是同一種價值：
-**評估的用處不是證明你做得好，是告訴你哪裡壞了。**
+Same value as Lesson 7 catching "the agent did not report the video clock
+offset": an evaluation's use is not proving you did well, it is telling you what
+broke.
 
 ---
 
-## Step 6：去重讓分數變差，所以我加了一個指標 ★
+## Step 6: dedup made the score worse, so another metric was added
 
-去重階段一開啟，nDCG 就掉：
+The moment the dedup stage is enabled, nDCG drops:
 
 ```
 + RRF  0.720   →   + 去重  0.693
 q3-deprecated  0.920  →  0.704
 ```
 
-原因很清楚：q3 的評估集裡，`retarget-anything` 的 GitHub README
-和 docs 站**都標了相關度 3**（兩份都確實寫了棄用公告）。
-去重砍掉一份，就少拿一份的分。
+The reason is clear: in q3's judgements, `retarget-anything`'s GitHub README and
+its docs site **are both graded relevance 3** (both genuinely carry the
+deprecation notice). Cut one and you lose its points.
 
-### 兩條路
+### Two roads
 
-一條是改標註，把鏡像站降成相關度 1，數字立刻變好看。
-**但那是為了讓程式通過而改考卷。**
+One is to change the judgements, demoting the mirror to relevance 1, and the
+number immediately looks better. That is editing the exam so the program passes.
 
-另一條是承認：**nDCG 這個指標看不到「重複」這件事。**
-學術界處理這個問題的指標叫 α-nDCG（已經看過的資訊要打折），
-這裡用一個更好懂的版本，直接數前五名裡有幾筆是新的：
+The other is to admit that nDCG cannot see duplication at all. The academic
+metric for this is α-nDCG (already-seen information gets discounted); here it is
+a more legible version, counting how many of the top five are new:
 
 ```
 平均 novelty@5    0.975（RRF）  →  1.000（去重後）
 ```
 
-於是這個階段的帳就算得清楚了：
+Which makes the accounting for this stage explicit:
 
 ```text
 nDCG@5     0.720 → 0.693    （-0.027，因為評估集把鏡像也算相關）
 novelty@5  0.975 → 1.000    （+0.025，前五名不再有重複內容）
 ```
 
-**我選擇留下去重**，理由不在 nDCG 裡：對 agent 來說，
-一個重複的頁面等於浪費一次 `fetch_page` 和一整塊 context（Lesson 21）。
-這個成本 nDCG 量不到，但它是真的。
+**Dedup stays**, for a reason that is not in nDCG: to an agent, a duplicate page
+costs one wasted `fetch_page` and a whole chunk of context (Lesson 21). nDCG
+cannot measure that cost, but it is real.
 
-> 教訓：**當既有指標看不到你在乎的東西，就再加一個指標，
-> 不要去改評估集。**
+> The lesson: **when an existing metric cannot see what you care about, add
+> another metric; do not edit the evaluation set.**
 
-### 順帶一提，這裡的門檻我也猜錯了
+### Incidentally, the threshold here was wrong too
 
-我原本憑印象把近似重複的門檻設 0.5，想說鏡像站總該有一半一樣吧。實測：
+The near-duplicate threshold was initially set to 0.5 from intuition — surely a
+mirror site is at least half identical. Measured:
 
 ```
 shingle 長度   鏡像對   第二相似的一對   差距
@@ -308,33 +332,36 @@ shingle 長度   鏡像對   第二相似的一對   差距
      5         0.174       0.040       0.133
 ```
 
-**鏡像對只有 0.17-0.35。** 因為語料裡的 docs 站不是複製貼上，
-是改寫過的精簡版——真實世界的鏡像大多長這樣。
+Mirror pairs score only 0.17-0.35, because the docs site in this corpus is not
+copy-paste but a rewritten, condensed version — which is what most real-world
+mirrors look like.
 
-門檻 0.5 的後果是**去重一次都沒有生效**，而 nDCG 完全不會告訴你，
-因為「沒做事」和「做了但沒差」在平均分數上一模一樣。
-最後選 n=3、門檻 0.15（0.266 vs 0.065，兩邊都安全）。
+The consequence of a 0.5 threshold is that **dedup never fired once**, and nDCG
+would never tell you, because "did nothing" and "did something with no effect"
+look identical in an average. The final choice is n=3 with a threshold of 0.15
+(0.266 vs 0.065, safe on both sides).
 
 ---
 
-## Step 7：兩個沒有用的階段，也要說
+## Step 7: two stages that did nothing, reported anyway
 
-### 來源多樣性：完全沒有生效
+### Source diversity: no effect whatsoever
 
 ```
 + 品質訊號 0.845   →   + 來源多樣性 0.845
 ```
 
-一模一樣。因為這份語料每個網域最多只有 3 頁，
-八個查詢裡沒有任何一題會讓同一個網域在前五名出現三次。
+Identical. Because this corpus has at most 3 pages per domain, and none of the
+eight queries puts one domain in the top five three times.
 
-**它在這份語料上是死碼。** 留著是因為真實語料一定會用到
-（一個文件站可以有上萬頁），但我不會假裝它有貢獻。
+It is dead code on this corpus. It stays because real corpora certainly need it
+(a documentation site can have tens of thousands of pages), but pretending it
+contributed here would be dishonest.
 
-### LLM rerank：+0.013
+### LLM rerank: +0.013
 
-最後一個階段是讓模型重新排前 8 筆（`retrieve/rerank.ts`）。
-這是整條管線最貴的一步，所以預設關閉：
+The final stage has the model re-rank the top 8 (`retrieve/rerank.ts`). It is the
+most expensive step in the pipeline, so it is off by default:
 
 ```bash
 bun run lesson-22:eval --rerank
@@ -344,35 +371,39 @@ bun run lesson-22:eval --rerank
 + 來源多樣性 0.845   →   + LLM rerank 0.858
 ```
 
-八題裡只有一題變好（q2 中文題 0.774 → 0.876），其他七題完全沒動。
+Only one of the eight queries improved (q2, the Chinese one, 0.774 → 0.876); the
+other seven did not move at all.
 
-**為什麼這麼小？** 因為前面的階段已經把 14 篇文件裡的正確答案排上來了，
-rerank 沒有什麼可以修的。真實語料是**上百萬頁、候選品質參差**，
-那才是 rerank 發揮的地方。
+Why so small? Because the earlier stages already surfaced the right answers among
+14 documents, leaving rerank nothing to fix. Real corpora are **millions of pages
+with candidates of wildly varying quality**, and that is where rerank earns its
+keep.
 
-> 這裡的取捨要自己算：一次 query 多一次模型呼叫、多幾百毫秒延遲，
-> 換 +0.013。在這個語料上不值得，在你的語料上可能非常值得。
-> **重點是你有數字可以算，而不是憑「大家都說要 rerank」。**
+> Do this arithmetic yourself: one extra model call per query and a few hundred
+> milliseconds of latency in exchange for +0.013. Not worth it on this corpus,
+> possibly very worth it on yours. The point is having a number to compute rather
+> than "everyone says you need rerank".
 
-教科書的做法是 cross-encoder（`ms-marco-MiniLM` 那類），
-比 LLM 便宜好幾個數量級。這裡用 LLM 只是因為不想加模型權重依賴，
-**形狀是一樣的**：一個看得到 query 和文件全文的模型重新給分。
+The textbook approach is a cross-encoder (the `ms-marco-MiniLM` family), orders
+of magnitude cheaper than an LLM. An LLM is used here only to avoid a model-weight
+dependency; **the shape is the same**: a model that sees the query and the full
+document re-scores it.
 
 ---
 
-## Step 8：排序變好，agent 沒有變好 ★
+## Step 8: ranking improved, the agent did not
 
-這是我最意外的一段。
+This is the most surprising section.
 
-檢索品質離線量起來從 0.655 進步到 0.845，那 agent 呢？
-拿 Lesson 20 那個問題重跑：
+Retrieval quality measured offline went from 0.655 to 0.845 — and the agent? Rerun
+Lesson 20's question:
 
 ```bash
 bun run lesson-22
 > 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
 ```
 
-實測跑了兩次，兩次都是：
+Two runs, both:
 
 ```
 web_search × 14
@@ -380,14 +411,14 @@ fetch_page × 2
 [已達 16 步上限]        ← 沒有答案
 ```
 
-對照組：Lesson 21（同一個問題、同一個模型、比較差的排序）是
-11 次搜尋 + 2 次抓取，**有答出來**。
+Control: Lesson 21 (same question, same model, worse ranking) took 11 searches
+plus 2 fetches and **did answer**.
 
-**排序變好，這一題反而更糟。**
+Better ranking made this question worse.
 
-### 為什麼
+### Why
 
-看它搜了什麼：
+Look at what it searched for:
 
 ```
 web_search("HumanPlus" humanoid video retargeting github)
@@ -396,19 +427,20 @@ web_search("Open-TeleVision" github Unitree G1)
 web_search("GMR" "General Motion Retargeting" humanoid github)
 ```
 
-`HumanPlus`、`dex-retargeting`、`Open-TeleVision`、`GMR` ——
-**這些專案在語料裡完全不存在**，它們來自模型的訓練資料。
+`HumanPlus`, `dex-retargeting`, `Open-TeleVision`, `GMR` — **none of these
+projects exist in the corpus**. They come from the model's training data.
 
-它不是在「找答案」，它是在「找它記得的東西的連結」。
-第一次搜尋其實就把正確答案排在前面了，但模型沒有停下來，
-因為沒有任何東西告訴它「你已經找到了，可以停了」。
+It is not looking for an answer; it is looking for links to things it remembers.
+The very first search already had the right answer near the top, but the model did
+not stop, because nothing told it "you have found it, you can stop".
 
 ```text
 排序解決的是：「回來的東西好不好」
 排序不解決的是：「要搜幾次、什麼時候停、已經搜過什麼」
 ```
 
-第二件事完全在 agent 這一側，跟檢索無關。**這就是 Lesson 24 的題目**：
+The second is entirely on the agent's side and has nothing to do with retrieval.
+**That is Lesson 24's subject:**
 
 ```ts
 type ResearchState = {
@@ -419,111 +451,122 @@ type ResearchState = {
 }
 ```
 
-> 這一課還是有值得記住的結論：**檢索品質是離線可量、可回歸測試的，
-> 這件事本身就很有價值。** 你不會想在 agent 行為這種充滿雜訊的東西上
-> 去調 BM25 的參數。
+> This lesson still has a conclusion worth keeping: **retrieval quality is
+> offline-measurable and regression-testable, and that alone is valuable.** You
+> do not want to tune BM25 parameters against something as noisy as agent
+> behaviour.
 >
-> **先把可以離線量的部分量到滿意，再去處理 agent 的行為。**
+> Get the offline-measurable part to a level you are happy with first, then deal
+> with agent behaviour.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `這段文字不在 embedding 快取裡` | 用了新的 query 而且沒有金鑰 | `bun run lesson-22:embed`，或改用評估集裡的 query |
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
-| 分數跟 README 不一樣 | embedding 模型換了 | 快取裡有 model 欄位，確認是不是 `gemini-embedding-001` |
-| `--rerank` 報錯 | 這一階段要金鑰 | 不加 `--rerank` 就好，預設是關的 |
-| 新鮮度分數怪怪的 | 「今天」是寫死的 2026-07-27 | 見 `rank.ts` 的 `TODAY`，這是為了可重現 |
+| `這段文字不在 embedding 快取裡` | a new query and no key | `bun run lesson-22:embed`, or use a query from the evaluation set |
+| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| the scores differ from the README | the embedding model changed | the cache has a model field; check it is `gemini-embedding-001` |
+| `--rerank` errors | that stage needs a key | leave `--rerank` off; it is off by default |
+| the freshness scores look odd | "today" is hardcoded to 2026-07-27 | see `TODAY` in `rank.ts`; it is there for reproducibility |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把 MIN_REPEATS 拿掉 ⭐
+### Exercise 1: remove MIN_REPEATS ⭐
 
-`retrieve/rank.ts` 把那行 `if (top < MIN_REPEATS) return 0` 註解掉，
-重跑評估。
+Comment out `if (top < MIN_REPEATS) return 0` in `retrieve/rank.ts` and re-run
+the evaluation.
 
-看 q8 從 1.000 掉到 0.131，然後看平均分數**還是上升的**。
-**這題兩分鐘，但它會讓你永遠記得為什麼要逐題看。**
+Watch q8 fall from 1.000 to 0.131 while the average **still rises**. Two minutes
+of work, and you will never forget why per-query numbers matter.
 
-### 練習 2：調 RRF 的 K ⭐
+### Exercise 2: tune RRF's K ⭐
 
-K 從 60 改成 10 和 200，看 nDCG 怎麼變。
+Change K from 60 to 10 and to 200, and watch nDCG move.
 
-思考：K 變小的時候，第一名和第二名的差距是變大還是變小？
-什麼情況下你會想要一個很小的 K？
+To think about: as K shrinks, does the gap between first and second place widen or
+narrow? When would you want a very small K?
 
-### 練習 3：加一個「內容深度」訊號 ⭐⭐
+### Exercise 3: add a "content depth" signal ⭐⭐
 
-現在的訊號都不管頁面有多少實質內容。加一個：
-正文長度、有沒有具體數字、有沒有版本號或日期。
+None of the current signals care how much substance a page has. Add one: body
+length, presence of concrete numbers, presence of version numbers or dates.
 
-先想清楚：**這個訊號會不會又對某一類頁面有系統性偏誤？**
-（回想 Step 5。LICENSE 檔很短，但它就是該這麼短。）
+Think first: will this signal also be systematically biased against some class of
+page? (Recall Step 5. A LICENSE file is short, and it is supposed to be.)
 
-加完一定要跑評估，而且要逐題看。
+Run the evaluation afterwards, per query.
 
-### 練習 4：把 dense 改成 chunk 級 ⭐⭐
+### Exercise 4: make dense chunk-level ⭐⭐
 
-現在一篇文件是一個向量。長文件會被「平均」成一團什麼都不像的東西
-（叫 dilution）。改成用 Lesson 21 的 `chunkText` 切塊、每塊一個向量，
-用「最相似的那一塊」代表整篇。
+Right now one document is one vector. A long document gets "averaged" into
+something resembling nothing (this is called dilution). Switch to Lesson 21's
+`chunkText`, one vector per chunk, representing the document by its most similar
+chunk.
 
-觀察：在這份短文件語料上有沒有差？（可能沒有——那就誠實記下來。）
+Observe: does it matter on this corpus of short documents? (Possibly not — then
+record that honestly.)
 
-### 練習 5：換一個 embedding 模型 ⭐⭐
+### Exercise 5: change embedding model ⭐⭐
 
-`EMBED_MODEL=text-embedding-3-small` 配 OpenAI 金鑰，重算快取再跑評估。
+Use `EMBED_MODEL=text-embedding-3-small` with an OpenAI key, rebuild the cache,
+and re-run the evaluation.
 
-這題在練的是**回歸測試**：換模型是一個很大的改動，
-你要能回答「換完之後到底變好還變壞」，而不是「感覺差不多」。
+This exercise practises **regression testing**: changing model is a large change,
+and you need to be able to answer "did it get better or worse" rather than "feels
+about the same".
 
-### 練習 6：讓 rerank 值回票價 ⭐⭐⭐
+### Exercise 6: make rerank worth its price ⭐⭐⭐
 
-Step 7 說 rerank 只加了 0.013。想辦法讓它有意義：
+Step 7 says rerank added only 0.013. Find a way to make it matter:
 
-1. 把 `CANDIDATES` 從 10 調大，讓 rerank 有比較差的候選可以修
-2. 或者把品質訊號關掉，讓 rerank 去做訊號在做的事
+1. Raise `CANDIDATES` above 10 so rerank has worse candidates to fix
+2. Or turn the quality signals off and let rerank do their job
 
-哪一種比較好？**便宜的確定性規則和貴的模型，各自該負責什麼？**
-（回想 Lesson 6：規則負責 recall，模型負責 precision。）
+Which is better? What should cheap deterministic rules be responsible for, and
+what should an expensive model? (Recall Lesson 6: rules for recall, the model for
+precision.)
 
 ---
 
-## 對照原始碼
+## Compared with the sources
 
-| 這一課的概念 | 對照 |
+| Concept in this lesson | Reference |
 |---|---|
-| sparse + dense + graph 的混合索引 | [txtai](https://github.com/neuml/txtai) |
-| 向量索引本身（HNSW、payload filter） | [Qdrant](https://github.com/qdrant/qdrant) |
+| hybrid sparse + dense + graph indexing | [txtai](https://github.com/neuml/txtai) |
+| the vector index itself (HNSW, payload filters) | [Qdrant](https://github.com/qdrant/qdrant) |
 | RRF | Cormack et al., 2009 |
-| 多來源聚合後的結果正規化 | [SearXNG](https://github.com/searxng/searxng)（Lesson 23） |
-| 確定性評分、逐題回歸 | 本系列 [Lesson 7](../lesson-07-evaluation/) |
+| result normalisation after multi-source aggregation | [SearXNG](https://github.com/searxng/searxng) (Lesson 23) |
+| deterministic scoring, per-query regression | this series' [Lesson 7](../lesson-07-evaluation/) |
 
-> ⚠️ 這幾個專案我還沒逐一讀過原始碼，只標概念對應（設計原則 4）。
+> The source of these projects has not been read line by line, so only concepts
+> are matched up (design principle 4).
 
-一個值得記住的定位：**Qdrant 是零件，txtai 是組裝好的一層，
-這一課做的是把零件自己組一次。** 你不會想在 production 手寫 HNSW，
-但你會需要知道 top-k 出來之後還有多少事情要做——
-那些事情沒有任何一個向量資料庫會幫你做。
+One positioning worth remembering: **Qdrant is a part, txtai is an assembled
+layer, and this lesson assembles the parts by hand once.** You would not
+hand-write HNSW in production, but you do need to know how much work remains
+after top-k comes back — and no vector database does any of it for you.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 23: 對照真實原始碼](../lesson-23-real-world/)**：Step 8 那個
-「檢索變好、agent 沒有變好」的結果，不是排序能解決的。
-排序決定「回來的東西好不好」，不決定「要搜幾次、什麼時候停」。
+[Lesson 23: against the real source](../lesson-23-real-world/): Step 8's result,
+where retrieval improved and the agent did not, is not something ranking can fix.
+Ranking decides how good what comes back is, not how many searches to run or when
+to stop.
 
-所以下一課不寫新東西，先去讀四個真實專案的原始碼
-（deep-research、gpt-researcher、Firecrawl、Crawl4AI），
-把它們的 query 規則抄回來，**只改 system prompt**，再跑一次同一個問題。
+So the next lesson writes nothing new. It reads the source of four real projects
+(deep-research, gpt-researcher, Firecrawl, Crawl4AI), copies their query rules
+back, **changes only the system prompt**, and runs the same question again.
 
-> 📌 **這一課原本的規劃是「自己做一個 Tavily-lite」**，把 Lesson 20-22
-> 包成一個 HTTP 服務。**那個規劃後來被否決了**，理由記在
-> [docs/TODO.md](../docs/TODO.md)：拆開來看，「包成服務」裡真正在學
-> AI Search 的部分很少，`POST /search` 和部署是 web 開發；
-> 而「一次抓幾頁、延遲預算怎麼分」其實是**呼叫端**的決定，屬於 Lesson 24。
+> 📌 The original plan for that lesson was "build a Tavily-lite", wrapping
+> Lessons 20-22 into an HTTP service. **That plan was rejected**, with the reason
+> recorded in [docs/TODO.md](../docs/TODO.md): taken apart, very little of
+> "wrapping it as a service" is actually learning AI search — `POST /search` and
+> deployment are web development, while "how many pages to fetch at once, how to
+> divide a latency budget" is really a **caller-side** decision, belonging to
+> Lesson 24.

@@ -1,8 +1,8 @@
 /**
- * 權限引擎的決策順序（Lesson 8）。
+ * The permission engine's decision order (Lesson 8).
  *
- * 這一組測試守的是**判斷順序**。順序錯了就是安全漏洞，
- * 而順序錯誤不會讓任何東西壞掉，所以只能靠測試抓。
+ * This group guards **the order of the checks**. A wrong order is a security hole,
+ * and a wrong order breaks nothing, so only a test can catch it.
  */
 
 import assert from "node:assert/strict";

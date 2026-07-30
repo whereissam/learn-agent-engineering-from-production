@@ -1,24 +1,24 @@
 /**
- * 一個小到可以整份讀完的搜尋引擎。
+ * A search engine small enough to read whole.
  *
- * 它只做一件事：把 query 拿來跟語料比對，回傳排序過的
- * 「標題 + 網址 + 一小段 snippet」。**沒有正文。**
+ * It does one thing: match a query against the corpus and return ranked
+ * "title plus URL plus a short snippet". **No body text.**
  *
- * 這個限制是刻意的，而且它就是真實世界的樣子：
- * Google、Bing、SearXNG 回給你的都是這三樣東西。要拿到正文，
- * 你得自己再去把網頁抓下來（Lesson 21）。
+ * That limit is deliberate, and it is what the real world looks like:
+ * Google, Bing and SearXNG all return those three things. To get the body,
+ * you have to go and fetch the page yourself (Lesson 21).
  *
- * 排序用 BM25。為什麼不是「丟進向量資料庫算 cosine 相似度」？
- * 因為 BM25 是 1994 年的東西，到今天仍然是很多搜尋系統的骨幹，
- * 而且它便宜、可解釋、不用模型。Lesson 22 會加上 dense retrieval，
- * 你會看到兩者各自擅長什麼——但要先有一個 baseline 才比得出來。
+ * Ranking uses BM25. Why not "throw it in a vector database and compute cosine similarity"?
+ * Because BM25 is from 1994 and remains the backbone of many search systems today,
+ * and it is cheap, explainable and model-free. Lesson 22 adds dense retrieval and
+ * you will see what each is good at — but a baseline has to exist before anything can be compared.
  *
- * 直接跑跑看（不需要 API key，不需要模型）：
+ * Run it directly (no API key and no model needed):
  *
  *   bun run lesson-20-search-agent/search/engine.ts "unitree g1 retargeting"
  *   bun run lesson-20-search-agent/search/engine.ts "把影片動作轉到人形機器人"
  *
- * 第二個指令會回傳 0 筆。這不是 bug，見 README 的 Step 3。
+ * The second command returns 0 results. That is not a bug; see README Step 3.
  */
 
 import { readFileSync } from "node:fs";
@@ -27,20 +27,20 @@ import type { IndexedPage } from "../corpus/generate.ts";
 
 const INDEX_PATH = resolve(import.meta.dirname, "../corpus/index.json");
 
-/** BM25 的兩個旋鈕。這是文獻上的常用預設值，不需要調。 */
+/** BM25's two knobs. These are the literature's usual defaults and need no tuning. */
 const K1 = 1.5;
 const B = 0.75;
 
 /**
- * 標題權重。
+ * Title weighting.
  *
- * 做法很土：把標題的字重複幾次再丟進索引。
- * 真的搜尋引擎會用 field-weighted BM25（BM25F），但形狀是一樣的：
- * **出現在標題比出現在正文重要。**
+ * The implementation is crude: repeat the title's words a few times before indexing.
+ * A real search engine uses field-weighted BM25 (BM25F), and the shape is the same:
+ * **appearing in the title matters more than appearing in the body.**
  */
 const TITLE_BOOST = 3;
 
-/** snippet 取幾個字。真實搜尋引擎大約給你 150-200 個字元。 */
+/** How many characters a snippet takes. Real search engines give you about 150-200. */
 const SNIPPET_WORDS = 32;
 
 export interface SearchHit {
@@ -49,7 +49,7 @@ export interface SearchHit {
 	title: string;
 	site: string;
 	published: string;
-	/** 正文的一小片。**不是整頁。** */
+	/** A small slice of the body. **Not the whole page.** */
 	snippet: string;
 	score: number;
 }
@@ -57,17 +57,17 @@ export interface SearchHit {
 interface Doc {
 	page: IndexedPage;
 	tokens: string[];
-	/** term → 這篇出現幾次 */
+	/** term → how many times it occurs in this document */
 	freq: Map<string, number>;
 	length: number;
 }
 
 /**
- * 斷詞。
+ * Tokenisation.
  *
- * 注意這個正規表示式只認得 a-z 和 0-9。
- * 中文、日文、韓文丟進來會得到空陣列——這是關鍵字檢索的真實限制，
- * 不是這份程式偷懶。Lesson 22 的 dense retrieval 才有辦法處理。
+ * Note this regular expression only recognises a-z and 0-9.
+ * Chinese, Japanese and Korean produce an empty array — a real limit of keyword retrieval,
+ * not laziness in this code. Only Lesson 22's dense retrieval can handle it.
  */
 export function tokenize(text: string): string[] {
 	return text
@@ -76,7 +76,7 @@ export function tokenize(text: string): string[] {
 		.filter((t) => t.length > 1 && !STOPWORDS.has(t));
 }
 
-/** 最常見的英文虛詞。留著只會讓每一篇的分數一起變高，沒有鑑別力。 */
+/** The most common English function words. Keeping them only raises every document's score equally, with no discrimination. */
 const STOPWORDS = new Set([
 	"the", "and", "for", "are", "but", "not", "you", "all", "can", "her", "was", "one", "our",
 	"out", "his", "has", "had", "how", "its", "who", "did", "yes", "she", "him", "that", "this",
@@ -101,7 +101,7 @@ function loadDocs(): Doc[] {
 
 	const pages = JSON.parse(raw) as IndexedPage[];
 	cached = pages.map((page) => {
-		// 標題重複 TITLE_BOOST 次 = 標題的字比較重要
+			// Repeating the title TITLE_BOOST times = title words matter more
 		const tokens = [
 			...Array.from({ length: TITLE_BOOST }, () => tokenize(page.title)).flat(),
 			...tokenize(page.text),
@@ -116,18 +116,18 @@ function loadDocs(): Doc[] {
 /**
  * BM25。
  *
- * 白話版：一個字在**這篇**出現越多次分數越高（但有邊際遞減），
- * 在**所有篇**出現越多次分數越低（到處都有的字沒有鑑別力），
- * 而且短文章比長文章佔便宜要被扣回來（不然塞很長的頁面就贏了）。
+ * In plain words: a word occurring more often in **this** document scores higher (with diminishing returns),
+ * a word occurring in **more** documents scores lower (a word that is everywhere has no discrimination),
+ * and short documents' advantage over long ones is compensated back (or a very long page would win).
  *
- * 就這樣。三十年來大家還在用它，因為它便宜又難打敗。
+ * That is all. People have used it for thirty years because it is cheap and hard to beat.
  */
 export function search(query: string, maxResults = 5): SearchHit[] {
 	const docs = loadDocs();
 	const terms = tokenize(query);
 
-	// query 斷不出任何字（例如純中文）→ 沒有結果。
-	// 這不是「找不到相關內容」，是「這個檢索方式看不懂這個 query」。
+	// The query tokenises to nothing (pure Chinese, say) → no results.
+	// That is not "no relevant content found" but "this retrieval method cannot read this query".
 	if (terms.length === 0) return [];
 
 	const avgLength = docs.reduce((sum, d) => sum + d.length, 0) / docs.length;
@@ -138,7 +138,7 @@ export function search(query: string, maxResults = 5): SearchHit[] {
 			const tf = doc.freq.get(term) ?? 0;
 			if (tf === 0) continue;
 
-			// 有幾篇文章含這個字
+			// How many documents contain this word
 			const df = docs.filter((d) => d.freq.has(term)).length;
 			const idf = Math.log(1 + (docs.length - df + 0.5) / (df + 0.5));
 
@@ -165,14 +165,14 @@ export function search(query: string, maxResults = 5): SearchHit[] {
 }
 
 /**
- * 挑一段最像「有回答到 query」的文字當 snippet。
+ * Pick the passage that best "answers the query" as the snippet.
  *
- * 真實搜尋引擎也是這樣做的，而這正是 snippet 會騙人的原因：
- * **它挑的是「最符合 query 的那一段」，不是「最重要的那一段」。**
+ * Real search engines do the same, and that is exactly why a snippet deceives:
+ * **it picks the passage that best matches the query, not the most important passage.**
  *
- * 如果一篇文章開頭寫「支援 G1」、第四段寫「G1 已棄用」，
- * 你的 query 是「G1 支援」，snippet 大概率會挑到開頭那句。
- * 這不是誰在說謊，是摘要這件事本身就會丟資訊。
+ * If an article says "supports the G1" at the top and "the G1 is deprecated" in its fourth paragraph,
+ * and your query is "G1 support", the snippet will very likely pick the opening.
+ * Nobody is lying; summarisation itself loses information.
  */
 function makeSnippet(text: string, terms: Set<string> | string[]): string {
 	const wanted = new Set(terms);
@@ -200,7 +200,7 @@ function makeSnippet(text: string, terms: Set<string> | string[]): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLI：不需要模型也能玩排序
+// CLI: play with ranking without a model
 // ─────────────────────────────────────────────────────────────
 
 if (import.meta.main) {

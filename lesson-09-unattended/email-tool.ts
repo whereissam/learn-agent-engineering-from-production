@@ -1,15 +1,15 @@
 /**
- * 一個「真的會留下痕跡」的 EXTERNAL 工具。
+ * An EXTERNAL tool that **really leaves a trace**.
  *
- * 為什麼不用假的 console.log：因為 Lesson 8 Step 7 學到一件事，
- * **模型會謊報自己完成了被拒絕的動作**。要抓到這種事，
- * 側效必須是可以獨立驗證的，不能只看模型怎麼說。
+ * Why not a fake console.log: because Lesson 8 Step 7 taught something —
+ * **a model falsely reports completing an action that was refused**. Catching that
+ * requires the side effect to be independently verifiable rather than taken from what the model says.
  *
- * 所以 send_email 會真的寫一個檔案到 `outbox/`。
- * 跑完之後 `ls outbox/` 就是事實，模型講什麼都不影響它。
+ * So send_email really writes a file into `outbox/`.
+ * Afterwards, `ls outbox/` is the fact, and nothing the model says changes it.
  *
- * （當然它不會真的寄信。重點是「有沒有留下痕跡」這件事本身，
- * 不是 SMTP。）
+ * (It does not really send email, of course. The point is leaving a trace at all,
+ * not SMTP.)
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -41,7 +41,7 @@ export const sendEmailTool: Tool = {
 		if (!to) throw new Error("send_email needs a `to` address");
 
 		mkdirSync(OUTBOX, { recursive: true });
-		// 檔名用內容雜湊而不是時間戳，因為 demo 要可重現。
+			// The filename is a content hash rather than a timestamp, so the demo is reproducible.
 		const id = simpleHash(`${to}|${subject}|${body}`);
 		const path = resolve(OUTBOX, `${id}.json`);
 		writeFileSync(path, JSON.stringify({ to, subject, body }, null, 2));
@@ -50,7 +50,7 @@ export const sendEmailTool: Tool = {
 	},
 };
 
-/** `send_email` 這個名字在 shared/permissions/risk.ts 的 BASE 表裡已經是 EXTERNAL。 */
+/** The name `send_email` is already EXTERNAL in the BASE table in shared/permissions/risk.ts. */
 export const OUTBOX_DIR = OUTBOX;
 
 function simpleHash(text: string): string {

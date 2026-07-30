@@ -1,19 +1,19 @@
 /**
- * 內建的檔案式記憶：MEMORY.md 與 USER.md。
+ * The built-in file-based memory: MEMORY.md and USER.md.
  *
- * Hermes 把這兩個檔案當成一等公民。為什麼是 Markdown 檔而不是資料庫？
+ * Hermes treats these two files as first-class. Why Markdown files rather than a database?
  *
- *   1. **你看得懂、改得動。** 記憶出錯的時候你可以直接編輯檔案，
- *      不用寫 SQL
- *   2. **可以進版控。** 你能 diff「agent 這週學到了什麼」
- *   3. **agent 自己也能讀寫。** 它已經有 read_file / edit_file 了
+ *   1. **You can read and edit them.** When memory goes wrong you edit the file directly
+ *      rather than writing SQL
+ *   2. **They can be versioned.** You can diff "what the agent learned this week"
+ *   3. **The agent can read and write them too.** It already has read_file / edit_file
  *
- * 兩個檔案的分工：
- *   USER.md    關於「你是誰」，變動慢，整份放進 system prompt
- *   MEMORY.md  關於「做過什麼」，會長大，只放相關的片段
+ * The division of labour:
+ *   USER.md    about who you are; changes slowly; goes into the system prompt whole
+ *   MEMORY.md  about what has been done; grows; only relevant fragments are included
  *
- * 這個分工很重要。USER.md 小而穩定，適合放進 system prompt 讓它被快取；
- * MEMORY.md 會無限成長，整份塞進去遲早爆 context。
+ * That division matters. USER.md is small and stable, suitable for the system prompt where it can be cached;
+ * MEMORY.md grows without bound, and putting all of it in will eventually blow the context.
  */
 
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -22,9 +22,9 @@ import type { ToolSpec } from "../providers/types.ts";
 import type { MemoryProvider } from "./provider.ts";
 
 export interface FileMemoryOptions {
-	/** 放記憶檔案的目錄。 */
+	/** The directory holding the memory files. */
 	dir: string;
-	/** 回想時最多帶幾條。 */
+	/** How many entries recall may bring back at most. */
 	maxRecall?: number;
 }
 
@@ -65,11 +65,11 @@ export class FileMemoryProvider implements MemoryProvider {
 	}
 
 	/**
-	 * 靜態區塊：整份 USER.md。
+		 * The static block: all of USER.md.
 	 *
-	 * 注意這裡**沒有**包圍欄。圍欄是 manager 的責任，
-	 * 而且 system prompt 區塊跟 prefetch 區塊的處理方式不同：
-	 * system prompt 是你自己寫的內容，prefetch 是回想出來的內容。
+		 * Note there is **no** fence here. The fence is the manager's responsibility,
+		 * and the system prompt block and the prefetch block are handled differently:
+		 * the system prompt is content you wrote, and prefetch is content that was recalled.
 	 */
 	systemPromptBlock(): string {
 		if (!this.userProfile.trim()) return "";
@@ -77,11 +77,11 @@ export class FileMemoryProvider implements MemoryProvider {
 	}
 
 	/**
-	 * 回想。
+		 * Recall.
 	 *
-	 * 這裡用最笨的關鍵字比對。真實系統會用向量檢索或 FTS5
-	 * （Lesson 17 會做），但**先做笨的版本很有價值**：
-	 * 你會發現大部分時候它就夠用，而且你能解釋為什麼某條記憶被叫出來。
+		 * The dumbest possible keyword matching. A real system uses vector retrieval or FTS5
+		 * (Lesson 17 does), and **doing the dumb version first is valuable**:
+		 * you find it is usually enough, and you can explain why a given memory was recalled.
 	 */
 	async prefetch(query: string): Promise<string> {
 		if (this.entries.length === 0) return "";
@@ -101,19 +101,19 @@ export class FileMemoryProvider implements MemoryProvider {
 	}
 
 	/**
-	 * 每一輪之後寫入。
+		 * Written after each turn.
 	 *
-	 * **刻意不自動寫。** 這是一個重要的設計選擇：
+		 * **Deliberately does not write automatically.** An important design choice:
 	 *
-	 * 自動把每一輪都記下來的話，記憶會被垃圾塞滿（「好的」「謝謝」），
-	 * 而且更糟的是，**使用者或網頁講的任何話都會變成永久記憶**。
-	 * 那就是本課 manager.ts 講的注入面。
+		 * recording every turn automatically fills memory with rubbish ("okay", "thanks"),
+		 * and worse, **anything a user or a web page says becomes permanent memory**.
+		 * That is the injection surface manager.ts describes.
 	 *
-	 * 所以寫入只透過明確的 remember 工具，由模型決定什麼值得記。
-	 * 想更嚴格的話，可以讓它走 Lesson 8-9 的批准流程。
+		 * So writes go only through an explicit remember tool, with the model deciding what is worth keeping.
+		 * For something stricter, route it through Lessons 8-9's approval flow.
 	 */
 	async syncTurn(_userMessage: string, _assistantMessage: string): Promise<void> {
-		// 沒有自動寫入，見上面註解
+			// No automatic writes; see the comment above
 	}
 
 	toolSpecs(): ToolSpec[] {
@@ -145,8 +145,8 @@ export class FileMemoryProvider implements MemoryProvider {
 		const fact = String(args.fact ?? "").trim();
 		if (!fact) throw new Error("fact 不能是空的");
 
-		// 寫入前也要消毒。記憶內容如果含圍欄標籤，之後回想時
-		// 就有機會偽造系統訊息，所以在入口就擋掉。
+			// Sanitise before writing too. If memory content contains fence tags, a later recall
+			// gets a chance to forge a system message, so it is blocked at the entrance.
 		const clean = fact.replace(/<\/?\s*memory-context\s*>/gi, "");
 
 		const entry: MemoryEntry = { timestamp: new Date().toISOString(), text: clean };
@@ -158,14 +158,14 @@ export class FileMemoryProvider implements MemoryProvider {
 		return `記住了：${clean}`;
 	}
 
-	/** 給示範用：直接設定使用者側寫。 */
+		/** For demonstrations: set the user profile directly. */
 	async setUserProfile(text: string): Promise<void> {
 		this.userProfile = text;
 		await mkdir(this.dir, { recursive: true });
 		await writeFile(this.userPath, text, "utf8");
 	}
 
-	/** 給示範用：直接塞一條記憶（模擬「以前記過的東西」）。 */
+		/** For demonstrations: insert a memory directly (simulating "something remembered earlier"). */
 	async seed(text: string): Promise<void> {
 		this.entries.push({ timestamp: new Date().toISOString(), text });
 	}
@@ -194,7 +194,7 @@ function parseEntries(raw: string): MemoryEntry[] {
 	return out;
 }
 
-/** 極簡斷詞。中英文都切一下，夠用就好。 */
+/** Minimal tokenisation. Split both Chinese and English enough to be useful. */
 function tokenize(text: string): string[] {
 	return text
 		.toLowerCase()

@@ -1,11 +1,11 @@
 /**
- * 混合檢索的 CLI。
+ * The hybrid retrieval CLI.
  *
- *   bun run lesson-27                          跑一組示範查詢
- *   bun run lesson-27 -- "你的問題"             查一個
+ *   bun run lesson-27                          run a set of demonstration queries
+ *   bun run lesson-27 -- "your question"       query one thing
  *
- * 不需要金鑰：本地那一側純 BM25，網頁那一側的 embedding 已經有快取，
- * 真的都沒有的話會自動退化成純關鍵字（而且會講出來）。
+ * No key needed: the local side is pure BM25 and the web side's embeddings are cached,
+ * and with neither available it degrades to pure keyword automatically (and says so).
  */
 
 import { hybridSearch } from "./hybrid.ts";
@@ -16,10 +16,10 @@ const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 /**
- * 三個示範查詢，各自代表一種情況。
+ * Three demonstration queries, each representing a situation.
  *
- * 挑這三個是因為它們的**來源分佈不一樣**，而那個分佈本身就是資訊：
- * 如果一個查詢只回本地，代表網頁索引沒有涵蓋這個主題（或反過來）。
+ * These three were chosen because their **source distributions differ**, and that distribution is itself information:
+ * a query that returns only local results means the web index does not cover this topic (or the reverse).
  */
 const DEMOS = [
 	{ query: "chunk 大小要怎麼選", note: "預期：只有本地（網頁語料是機器人主題）" },

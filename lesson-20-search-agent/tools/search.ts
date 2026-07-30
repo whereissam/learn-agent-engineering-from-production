@@ -1,19 +1,19 @@
 /**
- * 這一課唯一的工具：web_search。
+ * This lesson's only tool: web_search.
  *
- * 只有一個工具，而且它只回傳 snippet。這個「殘缺」是刻意設計的：
- * 你要先親眼看到只有搜尋的 agent 會卡在哪裡，
- * Lesson 21 加上 fetch_page 之後才會知道那個工具在解決什麼問題。
+ * One tool, and it returns only snippets. That incompleteness is deliberate:
+ * you have to see for yourself where a search-only agent gets stuck
+ * before Lesson 21's fetch_page can show you what that tool solves.
  *
- * 工具的 description 有兩個地方值得注意，兩個都回應 Lesson 6 的原則：
+ * Two things in the tool's description are worth noting, both echoing Lesson 6's principles:
  *
- *   1. **主動說出資料的限制**（Lesson 6 Step 4：工具要報告資料品質）
- *      snippet 不等於整頁，而且它是「最符合 query 的那一段」，
- *      不是「這一頁的結論」。不講，模型就會把 snippet 當成整頁。
+ *   1. **State the data's limits unprompted** (Lesson 6 Step 4: tools report data quality)
+ *      A snippet is not the page, and it is "the passage best matching the query",
+ *      not "the page's conclusion". Unstated, the model treats a snippet as the page.
  *
- *   2. **錯誤訊息要說下一步**（Lesson 6 Step 5）
- *      查不到東西的時候不要只回「no results」，
- *      要告訴模型可以怎麼改 query。
+ *   2. **An error message must state the next step** (Lesson 6 Step 5)
+ *      When nothing is found, do not just return "no results";
+ *      tell the model how to change the query.
  */
 
 import type { Tool } from "../../shared/tools/registry.ts";
@@ -61,8 +61,8 @@ export const webSearchTool: Tool = {
 		const hits = search(query, maxResults);
 
 		if (hits.length === 0) {
-			// 空結果不是例外，是一個要讓模型能據此行動的正常結果。
-			// 最常見的原因有兩個，兩個都寫出來，並且說「下一步做什麼」。
+				// An empty result is not an exception but a normal result the model must be able to act on.
+				// The two most common causes are both written out, along with "what to do next".
 			const terms = tokenize(query);
 			const reason =
 				terms.length === 0

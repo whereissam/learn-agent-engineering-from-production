@@ -1,20 +1,20 @@
 /**
- * Lesson 29 - 模型自述不是完成的證據
+ * Lesson 29 - a model's self-report is not evidence of completion
  *
- * 五個情境，每個跑完都印同一張表：
+ * Five scenarios, each printing the same table when it finishes:
  *
- *     模型說     assistant 最後那段文字
- *     工具說     每次呼叫回報了什麼
- *     檔案系統說 snapshot 之間實際變了哪些檔案
+ *     the model says      the assistant's final passage
+ *     the tools say       what each call reported
+ *     the filesystem says which files really changed between snapshots
  *
- * 執行：
- *   bun run lesson-29                         # 五個情境（不用 key）
- *   bun run lesson-29 revert                  # 只跑一個
- *   CAPTURE=first-tool bun run lesson-29      # 把基準點抓晚一步，看情境 5 壞掉
+ * Run:
+ *   bun run lesson-29                         # five scenarios (no key)
+ *   bun run lesson-29 revert                  # one scenario only
+ *   CAPTURE=first-tool bun run lesson-29      # take the baseline late and watch scenario 5 break
  *
- * 判定是確定性的：`evidence.ts` 的 `compare()` 做三個集合運算。
- * 沒有 LLM 裁判 —— 一課主張「不要拿模型的話當證據」，
- * 卻用模型來判斷結果，那是自打嘴巴。
+ * The verdict is deterministic: `compare()` in `evidence.ts` does three set operations.
+ * No LLM judge — a lesson claiming "do not treat a model's words as evidence"
+ * that used a model to judge the result would contradict itself.
  */
 
 import { PermissionEngine } from "../shared/permissions/engine.ts";
@@ -62,8 +62,8 @@ const registry = new ToolRegistry([
 ]);
 
 async function runScenario(scenario: Scenario): Promise<Finding[]> {
-	// 每個情境都從乾淨的 workspace 開始。上一個情境留下的變更
-	// 會直接混進這一個的 patch，那樣量到的東西就沒有意義了。
+		// Every scenario starts from a clean workspace. Changes left by the previous scenario
+		// would go straight into this one's patch, and the measurement would mean nothing.
 	await resetWorkspace();
 
 	const snapshot = new Snapshot({ workspace: WORKSPACE, gitdir: GITDIR });
@@ -174,7 +174,7 @@ async function main(): Promise<void> {
 		console.log(`   ${row.id.padEnd(20)}${flag}          ${dim(row.kinds)}`);
 	}
 
-	// 跑完把 workspace 復原，這樣 `git status` 是乾淨的。
+		// Restore the workspace afterwards, so `git status` is clean.
 	await resetWorkspace();
 	console.log(dim("\n（workspace 已復原）"));
 }

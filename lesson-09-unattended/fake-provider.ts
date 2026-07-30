@@ -1,18 +1,18 @@
 /**
- * Lesson 9 專用的 fake provider。
+ * The fake provider specific to Lesson 9.
  *
- * 跟 Lesson 8 那份同樣的理由：共用的腳本只會呼叫唯讀工具，
- * 永遠不會走到「需要批准 → 沒人在場 → 停住」這條路。
+ * The same reason as Lesson 8's: the shared script only calls read-only tools
+ * and never walks the path "needs approval → nobody present → pause".
  *
- * 劇本只有兩拍，因為這一課要看的是**兩拍中間那段空白**：
+ * The script has two beats, because what this lesson looks at is **the gap between them**:
  *
- *   turn 0  send_email(...)   → EXTERNAL，沒人在場 → 進 inbox，agent 停住
- *   （…八小時…）
- *   turn 1  拿到工具結果，跟使用者報告
+ *   turn 0  send_email(...)   → EXTERNAL, nobody present → into the inbox, the agent pauses
+ *   (…eight hours…)
+ *   turn 1  receives the tool result and reports to the user
  *
- * turn 1 是重點。批准回來之後，**模型要消化那個結果並收尾**，
- * 這件事在原本的 demo 裡是 `console.log` 假裝的，看不到模型
- * 到底有沒有正確理解「剛剛那封信寄成功了 / 被拒絕了」。
+ * Turn 1 is the point. Once approval comes back, **the model has to digest that result and finish**,
+ * which the original demo faked with a `console.log`, hiding whether the model
+ * correctly understood "that email was sent / was refused".
  */
 
 import type {
@@ -62,11 +62,11 @@ export function unattendedFakeProvider(): StreamingProvider {
 				return;
 			}
 
-			// 第二拍：根據工具結果收尾。
+				// Beat two: finish based on the tool result.
 			//
-			// 這裡刻意讀了 messages 的最後一則，因為腳本 provider 也應該
-			// **對結果有反應**，不然它就變成在演戲，而這一課要示範的
-			// 正好就是「模型有沒有正確消化那個結果」。
+				// This deliberately reads the last of the messages, because a scripted provider should also
+				// **react to the result**, or it is merely acting — and what this lesson demonstrates
+				// is exactly "did the model digest that result correctly".
 			const last = request.messages[request.messages.length - 1];
 			const denied =
 				last?.role === "toolResult" && last.results.some((r) => r.isError);

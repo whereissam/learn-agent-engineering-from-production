@@ -1,14 +1,14 @@
 /**
- * OpenAI / Gemini 的 streaming 實作。
+ * The streaming implementation for OpenAI / Gemini.
  *
- * 這裡比 Anthropic 版麻煩很多，原因是 **OpenAI 的工具參數是逐字串流的**：
+ * This is much fussier than the Anthropic version, because **OpenAI streams tool arguments character by character**:
  *
  *   delta.tool_calls[0].function.arguments = '{"pa'
  *   delta.tool_calls[0].function.arguments = 'th":"RE'
  *   delta.tool_calls[0].function.arguments = 'ADME.md"}'
  *
- * 你必須自己把這些碎片依 index 拼回去，全部收完才能 JSON.parse。
- * 這是 streaming 最常見的踩雷點。
+ * You have to reassemble those fragments by index yourself, and only JSON.parse once they are all in.
+ * This is streaming's most common trap.
  */
 
 import OpenAI from "openai";
@@ -58,32 +58,32 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						],
 						tools: request.tools.map(toOpenAiTool),
 						stream: true,
-						// 沒有這一行，串流回應**不會**帶 usage。
-						// 這是 OpenAI 相容 API 的預設，很多人因此以為串流量不到 token。
+							// Without this line the streaming response carries **no** usage.
+							// That is the OpenAI-compatible API's default, which makes many people believe tokens cannot be measured while streaming.
 						stream_options: { include_usage: true },
 					},
 					{ signal },
 				);
 
-				// 拼裝中的狀態
+				// Assembly state
 				let text = "";
 				let textOpen = false;
 				let finishReason: string | null = null;
 				let usage: TokenUsage | undefined;
-				// key -> 累積中的 tool call
+				// key -> the tool call being accumulated
 				//
-				// `extra` 存的是 provider 自己塞在 tool call 上的額外欄位。
-				// Gemini 會放 extra_content.google.thought_signature，而且
-				// **下一輪必須原封不動送回去**，少了它整個請求會被 400 拒絕
-				// （而且回應沒有 body，看不出原因，超難 debug）。
+				// `extra` holds additional fields a provider attaches to a tool call.
+				// Gemini puts extra_content.google.thought_signature there, and
+				// **it must be sent back verbatim next round**; without it the whole request is rejected with a 400
+				// (and the response has no body, so the cause is invisible and it is extremely hard to debug).
 				//
-				// 這跟 Anthropic 的 thinking block 是同一個問題：
-				// 中立表示涵蓋不了每家 provider 的內部欄位，所以原始的也要留一份。
+				// The same problem as Anthropic's thinking block:
+				// a neutral representation cannot cover every provider's internal fields, so the raw form is kept too.
 				const pending = new Map<
 					string,
 					{ id: string; name: string; args: string; extra?: Record<string, unknown> }
 				>();
-				/** 沒有 index 也沒有 id 的碎片，接到上一個 key 上。 */
+				/** Fragments with neither index nor id attach to the previous key. */
 				let lastKey: string | undefined;
 
 				for await (const chunk of stream) {
@@ -93,8 +93,8 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						return;
 					}
 
-					// usage 通常在**最後一個 chunk**，而且那個 chunk 沒有 choices。
-					// 所以這一行必須在 `if (!choice) continue` 之前，不然永遠讀不到。
+						// usage usually arrives in the **last chunk**, and that chunk has no choices.
+						// So this line must come before `if (!choice) continue`, or it is never read.
 					if (chunk.usage) {
 						usage = {
 							input: chunk.usage.prompt_tokens ?? 0,
@@ -119,21 +119,21 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 						yield { type: "text_delta", delta: delta.content };
 					}
 
-					// 工具參數碎片，累積到同一個 tool call 上。
+						// Tool argument fragments, accumulated onto the same tool call.
 					//
-					// ⚠️ 這裡**不能只看 index**。OpenAI 每個碎片都帶 index、只有第一個帶 id；
-					// 但 Gemini 的 OpenAI 相容層**完全不送 index**（每個 delta 是一個
-					// 完整的 tool call，各自帶不同的 id）。
+						// ⚠️ **index alone is not enough here.** OpenAI puts an index on every fragment and an id on the first;
+						// Gemini's OpenAI-compatible layer **never sends index** (each delta is a complete
+						// tool call carrying its own distinct id).
 					//
-					// 只用 index 當 key 的話，Gemini 一次回多個工具呼叫時，
-					// 它們會全部塞進 `pending.get(undefined)`，於是：
-					//   args = '{"query":"a"}{"query":"b"}{"query":"c"}'   ← 三段 JSON 黏在一起
-					// JSON.parse 失敗 → 參數變成 {} → 工具收到空 query，
-					// 而且這個壞掉的字串會被送回下一輪，換來 400 status code (no body)。
+						// Keying on index alone means that when Gemini returns several tool calls at once
+						// they all land in `pending.get(undefined)`, so:
+						//   args = '{"query":"a"}{"query":"b"}{"query":"c"}'   ← three JSON documents glued together
+						// JSON.parse fails → the arguments become {} → the tool receives an empty query,
+						// and that broken string is sent back next round, earning a 400 status code (no body).
 					//
-					// 這個 bug 在 Lesson 20-22 都沒發作，因為模型剛好每輪只叫一個工具。
-					// Lesson 23 把 deep-research 的「一次規劃 3-4 條 query」抄進 prompt 之後，
-					// 第一次跑就炸了。完整的除錯過程在 Lesson 23 Step 6。
+						// This bug never fired in Lessons 20-22, because the model happened to call one tool per round.
+						// Once Lesson 23 copied deep-research's "plan 3-4 queries at once" into the prompt,
+						// the very first run blew up. The full debugging account is in Lesson 23 Step 6.
 					for (const call of delta?.tool_calls ?? []) {
 						const key =
 							typeof call.index === "number"
@@ -146,10 +146,10 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 
 						if (call.id) existing.id = call.id;
 						if (call.function?.name) existing.name = call.function.name;
-						// 注意這裡是 += 而不是 =，碎片要接起來
+							// Note this is += rather than =; fragments have to be joined
 						if (call.function?.arguments) existing.args += call.function.arguments;
 
-						// 把 provider 自訂的欄位原樣收下來（Gemini 的 thought_signature 在這裡）
+							// Take the provider's custom fields verbatim (Gemini's thought_signature lives here)
 						for (const [field, value] of Object.entries(call)) {
 							if (field === "index" || field === "id" || field === "type" || field === "function") {
 								continue;
@@ -165,9 +165,9 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 
 				const stopReason = toStopReason(finishReason);
 
-				// 被 max_tokens 截斷時，累積的參數 JSON 可能是半截的。
-				// 那種參數就算 parse 得出來也不能用，整批放棄。
-				// 對照 Pi：agent-loop.ts:211 failToolCallsFromTruncatedMessage
+					// When truncated by max_tokens, the accumulated argument JSON may be half a document.
+					// Such arguments must not be used even if they parse, so the whole batch is abandoned.
+					// Against Pi: agent-loop.ts:211 failToolCallsFromTruncatedMessage
 				if (stopReason === "max_tokens") {
 					yield {
 						type: "done",
@@ -175,9 +175,9 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 							blocks: text ? [{ type: "text", text }] : [],
 							raw: { role: "assistant", content: text },
 							stopReason,
-							// ⚠️ usage 一定要帶上。**被截斷的呼叫一樣要付錢**，
-							// 而且它通常是最貴的那幾筆（模型想了很久才被砍斷）。
-							// 這一行漏了三課才被 Lesson 26 的計量發現。
+								// ⚠️ usage must be carried. **A truncated call is billed too**,
+								// and it is usually among the most expensive (the model thought for a long time before being cut off).
+								// This line was missing for three lessons before Lesson 26's metering found it.
 							usage,
 						},
 					};
@@ -187,9 +187,9 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 				const blocks: AssistantBlock[] = [];
 				if (text) blocks.push({ type: "text", text });
 
-				// Map 保留插入順序，而插入順序就是 provider 送出的順序，
-				// 所以直接取值就好。（之前這裡是照 index 數字排序，
-				// 但 key 現在可能是 id，沒有數字可以排。）
+					// A Map preserves insertion order, and insertion order is the order the provider sent,
+					// so taking the values directly is enough. (This used to sort by numeric index,
+					// and a key may now be an id, with no number to sort by.)
 				const ordered = [...pending.values()];
 
 				for (const call of ordered) {
@@ -203,23 +203,23 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 					yield { type: "tool_call", id: call.id, name: call.name, args };
 				}
 
-				// 重建原生格式的 assistant 訊息，供下一輪送回去
+					// Rebuild the assistant message in native format, to be sent back next round
 				const raw: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
 					role: "assistant",
 					content: text || null,
 				};
 				if (ordered.length > 0) {
 					raw.tool_calls = ordered.map((call) => ({
-						// ...call.extra 一定要展開在最前面，
-						// 這樣 provider 的額外欄位（thought_signature）會跟著回去，
-						// 但又不會蓋掉我們自己組的 id / type / function。
+							// ...call.extra must be spread first,
+							// so the provider's extra fields (thought_signature) go back with it
+							// without overwriting the id / type / function we assembled.
 						...call.extra,
 						id: call.id,
 						type: "function" as const,
 						function: {
 							name: call.name,
-							// 送回原始的參數字串，不要 re-stringify 我們 parse 過的物件。
-							// 有些 provider 會拿這段字串去驗簽。
+								// Send back the original argument string; do not re-stringify the object we parsed.
+								// Some providers verify a signature over that exact string.
 							arguments: call.args || "{}",
 						},
 					}));

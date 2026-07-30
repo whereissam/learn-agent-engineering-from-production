@@ -1,14 +1,14 @@
 /**
- * Lesson 4 - Session 持久化
+ * Lesson 4 - session persistence
  *
- * 新東西：
- *   - 對話存進 JSONL 檔案，關掉程式再開還在
- *   - /resume 續跑上一次的對話
- *   - /rewind 退回去重問（會產生分支）
+ * The new things:
+ *   - the conversation is stored in a JSONL file and survives a restart
+ *   - /resume continues the previous conversation
+ *   - /rewind goes back and asks again (creating a branch)
  *
- * 執行：
- *   bun run lesson-04-sessions/agent.ts              新開一個 session
- *   bun run lesson-04-sessions/agent.ts --resume     續跑最近一次
+ * Run:
+ *   bun run lesson-04-sessions/agent.ts              start a new session
+ *   bun run lesson-04-sessions/agent.ts --resume     continue the most recent one
  */
 
 import { readdir } from "node:fs/promises";
@@ -71,8 +71,8 @@ function handleInterrupt(): void {
 // ─────────────────────────────────────────────────────────────
 // Agent loop
 //
-// 跟 Lesson 3 的差別：每一則訊息除了 push 進陣列，也 await session.append()。
-// 這就是「持久化」的全部，只是多了一個寫檔動作。
+// The difference from Lesson 3: besides pushing into the array, every message is also await session.append()'d.
+// That is all "persistence" is: one more file write.
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(
@@ -82,8 +82,8 @@ async function runTurn(
 	signal: AbortSignal,
 ): Promise<void> {
 	for (let step = 0; step < MAX_STEPS; step++) {
-		// 每一輪都從 session 重新讀出訊息。
-		// 這樣 /rewind 之後就會自動用新分支的內容。
+		// Every turn re-reads the messages from the session.
+		// So after /rewind it automatically uses the new branch's content.
 		const messages = session.messages();
 
 		let response: Awaited<ReturnType<StreamingProvider["call"]>> | undefined;
@@ -121,7 +121,7 @@ async function runTurn(
 			if (streamError.aborted) {
 				console.log(yellow("\n\n[已中斷]"));
 				if (partialText.trim()) {
-					// 中斷產生的訊息也要存檔，不然重開之後歷史就跟畫面對不上了
+						// Messages produced by an interruption must be persisted too, or after a restart the history disagrees with the screen
 					await session.append({
 						role: "assistant",
 						blocks: [{ type: "text", text: partialText }],
@@ -202,7 +202,7 @@ async function runTurn(
 }
 
 // ─────────────────────────────────────────────────────────────
-// 內建指令
+// Built-in commands
 // ─────────────────────────────────────────────────────────────
 
 async function handleCommand(input: string, session: Session): Promise<boolean> {
@@ -253,7 +253,7 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 		}
 
 		case "/tree": {
-			// 把整個檔案的所有記錄印出來，包含被放棄的分支。
+				// Print every record in the file, including abandoned branches.
 			const all = session.all();
 			const onBranch = new Set(session.branch().map((r) => r.id));
 			console.log(dim(`  檔案裡共 ${all.length} 筆記錄，目前分支上有 ${onBranch.size} 筆`));
@@ -314,7 +314,7 @@ function firstLine(text: string): string {
 	return line.length > 80 ? `${line.slice(0, 80)}…` : line;
 }
 
-/** 找最近改過的 session 檔案。 */
+/** Find the most recently modified session file. */
 async function findLatestSession(): Promise<string | undefined> {
 	try {
 		const files = (await readdir(SESSION_DIR)).filter((f) => f.endsWith(".jsonl")).sort();
@@ -330,7 +330,7 @@ async function findLatestSession(): Promise<string | undefined> {
 async function main(): Promise<void> {
 	const provider = selectStreamingProvider();
 
-	// --resume 續跑最近一次，否則開新的
+	// --resume continues the most recent one; otherwise start a new one
 	const wantResume = process.argv.includes("--resume");
 	let session: Session;
 
@@ -396,7 +396,7 @@ async function main(): Promise<void> {
 }
 
 function newSessionPath(): string {
-	// 檔名用時間戳，排序就等於時間順序
+	// A timestamped filename means sorting equals chronological order
 	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 	return join(SESSION_DIR, `${stamp}.jsonl`);
 }

@@ -1,26 +1,26 @@
 /**
- * Lesson 28 - 中斷一個真的串流
+ * Lesson 28 - interrupting a real stream
  *
- * `demo.ts` 的六格用的是我自己寫的串流，所以「中斷位置」精準到事件之間。
- * 這一支換成真的模型，而它會暴露一件 demo 藏起來的事：
+ * `demo.ts`'s six cells use a hand-written stream, so the interruption point is precise to the event.
+ * This one swaps in a real model, and it exposes something the demo hides:
  *
- * ⚠️ **六格裡只有兩格能用真模型重現，而原因在我們自己的抽象。**
+ * ⚠️ **Only two of the six cells can be reproduced with a real model, and the reason is in our own abstraction.**
  *
- * `shared/streaming/types.ts` 只有 `text_*` 和 `tool_call` 三種事件，
- * 沒有 reasoning 的串流、也沒有「工具參數的一小塊」。所以：
+ * `shared/streaming/types.ts` has only the three `text_*` events plus `tool_call`,
+ * with no reasoning stream and no "fragment of a tool's arguments". So:
  *
- *   text            ✅ 量得到（在第 N 個 delta 之後 abort）
- *   tool_running    ✅ 量得到（工具在背景跑的時候 abort）
- *   reasoning       ❌ 我們的 provider 層看不到
- *   tool_input      ❌ 同上（`tool_call` 是參數收完才發的）
+ *   text            ✅ measurable (abort after the Nth delta)
+ *   tool_running    ✅ measurable (abort while the tool runs in the background)
+ *   reasoning       ❌ invisible at our provider layer
+ *   tool_input      ❌ likewise (`tool_call` is emitted only once the arguments are complete)
  *
- * **這不是「真模型比較弱」，是我們的抽象漏掉了那兩個位置。**
- * 而漏掉的地方剛好就是最難收尾的地方 —— 那也是這一課的價值：
- * 它讓一個平常看不見的簡化變得看得見。
+ * **This is not "a real model is weaker" but our abstraction omitting those two positions.**
+ * And what it omits happens to be the hardest place to clean up — which is this lesson's value:
+ * it makes a normally invisible simplification visible.
  *
- * 執行：
- *   PROVIDER=gemini bun run lesson-28:agent                 # 中斷在 text
- *   INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # 中斷在工具執行中
+ * Run:
+ *   PROVIDER=gemini bun run lesson-28:agent                 # interrupt during text
+ *   INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # interrupt during tool execution
  *   CLEANUP=off INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent
  */
 
@@ -36,12 +36,12 @@ import { SessionProcessor } from "./processor.ts";
 const INTERRUPT = (process.env.INTERRUPT ?? "text").toLowerCase();
 const CLEANUP_ON = process.env.CLEANUP !== "off";
 /**
- * 第幾個 text delta 之後 abort。
+ * Abort after the Nth text delta.
  *
- * ⚠️ **delta 的顆粒度不是你能控制的。** 第一版設 4，結果 Gemini 把
- * 那一句話切成兩三塊就講完了，於是門檻永遠沒到、中斷從來沒發生。
- * 這也是為什麼 `demo.ts` 的矩陣值得存在：**真模型連「中斷在哪裡」
- * 都不完全由你決定。**
+ * ⚠️ **Delta granularity is not yours to control.** The first version used 4, and Gemini finished
+ * that sentence in two or three chunks, so the threshold was never reached and the interruption never happened.
+ * Which is also why `demo.ts`'s matrix deserves to exist: **with a real model even "where the
+ * interruption happens" is not entirely up to you.**
  */
 const AFTER_DELTAS = Number(process.env.AFTER_DELTAS ?? 2);
 
@@ -65,11 +65,11 @@ const TOOLS: ToolSpec[] = [
 ];
 
 /**
- * ⚠️ **這句話的順序是實驗的一部分。**
+ * ⚠️ **This sentence's ordering is part of the experiment.**
  *
- * 第一版寫「請把它改成 2，然後說明你改了什麼」，模型每次都直接呼叫工具、
- * 一個字都不先講，於是 `INTERRUPT=text` 那一格永遠不會發生。
- * 要中斷「文字輸出到一半」，得先讓模型真的有文字要輸出。
+ * The first version said "change it to 2 and explain what you changed", and the model called the tool
+ * immediately every time without a word first, so the `INTERRUPT=text` cell could never happen.
+ * Interrupting "mid-text" requires the model to have text to emit first.
  */
 const PROMPT =
 	"先用一句話說明你打算怎麼做，再用 write_file 把 a.ts 的常數從 1 改成 2。";
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
 		execute: async (_name, args) => {
 			touched = true;
 			await writeFile(join(workspace, "a.ts"), String(args.content ?? ""), "utf8");
-			// 刻意慢：這樣「中斷的時候工具正在跑」才有機會發生。
+				// Deliberately slow, so "a tool is running at the moment of interruption" has a chance to happen.
 			await new Promise((r) => setTimeout(r, 3_000));
 			return "Wrote a.ts";
 		},
@@ -152,7 +152,7 @@ async function main(): Promise<void> {
 				args: event.args,
 			});
 			if (INTERRUPT === "tool") {
-				// 工具已經在背景跑了（processor 沒有 await 它），現在中斷。
+					// The tool is already running in the background (the processor does not await it); interrupt now.
 				abortedAt = "工具開始執行之後";
 				controller.abort();
 				break;
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
 	for (const part of loaded.parts) console.log(`  ${describePart(part)}`);
 	console.log(dim(`finish=${loaded.finish ?? "（沒有）"}`));
 
-	// 檔案系統怎麼說（Lesson 29 的立場：只有它說了算）。
+	// What the filesystem says (Lesson 29's position: only it decides).
 	const onDisk = await readFile(join(workspace, "a.ts"), "utf8");
 	const changed = onDisk.trim() !== "export const a = 1;";
 	console.log(

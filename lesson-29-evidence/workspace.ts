@@ -1,12 +1,12 @@
 /**
- * 這一課的 workspace，以及把它復原的方法。
+ * This lesson's workspace, and how to restore it.
  *
- * 為什麼內容寫在程式碼裡而不是只放檔案：**每個情境跑之前都要復原。**
- * 情境 4（改完又改回去）如果從上一個情境留下的狀態開始跑，
- * patch 就會混進別人的變更，那個實驗直接失效。
+ * Why the contents live in code rather than only as files: **every scenario restores before running.**
+ * If scenario 4 (changed and changed back) started from the state the previous scenario left,
+ * the patch would include somebody else's changes and that experiment would be void.
  *
- * 跟 `scripts/reset-playgrounds.ts` 同一個立場：復原腳本要處理的是
- * 「任何被改過的狀態」，不是「我預期的那一種修法」，所以一律強制寫回。
+ * The same position as `scripts/reset-playgrounds.ts`: a restore script has to handle
+ * **any modified state**, not "the fix I expected", so it always force-writes.
  */
 
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
@@ -14,20 +14,20 @@ import { dirname, join, resolve } from "node:path";
 
 export const WORKSPACE = resolve(import.meta.dirname, "workspace");
 
-/** 影子 git 放在 workspace **外面**，理由見 `snapshot.ts` 的建構子。 */
+/** The shadow git lives **outside** the workspace; the reason is in `snapshot.ts`'s constructor. */
 export const GITDIR = resolve(import.meta.dirname, ".snapshots");
 
 export const FIXTURE: Record<string, string> = {
-	// ⚠️ 這個檔案是實測逼出來的，不是抄格式抄來的。
+	// ⚠️ This file was forced out by measurement, not copied from a template.
 	//
-	// 第一次用真 Gemini 跑 `MODE=auto` 的時候，模型自己決定要「跑一下測試」，
-	// 而 workspace 沒有自己的 package.json → 往上找到主 repo →
-	// **跑了本專案的 130 個測試**。這正是 Lesson 2 那個沙箱逃逸的第二次發生，
-	// 而且這次是在一堂「量測 agent 到底改了什麼」的課裡。
+	// On the first real-Gemini `MODE=auto` run, the model decided by itself to "run the tests",
+	// and the workspace had no package.json of its own → npm walked up to the main repo →
+	// **it ran this project's 130 tests**. The second occurrence of Lesson 2's sandbox escape,
+	// this time inside a lesson about measuring what the agent actually changed.
 	//
-	// 權限引擎沒有錯：AUTO 模式下 EXEC 本來就放行。
-	// 這是 Lesson 35 的題目（准許執行 ≠ 限制它碰得到什麼），
-	// 在那之前，最小的止血是讓 workspace 有自己的邊界檔案。
+	// The permission engine did nothing wrong: EXEC is allowed in AUTO mode.
+	// This is Lesson 35's subject (permitting execution ≠ limiting what it can reach),
+	// and until then the smallest way to stop the bleeding is giving the workspace its own boundary file.
 	"package.json": `{
 	"name": "evidence-workspace",
 	"private": true,
@@ -41,7 +41,7 @@ export const FIXTURE: Record<string, string> = {
 
 	"src/app.ts": `import { shorten } from "./util.ts";
 
-// TODO: 這裡很亂，之後要整理
+	// TODO: this is messy and needs tidying later
 export function handle(input: string): string {
 	if (input === "") {
 		return "";
@@ -63,7 +63,7 @@ export function handle(input: string): string {
 `,
 };
 
-/** 把 workspace 強制寫回 FIXTURE，並刪掉 agent 多生出來的檔案。 */
+/** Force the workspace back to FIXTURE and delete extra files the agent created. */
 export async function resetWorkspace(): Promise<void> {
 	await rm(WORKSPACE, { recursive: true, force: true });
 	for (const [path, content] of Object.entries(FIXTURE)) {
@@ -73,7 +73,7 @@ export async function resetWorkspace(): Promise<void> {
 	}
 }
 
-/** 目前 workspace 裡有哪些檔案（相對路徑，已排序）。只用來印表格。 */
+/** Which files are currently in the workspace (relative paths, sorted). Only used for printing the table. */
 export async function listWorkspace(): Promise<string[]> {
 	const out: string[] = [];
 	async function walk(dir: string, prefix: string): Promise<void> {

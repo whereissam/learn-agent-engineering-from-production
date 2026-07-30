@@ -1,12 +1,12 @@
 /**
- * Lesson 2 - 更多工具
+ * Lesson 2 - more tools
  *
- * loop 本身跟 Lesson 1 幾乎一模一樣。變的是它周圍：
- *   - 工具從 1 個變 5 個，用 registry 管理而不是 if/else
- *   - 工具輸出會截斷（不然 context 會爆）
- *   - 會改東西的工具要先問使用者（approval gate）
+ * The loop itself is nearly identical to Lesson 1's. What changed is around it:
+ *   - 1 tool became 5, managed by a registry rather than if/else
+ *   - tool output is truncated (or the context explodes)
+ *   - tools that change things ask the user first (the approval gate)
  *
- * 執行：bun run lesson-02-tools/agent.ts
+ * Run: bun run lesson-02-tools/agent.ts
  */
 
 import { resolve } from "node:path";
@@ -27,7 +27,7 @@ import {
 const ROOT = resolve(import.meta.dirname, "playground");
 const MAX_TOKENS = 16000;
 
-/** 一輪最多讓模型呼叫幾次工具。防止無限迴圈燒錢。 */
+/** How many tool calls the model may make per turn. Stops an infinite loop burning money. */
 const MAX_STEPS = 25;
 
 const SYSTEM_PROMPT = `You are a coding agent working in a small TypeScript project.
@@ -52,7 +52,7 @@ const registry = new ToolRegistry([
 ]);
 
 // ─────────────────────────────────────────────────────────────
-// 顏色
+// Colours
 // ─────────────────────────────────────────────────────────────
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
@@ -61,22 +61,22 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 
 // ─────────────────────────────────────────────────────────────
-// 批准機制
+// The approval mechanism
 //
-// 這是 Lesson 2 最重要的新東西。read 是安全的，write / run_command 不是。
+// This is Lesson 2's most important addition. read is safe; write and run_command are not.
 //
-// 關鍵設計：拒絕「不是」錯誤，是一個正常結果。使用者說不要，
-// 模型就該問「那你想怎麼做」，而不是換個寫法再試一次。
+// The key design: a refusal is **not** an error but a normal result. When the user says no,
+// the model should ask "what would you like instead" rather than rephrasing and trying again.
 // ─────────────────────────────────────────────────────────────
 
-/** 這一輪對話中，使用者選擇「全部允許」的工具。 */
+/** Tools the user chose "allow all" for during this conversation. */
 const alwaysAllow = new Set<string>();
 
 /**
- * AUTO_APPROVE=1 會跳過所有詢問。
+ * AUTO_APPROVE=1 skips every prompt.
  *
- * 這對應到 Claude Code 的 --dangerously-skip-permissions。
- * 方便，但你就是把安全網整個拆掉了，只在你信任的沙箱裡用。
+ * This corresponds to Claude Code's --dangerously-skip-permissions.
+ * Convenient, and you have removed the safety net entirely; use it only in a sandbox you trust.
  */
 const AUTO_APPROVE = process.env.AUTO_APPROVE === "1";
 
@@ -97,8 +97,8 @@ function createApprover(reader: LineReader) {
 			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 這個工具都允許  ${yellow("[n]")} 拒絕 › `,
 		);
 		if (line === null) {
-			// stdin 已經關掉（管線餵輸入、或使用者按了 Ctrl+D）。
-			// 沒人能回答就當作拒絕，「無法確認」永遠不該等於「同意」。
+				// stdin is closed (input from a pipe, or the user pressed Ctrl+D).
+				// With nobody to answer, treat it as a refusal: "cannot confirm" must never equal "agreed".
 			console.log(dim("  (沒有輸入可讀，視為拒絕)"));
 			return false;
 		}
@@ -108,7 +108,7 @@ function createApprover(reader: LineReader) {
 			alwaysAllow.add(request.toolName);
 			return true;
 		}
-		// 預設是「否」。要按 y 才算允許，這個預設值是刻意的。
+			// The default is no. Only y allows it, and that default is deliberate.
 		return answer === "y" || answer === "yes";
 	};
 }
@@ -116,7 +116,7 @@ function createApprover(reader: LineReader) {
 // ─────────────────────────────────────────────────────────────
 // Agent loop
 //
-// 跟 Lesson 1 比：多了 step 上限、多了 registry、其他一模一樣。
+// Against Lesson 1: a step ceiling and a registry were added; everything else is identical.
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(provider: Provider, messages: Message[], ctx: ToolContext): Promise<void> {
@@ -171,7 +171,7 @@ async function runTurn(provider: Provider, messages: Message[], ctx: ToolContext
 		messages.push({ role: "toolResult", results });
 	}
 
-	// 撞到步數上限。告訴使用者，並且讓對話保持在可以繼續的狀態。
+		// Hit the step ceiling. Tell the user, and leave the conversation in a state that can continue.
 	console.log(red(`\n[已達 ${MAX_STEPS} 步上限，停下來了。輸入「繼續」可以讓它接著做。]`));
 }
 

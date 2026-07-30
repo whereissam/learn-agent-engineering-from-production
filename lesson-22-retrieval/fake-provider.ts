@@ -1,15 +1,15 @@
 /**
- * 這一課專用的假 provider。
+ * The fake provider specific to this lesson.
  *
- * 三課的假軌跡放在一起看，就是 AI Search 篇到目前為止的全部進度：
+ * Three lessons' fake trajectories together are the AI Search part's progress so far:
  *
- *   Lesson 20   搜尋 → 直接下結論                         → 錯
- *   Lesson 21   搜尋 → 打開兩個 repo 讀完 → 下結論          → 對，但花了三步
- *   Lesson 22   搜尋（排序好的）→ 打開第一名 → 下結論        → 對，兩步
+ *   Lesson 20   search → conclude immediately                        → wrong
+ *   Lesson 21   search → open and read both repos → conclude          → right, in three steps
+ *   Lesson 22   search (well ranked) → open the first → conclude      → right, in two
  *
- * 差別不在模型，也不在 prompt，在**第一步拿回來的東西排得好不好**。
+ * The difference is not the model and not the prompt but **how well the first step's results are ranked**.
  *
- * 用法：PROVIDER=fake bun run lesson-22
+ * Usage: PROVIDER=fake bun run lesson-22
  */
 
 import type {

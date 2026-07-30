@@ -1,25 +1,25 @@
 /**
- * 成本計量：不改任何一課的程式碼，就把每次呼叫的花費記下來。
+ * Cost metering: record every call's spend without changing any lesson's code.
  *
- * ## 為什麼用「包起來」而不是「傳進去」
+ * ## Why wrapping rather than passing in
  *
- * gpt-researcher 的做法是把 `cost_callback` 當參數傳進**每一個**會呼叫模型的
- * 函式（`query_processing.py`、`compression.py` 都看得到）。那樣很直接，
- * 但代價是每個函式簽章都多一個參數，而且漏傳一個地方就少算一筆。
+ * gpt-researcher passes `cost_callback` as a parameter into **every** function that calls a model
+ * (visible in `query_processing.py` and `compression.py`). Very direct,
+ * at the price of one more parameter in every signature and one missed call meaning one missed charge.
  *
- * 這裡改用裝飾器：把 provider 包一層，`stream()` 照樣是 `stream()`，
- * 只是路過的時候順手記帳。
+ * This uses a decorator instead: wrap the provider, so `stream()` is still `stream()`
+ * and merely keeps the books on the way past.
  *
  * ```ts
  * const provider = withMetering(selectStreamingProvider(), meter);
  * ```
  *
- * Lesson 24 的 `research()` 一行都不用改，就有完整的成本紀錄。
- * **這也是設計原則 6 的實踐：新功能加在核心旁邊，不要改核心。**
+ * Lesson 24's `research()` needs no changes at all and has a complete cost record.
+ * **This is design principle 6 in practice: add features beside the core, do not change the core.**
  *
- * 代價是：裝飾器只看得到「request 和 response」，看不到呼叫端的語意。
- * 所以要分類（哪一筆是生 query、哪一筆是寫報告）就得自己給一個分類函式，
- * 見 `classify` 參數。
+ * The price: a decorator sees only the request and the response, not the caller's semantics.
+ * So classifying (which call generated queries, which wrote the report) needs a classification function
+ * of your own; see the `classify` parameter.
  */
 
 import type {
@@ -32,14 +32,14 @@ import type {
 import { type Price, priceFor } from "./prices.ts";
 
 export interface CallRecord {
-	/** 呼叫端的語意標籤，例如 "generateQueries"。由 classify 決定。 */
+	/** The caller's semantic label, "generateQueries" for example. Decided by classify. */
 	label: string;
 	usage?: TokenUsage;
-	/** 這一次的花費（美元）。沒有價目表就是 undefined。 */
+	/** This call's spend in dollars. undefined without a price table. */
 	cost?: number;
-	/** 輸出有沒有被 maxTokens 砍掉。 */
+	/** Was the output cut off by maxTokens. */
 	truncated: boolean;
-	/** 這次請求送進去多少字元（含 system 和整段對話歷史）。 */
+	/** How many characters this request sent (including the system prompt and the whole history). */
 	promptChars: number;
 	elapsedMs: number;
 }
@@ -68,7 +68,7 @@ export class CostMeter {
 		return { input, output, total, cost, unknown };
 	}
 
-	/** 依標籤分組，看錢花在哪一個步驟。 */
+		/** Grouped by label, to see which step spends the money. */
 	byLabel(): Array<{ label: string; calls: number; total: number; cost: number }> {
 		const groups = new Map<string, { calls: number; total: number; cost: number }>();
 
@@ -87,17 +87,17 @@ export class CostMeter {
 }
 
 /**
- * 算一次呼叫多少錢。
+ * Compute one call's cost.
  *
- * ⚠️ **這裡刻意用 `total` 而不是 `input + output`。**
+ * ⚠️ **This deliberately uses `total` rather than `input + output`.**
  *
- * Gemini 3.6 Flash 實測：input=10、output=57，但 total=683。
- * 中間 616 個是 thinking token——它不在 output 裡，但你要付錢。
- * 用 `input + output` 算，這一筆會少算 10 倍。
+ * Measured on Gemini 3.6 Flash: input=10, output=57, and total=683.
+ * The 616 in between are thinking tokens — outside output, and billed.
+ * Computing from `input + output` underestimates this call tenfold.
  *
- * 至於怎麼分攤：thinking token 通常照 output 價計費，
- * 所以這裡把「total 減掉 input」當成要付 output 價的部分。
- * **各家 provider 的計費細節不同，上線前一定要拿帳單對一次。**
+ * As for apportioning it: thinking tokens are usually billed at the output rate,
+ * so "total minus input" is treated here as the part charged at the output rate.
+ * **Every provider's billing details differ; reconcile against a real invoice before shipping.**
  */
 function costOf(usage: TokenUsage | undefined, price: Price | undefined): number | undefined {
 	if (!usage || !price) return undefined;
@@ -142,9 +142,9 @@ export function withMetering(
 				yield event;
 			}
 
-			// 串流中斷或出錯時不會有 done 事件。**這種呼叫一樣要付錢**，
-			// 所以還是記一筆，只是沒有 usage——不然帳目會少算，
-			// 而且你會以為「失敗的呼叫是免費的」。
+				// A stream that is interrupted or errors emits no done event. **Such a call is billed too**,
+				// so it is still recorded, just without usage — otherwise the books come up short
+				// and you conclude "failed calls are free".
 			if (!recorded) {
 				meter.calls.push({
 					label: `${classify(request)} (未完成)`,

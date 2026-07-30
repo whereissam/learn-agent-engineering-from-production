@@ -1,30 +1,30 @@
 /**
- * Lesson 17 - recall blindness 的下游傷害
+ * Lesson 17 - the downstream damage of recall blindness
  *
- * ⚠️ 先講清楚一件事，因為它是這一課的主張：
+ * ⚠️ One thing first, because it is this lesson's thesis:
  *
- *     **排序器裡面沒有 LLM，而且不該有。**
+ *     **The ranker contains no LLM, and should not.**
  *
- * 這支程式沒有動排序的任何一行。模型接在**外面**，
- * 當一個「拿 search_sessions 當工具的 agent」。
- * 這不違反這一課的立場，反而是在量測那個立場的代價。
+ * This program changes not one line of ranking. The model sits **outside**,
+ * as an agent that has search_sessions as a tool.
+ * That does not contradict the lesson's position; it measures that position's cost.
  *
- * `demo.ts` 已經用確定性的分數證明了 recall blindness 存在：
+ * `demo.ts` already proved recall blindness exists with deterministic scores:
  *
- *     ❌ 不降權：第一名是 cron
- *     ✅ 降權到 0.25：第一名是 interactive
+ *     ❌ no demotion: cron ranks first
+ *     ✅ demoted to 0.25: interactive ranks first
  *
- * 但排序只是中間產物。真正的傷害在下一步：
+ * But ranking is an intermediate product. The real damage is the next step:
  *
- *     agent 拿到一堆 cron 摘要，然後很有自信地回答使用者。
- *     **它不知道自己沒看到什麼。**
+ *     the agent receives a pile of cron summaries and answers the user confidently.
+ *     **It does not know what it did not see.**
  *
- * 這支程式量測那一步。同一個問題、同一份語料、同一個模型，
- * 唯一的差別是排序有沒有降權。
+ * This program measures that step. The same question, corpus and model,
+ * with the only difference being whether ranking demotes.
  *
- * 執行：
- *   PROVIDER=gemini bun run lesson-17:agent              # 有降權
- *   DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # 沒降權
+ * Run:
+ *   PROVIDER=gemini bun run lesson-17:agent              # with demotion
+ *   DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # without
  */
 
 import { SessionSearchIndex } from "../shared/search/index.ts";
@@ -34,20 +34,20 @@ import type { Message, StreamingProvider, ToolSpec } from "../shared/streaming/t
 const DEMOTE = (process.env.DEMOTE ?? "on").toLowerCase() !== "off";
 
 /**
- * 使用者要找的東西。
+ * What the user is looking for.
  *
- * 正確答案只存在於**那唯一一次**互動對話裡：
- * 取樣率被寫死了，應該從 session metadata 讀。
+ * The right answer exists only in **that one** interactive conversation:
+ * the sample rate was hardcoded and should be read from the session metadata.
  *
- * 12 篇 cron 摘要則一律說「取樣率正常、無異常」。
- * 所以模型答什麼，直接反映它撈到了哪一邊。
+ * The 12 cron summaries all say "the sample rate is normal, no anomalies".
+ * So whatever the model answers directly reflects which side it retrieved.
  */
 const QUESTION =
 	"我之前有查過 telemetry 取樣率的問題嗎？如果有，當時的結論是什麼？";
 
-/** 只有讀到真正那次對話才講得出來的詞。 */
+/** Words only obtainable by reading that real conversation. */
 const CORRECT_SIGNALS = ["metadata", "寫死", "sample_rate_hz", "meta."];
-/** 只讀到 cron 摘要才會講出來的詞。 */
+/** Words that only appear if it read the cron summaries. */
 const BLIND_SIGNALS = ["正常", "無異常", "沒有問題", "沒有異常"];
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
@@ -63,7 +63,7 @@ const assistant = (text: string): Message => ({
 	raw: null,
 });
 
-/** 跟 demo.ts 同一份語料，刻意不共用程式碼以免改壞那一支。 */
+/** The same corpus as demo.ts, deliberately not shared so that changing one cannot break the other. */
 function build(): SessionSearchIndex {
 	const index = new SessionSearchIndex();
 
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
 			results: calls.map((call) => {
 				const query = String(call.args.query ?? "");
 				searched.push(query);
-				// ← 這裡是唯一的變因。排序器本身沒有任何改動。
+					// ← the only variable. The ranker itself is unchanged.
 				const hits = index.discover(query, 3, 2, {
 					disableSourceWeighting: !DEMOTE,
 				});
@@ -190,7 +190,7 @@ async function main(): Promise<void> {
 		});
 	}
 
-	// ── 確定性判定 ──────────────────────────────────────────
+	// ── the deterministic verdict ───────────────────────────────
 	const correct = CORRECT_SIGNALS.filter((s) => answer.includes(s));
 	const blind = BLIND_SIGNALS.filter((s) => answer.includes(s));
 
@@ -211,13 +211,13 @@ async function main(): Promise<void> {
 	}
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
-	// Lesson 15 的教訓：陰性結果要先排除「回覆根本沒跑完」。
+	// Lesson 15's lesson: a negative result must first rule out "the reply never finished".
 	if (correct.length === 0 && stopReason !== "end") {
 		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
 	}
 }
 
-/** 沒有 key 時的腳本 provider：只示範畫面長相，不能當證據。 */
+/** The scripted provider used without a key: it shows what the output looks like and is not evidence. */
 function scriptedProvider(): StreamingProvider {
 	const call = { id: "s1", name: "search_sessions", args: { query: "telemetry 取樣率" } };
 	let step = 0;

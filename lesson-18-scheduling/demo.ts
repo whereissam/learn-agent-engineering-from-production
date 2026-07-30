@@ -1,19 +1,19 @@
 /**
- * Lesson 18 - 排程與無人值守
+ * Lesson 18 - scheduling and unattended running
  *
- * 五個情境，每一個都對應一個「關掉就看得到失敗」的機制：
+ * Five scenarios, each matching a mechanism whose failure is visible once it is switched off:
  *
- *   catchup   筆電闔了三小時，錯過 36 次。要跑幾次？
- *   overlap   上一輪還沒跑完，下一輪到了
- *   crash     跑到一半進程被殺掉。那筆紀錄是 failed 嗎？
- *   respawn   工作重啟了跑排程的那個東西 ← 真實 issue，會無限迴圈
- *   approval  半夜三點需要批准，沒有人醒著
+ *   catchup   the laptop was shut for three hours and 36 runs were missed. How many should run?
+ *   overlap   the previous run has not finished and the next is due
+ *   crash     the process was killed mid-run. Is that record failed?
+ *   respawn   the job restarted the thing running the schedule ← a real issue, an infinite loop
+ *   approval  approval is needed at 3 AM with nobody awake
  *
- * 執行：
- *   bun run lesson-18                  # 全部（不用金鑰，時鐘是假的）
- *   bun run lesson-18 crash            # 只跑一個
- *   RETRY=1 bun run lesson-18 crash    # 把 unknown 當成「重試就好」
- *   PROVE=off bun run lesson-18 crash  # 不證明 owner 死了就改寫狀態
+ * Run:
+ *   bun run lesson-18                  # everything (no key needed; the clock is fake)
+ *   bun run lesson-18 crash            # one scenario
+ *   RETRY=1 bun run lesson-18 crash    # treat unknown as "just retry"
+ *   PROVE=off bun run lesson-18 crash  # rewrite state without proving the owner died
  *   OVERLAP=allow bun run lesson-18 overlap
  *   GUARD=off bun run lesson-18 respawn
  */
@@ -44,7 +44,7 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
-/** 假時鐘。排程課如果要真的等，就沒有人跑得完。 */
+/** A fake clock. A scheduling lesson that really waited would never finish. */
 function fakeClock(start: number) {
 	let now = start;
 	return {
@@ -68,7 +68,7 @@ function job(overrides: Partial<Job> & Pick<Job, "id" | "name" | "everySeconds">
 	};
 }
 
-/** 可以數的副作用。跟 Lesson 29 同一個立場：只有外面的世界說了算。 */
+/** A countable side effect. The same position as Lesson 29: only the outside world decides. */
 async function sideEffect(line: string): Promise<void> {
 	await mkdir(STATE, { recursive: true });
 	await appendFile(RUNS_LOG, `${line}\n`, "utf8");
@@ -86,7 +86,7 @@ async function resetState(): Promise<void> {
 	await rm(STATE, { recursive: true, force: true });
 }
 
-/** 假的作業系統探針，讓「pid 存不存在」變成可控的。 */
+/** A fake operating system probe, making "does this pid exist" controllable. */
 function fakeProbe(live: Map<number, number>): OwnerProbe {
 	return {
 		exists: (pid) => live.has(pid),
@@ -154,7 +154,7 @@ async function scenarioOverlap(): Promise<void> {
 		now: clock.now,
 	});
 
-	// 這個工作每 60 秒排一次，但每次要跑 150 秒（假時鐘裡）。
+	// This job is scheduled every 60 seconds and takes 150 seconds per run (in the fake clock).
 	let running = 0;
 	let maxConcurrent = 0;
 	const scheduler = new Scheduler({
@@ -165,8 +165,8 @@ async function scenarioOverlap(): Promise<void> {
 			running++;
 			maxConcurrent = Math.max(maxConcurrent, running);
 			await sideEffect(`${j.id}@${scheduledFor}`);
-			// 故意不 await 真的時間，用「還沒 finish 就回到 tick」來模擬長工作：
-			// 見下面 pending 的處理。
+				// Deliberately not awaiting real time; a long job is simulated by returning to tick
+				// before finish is called: see the pending handling below.
 			running--;
 			return "ok";
 		},
@@ -174,7 +174,7 @@ async function scenarioOverlap(): Promise<void> {
 
 	scheduler.add(job({ id: "slow", name: "慢工作", everySeconds: 60, lastScheduledAt: 0 }));
 
-	// 手動製造一筆「還在跑」的執行，模擬上一輪卡住。
+	// Manufacture a "still running" execution by hand, simulating a stuck previous round.
 	const stuck = await ledger.claim("slow", 0);
 	await ledger.markRunning(stuck.id);
 	console.log(dim(`  ${stuck.id} 仍然是 running（模擬上一輪卡住）`));
@@ -206,10 +206,10 @@ async function scenarioCrash(): Promise<void> {
 	await resetState();
 
 	const clock = fakeClock(0);
-	// live: pid → 啟動時間。這是那個「假的作業系統」。
+	// live: pid → start time. This is the "fake operating system".
 	const live = new Map<number, number>([[4242, 1000]]);
 
-	// ── A. 真的死了 ─────────────────────────────────────────
+	// ── A. It really died ───────────────────────────────────
 	console.log(`\n  ${bold("A. owner 真的死了")}`);
 
 	const first = new Ledger({
@@ -227,10 +227,10 @@ async function scenarioCrash(): Promise<void> {
 	console.log(dim(`    ${exec.id} running → 副作用已經發生（${countRuns()} 筆）`));
 	console.log(red("    💀 進程在寫終局狀態之前被 kill"));
 
-	// ⚠️ pid 被回收給別人了：4242 還在，但啟動時間不一樣。
-	// 只比對「pid 存不存在」的話，這裡會判成「還活著」，那筆紀錄
-	// 就永遠停在 running。比對啟動時間才問得出真正的問題：
-	// **是不是同一個進程。**
+	// ⚠️ The pid was recycled to somebody else: 4242 still exists with a different start time.
+	// Comparing only "does this pid exist" concludes "still alive" and leaves that record
+	// in running forever. Comparing start times asks the real question:
+	// **is it the same process.**
 	live.set(4242, 2000);
 	console.log(dim("    （pid 4242 被回收給另一個進程了：存在，但啟動時間不同）"));
 
@@ -261,9 +261,9 @@ async function scenarioCrash(): Promise<void> {
 		);
 	}
 
-	// ── B. 還沒死，只是你不知道 ──────────────────────────────
+	// ── B. Not dead, you just do not know ────────────────────
 	//
-	// 這一段才是 PROVE 這個開關真正要示範的東西。
+	// This section is what the PROVE switch really demonstrates.
 	console.log(`\n  ${bold("B. owner 其實還活著（另一台 scheduler 正在跑同一個工作）")}`);
 	await resetState();
 
@@ -295,7 +295,7 @@ async function scenarioCrash(): Promise<void> {
 		`    sched-4 啟動：標成 unknown ${outcome.recovered.length} 筆，維持原狀 ${outcome.leftAlone.length} 筆`,
 	);
 
-	// 接著它 tick 一次。重疊檢查看的就是「有沒有非終局的執行」。
+	// Then it ticks once. The overlap check looks at "is there a non-terminal execution".
 	const scheduler = new Scheduler({
 		ledger: newcomer,
 		clock: clock.now,
@@ -359,7 +359,7 @@ async function scenarioRespawn(): Promise<void> {
 		return;
 	}
 
-	// 守衛關掉：把那條因果鏈跑出來。
+	// The guard off: run the causal chain out.
 	console.log(dim("  排程建立成功。以下是那條因果鏈：\n"));
 
 	let daemonAlive = true;
@@ -374,9 +374,9 @@ async function scenarioRespawn(): Promise<void> {
 		);
 		daemonAlive = false;
 		restarts++;
-		// 監管者（launchd KeepAlive / systemd Restart=）
+			// The supervisor (launchd KeepAlive / systemd Restart=)
 		daemonAlive = true;
-		// auto-resume 撿回被中斷的那一輪 → 重跑同樣的邏輯
+			// auto-resume picks the interrupted turn back up → re-runs the same logic
 		resumedTurns++;
 	}
 
@@ -419,7 +419,7 @@ async function scenarioApproval(): Promise<void> {
 		ledger,
 		clock: clock.now,
 		runner: async ({ job: j }) => {
-			// 這個工作要寄信 —— Lesson 8 的 EXTERNAL 風險，一定要批准。
+				// This job sends an email — Lesson 8's EXTERNAL risk, which must be approved.
 			const item = await inbox.add({
 				sessionId: `cron:${j.id}`,
 				kind: "approval",
@@ -441,7 +441,7 @@ async function scenarioApproval(): Promise<void> {
 		job({ id: "digest", name: "每日摘要", everySeconds: 3600, lastScheduledAt: 2 * HOUR }),
 	);
 
-	// tick 不會回來，因為那個工作停在 inbox.wait()。
+	// tick never returns, because that job is stopped in inbox.wait().
 	const ticking = scheduler.tick();
 	await new Promise((r) => setTimeout(r, 20));
 

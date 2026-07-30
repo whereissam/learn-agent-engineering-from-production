@@ -1,17 +1,17 @@
 /**
- * Lesson 5 - Context 壓縮
+ * Lesson 5 - context compaction
  *
- * 新東西：對話太長時，自動把舊訊息換成一段摘要。
+ * The new thing: when the conversation grows too long, replace old messages with a summary automatically.
  *
- * 這是最後一課。跑到這裡你的 agent 已經有：
- * tool calling、多工具、批准機制、streaming、中斷、持久化，
- * 現在再加上「能一直聊下去而不會爆掉」。
+ * This is the last lesson of the part. By now your agent has:
+ * tool calling, several tools, approval, streaming, interruption, persistence,
+ * and now "it can keep talking without blowing up".
  *
- * 執行：
- *   bun run lesson-05-compaction/agent.ts              新開一個 session
- *   bun run lesson-05-compaction/agent.ts --resume     續跑最近一次
+ * Run:
+ *   bun run lesson-05-compaction/agent.ts              start a new session
+ *   bun run lesson-05-compaction/agent.ts --resume     continue the most recent one
  *
- * 想快點看到壓縮發生：COMPACT_AT=500 bun run lesson-05-compaction/agent.ts
+ * To see compaction happen sooner: COMPACT_AT=500 bun run lesson-05-compaction/agent.ts
  */
 
 import { readdir } from "node:fs/promises";
@@ -83,8 +83,8 @@ function handleInterrupt(): void {
 // ─────────────────────────────────────────────────────────────
 // Agent loop
 //
-// 跟 Lesson 3 的差別：每一則訊息除了 push 進陣列，也 await session.append()。
-// 這就是「持久化」的全部，只是多了一個寫檔動作。
+// The difference from Lesson 3: besides pushing into the array, every message is also await session.append()'d.
+// That is all "persistence" is: one more file write.
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(
@@ -94,14 +94,14 @@ async function runTurn(
 	signal: AbortSignal,
 ): Promise<void> {
 	for (let step = 0; step < MAX_STEPS; step++) {
-		// 每一輪都從 session 重新讀出訊息。
-		// 這樣 /rewind 之後就會自動用新分支的內容。
+		// Every turn re-reads the messages from the session.
+		// So after /rewind it automatically uses the new branch's content.
 		let messages = session.messages();
 
-		// ── 壓縮檢查 ────────────────────────────────────────
+		// ── the compaction check ────────────────────────────
 		//
-		// 時機很重要：在「送出請求之前」檢查，不是在收到回應之後。
-		// 太晚檢查的話，那個超長的請求已經送出去（並且付錢）了。
+		// The timing matters: check **before sending the request**, not after receiving the response.
+		// Checking too late means that oversized request was already sent (and paid for).
 		if (shouldCompact(messages, COMPACTION)) {
 			const before = estimateTokens(messages);
 			console.log(dim(`\n  [壓縮中… 目前約 ${before} tokens]`));
@@ -109,10 +109,10 @@ async function runTurn(
 			try {
 				const result = await compact(provider, messages, COMPACTION, signal);
 
-				// 摘要以一則「壓縮節點」的形式寫進 session。
+					// The summary is written into the session as a "compaction node".
 				//
-				// 注意：原始訊息「不會」從檔案刪掉，append-only 的意義就在這裡。
-				// 我們只是讓之後的 messages() 從摘要開始算，磁碟上的原文還在。
+					// Note the original messages are **not** deleted from the file; that is what append-only is for.
+					// Later messages() calls simply start from the summary, and the originals are still on disk.
 				await session.appendMeta("compaction", {
 					summary: result.summary,
 					tokensBefore: result.tokensBefore,
@@ -120,7 +120,7 @@ async function runTurn(
 					compactedCount: result.compactedCount,
 				});
 				if (result.compactedCount === 0) {
-					// 摘要比原文還長，壓縮划不來，維持原樣。
+						// The summary is longer than the original, so compaction is not worth it; leave things as they are.
 					console.log(dim("  [摘要不比原文短，這次跳過壓縮]\n"));
 				} else {
 					await session.append(result.messages[0] as Message);
@@ -135,8 +135,8 @@ async function runTurn(
 					);
 				}
 			} catch (error) {
-				// 壓縮失敗不該讓整輪掛掉，原本的訊息還是可以用，
-				// 只是這一輪會比較貴。
+					// A failed compaction must not take down the turn; the original messages still work,
+					// and this turn is merely more expensive.
 				console.log(dim(`  [壓縮失敗，繼續使用完整歷史：${(error as Error).message}]`));
 			}
 		}
@@ -176,7 +176,7 @@ async function runTurn(
 			if (streamError.aborted) {
 				console.log(yellow("\n\n[已中斷]"));
 				if (partialText.trim()) {
-					// 中斷產生的訊息也要存檔，不然重開之後歷史就跟畫面對不上了
+						// Messages produced by an interruption must be persisted too, or after a restart the history disagrees with the screen
 					await session.append({
 						role: "assistant",
 						blocks: [{ type: "text", text: partialText }],
@@ -257,7 +257,7 @@ async function runTurn(
 }
 
 // ─────────────────────────────────────────────────────────────
-// 內建指令
+// Built-in commands
 // ─────────────────────────────────────────────────────────────
 
 async function handleCommand(input: string, session: Session): Promise<boolean> {
@@ -308,7 +308,7 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 		}
 
 		case "/tree": {
-			// 把整個檔案的所有記錄印出來，包含被放棄的分支。
+				// Print every record in the file, including abandoned branches.
 			const all = session.all();
 			const onBranch = new Set(session.branch().map((r) => r.id));
 			console.log(dim(`  檔案裡共 ${all.length} 筆記錄，目前分支上有 ${onBranch.size} 筆`));
@@ -381,7 +381,7 @@ function firstLine(text: string): string {
 	return line.length > 80 ? `${line.slice(0, 80)}…` : line;
 }
 
-/** 找最近改過的 session 檔案。 */
+/** Find the most recently modified session file. */
 async function findLatestSession(): Promise<string | undefined> {
 	try {
 		const files = (await readdir(SESSION_DIR)).filter((f) => f.endsWith(".jsonl")).sort();
@@ -397,7 +397,7 @@ async function findLatestSession(): Promise<string | undefined> {
 async function main(): Promise<void> {
 	const provider = selectStreamingProvider();
 
-	// --resume 續跑最近一次，否則開新的
+	// --resume continues the most recent one; otherwise start a new one
 	const wantResume = process.argv.includes("--resume");
 	let session: Session;
 
@@ -464,7 +464,7 @@ async function main(): Promise<void> {
 }
 
 function newSessionPath(): string {
-	// 檔名用時間戳，排序就等於時間順序
+	// A timestamped filename means sorting equals chronological order
 	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 	return join(SESSION_DIR, `${stamp}.jsonl`);
 }

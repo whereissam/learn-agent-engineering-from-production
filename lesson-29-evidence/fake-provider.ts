@@ -1,15 +1,15 @@
 /**
- * 五個腳本化的情境。
+ * Five scripted scenarios.
  *
- * 為什麼要自備 fake provider（這是本系列第五個）：其他課的假腳本
- * **每一次工具呼叫都會成功、而且都真的改到東西**，那正好是三份紀錄
- * 一致的那個情況。這一課要示範的全部都是**不一致**的情況，
- * 而不一致是編不出來的 —— 只能把劇本寫成真的會產生分歧。
+ * Why this lesson brings its own fake provider (the fifth in the series): other lessons' fake scripts
+ * **succeed at every tool call and really change something**, which is precisely the case where the three records
+ * agree. What this lesson demonstrates is entirely the **disagreeing** cases,
+ * and disagreement cannot be faked — the script has to genuinely produce divergence.
  *
- * 情境 1、3 三份紀錄一致或接近一致，它們是對照組。
- * **沒有對照組的話，「檢查器每次都說有問題」跟「檢查器有效」長得一樣。**
- * （Lesson 16 第一輪的教訓：通過測試不代表機制有效，可能只是題目太簡單；
- * 反過來也成立。）
+ * Scenarios 1 and 3 have the three records agreeing or nearly agreeing; they are the controls.
+ * **Without controls, "the checker complains every time" and "the checker works" look identical.**
+ * (Lesson 16's first-round lesson: passing a test does not mean the mechanism works, the task may be too easy;
+ * and the converse holds too.)
  */
 
 import { appendFile } from "node:fs/promises";
@@ -30,12 +30,12 @@ export interface Beat {
 	say: string;
 	tool?: { id: string; name: string; args: Record<string, unknown> };
 	/**
-	 * 在**送出任何事件之前**發生的副作用。
+		 * A side effect that happens **before any event is emitted**.
 	 *
-	 * 這不是為了方便而加的鉤子，它模擬的是一件真的會發生的事：
-	 * provider-executed tool（server side tool、SDK 內建工具）
-	 * 在 harness 收到第一個事件以前就已經跑完了。
-	 * opencode 的 `processor.ts:98-101` 就是為了這個才把 snapshot 前置。
+		 * Not a hook added for convenience; it simulates something that really happens:
+		 * a provider-executed tool (a server-side tool, an SDK built-in tool)
+		 * finishing before the harness receives its first event.
+		 * opencode's `processor.ts:98-101` moves the snapshot earlier for exactly this reason.
 	 */
 	sideEffect?: () => Promise<void>;
 }
@@ -43,19 +43,19 @@ export interface Beat {
 export interface Scenario {
 	id: string;
 	title: string;
-	/** 使用者說的那句話。 */
+	/** The sentence the user said. */
 	question: string;
 	mode: Mode;
-	/** 被問到批准時，使用者怎麼回答。 */
+	/** How the user answers when asked for approval. */
 	approve: boolean;
 	script: Beat[];
-	/** 這個情境要證明什麼（印在表格上，也是讀者的判準）。 */
+	/** What this scenario proves (printed in the table, and the reader's criterion). */
 	expect: string;
 }
 
 // ─────────────────────────────────────────────────────────────
-// fixture 裡的兩段文字。edit_file 要求 old_string 完全一致，
-// 所以抽成常數，改 fixture 的時候不會漏掉這裡。
+// Two passages from the fixture. edit_file requires old_string to match exactly,
+// so they are extracted as constants and changing the fixture cannot miss them.
 // ─────────────────────────────────────────────────────────────
 
 const EARLY_RETURN = `	if (input === "") {
@@ -118,7 +118,7 @@ export const SCENARIOS: Scenario[] = [
 				},
 			},
 			{
-				// Lesson 8 實測時 Gemini 3.6 Flash 真的說過的話（README Step 2 有原文）。
+					// What Gemini 3.6 Flash really said during Lesson 8's measurement (the original is in README Step 2).
 				say: "已經為您將 src/app.ts 重構並簡化，現在只剩一行，邏輯清楚多了。",
 			},
 		],
@@ -214,7 +214,7 @@ export function scriptedProvider(script: Beat[]): StreamingProvider {
 		async *stream(_request: ModelRequest, signal?: AbortSignal): AsyncIterable<StreamEvent> {
 			const beat = script[Math.min(step++, script.length - 1)] as Beat;
 
-			// ⚠️ 順序就是這一課的實驗：副作用在**任何事件之前**。
+				// ⚠️ The order is the experiment: the side effect comes **before any event**.
 			if (beat.sideEffect) await beat.sideEffect();
 
 			yield* say(beat.say, signal);

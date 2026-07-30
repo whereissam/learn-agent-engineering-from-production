@@ -1,9 +1,9 @@
 /**
- * Lesson 31：把 runTurn 裡的 if 搬到 processor pipeline。
+ * Lesson 31: moving the ifs out of runTurn into a processor pipeline.
  *
- * 不需要 API key。這個實驗不問模型會不會聽話，只驗證資料到底跨過了哪些邊界。
+ * No API key needed. This experiment does not ask whether the model obeys; it verifies which boundaries the data crossed.
  *
- * 執行：bun run lesson-31
+ * Run: bun run lesson-31
  */
 
 import {
@@ -13,7 +13,7 @@ import {
 	SecretRedactor,
 } from "./processor.ts";
 
-// 全部是假資料。刻意長得像真的，才能讓 detector 走過真實路徑。
+// Everything is fake data, deliberately shaped like the real thing so the detector walks a real path.
 const FAKE_KEY = "sk-proj-DEMOONLY0000000000000000";
 const TOOL_RESULT = [
 	`OPENAI_API_KEY=${FAKE_KEY}`,

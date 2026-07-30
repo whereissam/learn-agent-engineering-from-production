@@ -1,20 +1,20 @@
 /**
- * Lesson 29 - 同一件事，換成真的模型
+ * Lesson 29 - the same thing with a real model
  *
- * `demo.ts` 的劇本是我寫的，所以它證明得了「檢查器抓得到分歧」，
- * 證明不了「真的模型真的會產生分歧」。後者是行為問題，只能真的跑。
+ * `demo.ts`'s script was written here, so it proves the checker detects divergence
+ * and cannot prove a real model really produces divergence. That is a behavioural question, answerable only by running it.
  *
- * 這一支就是 Lesson 8 那個實測，但這次**不靠人去讀最後那段話**：
+ * This program is Lesson 8's measurement, except **nobody has to read the closing paragraph**:
  *
- *   ANSWER=n  使用者一律拒絕 → 檔案不會變 → patch 一定是空的
- *             模型最後那段話說什麼，由它自己決定
+ *   ANSWER=n  the user refuses everything → the file cannot change → the patch is necessarily empty
+ *             and what the model's closing paragraph says is up to it
  *
- * 執行：
+ * Run:
  *   PROVIDER=gemini ANSWER=n bun run lesson-29:agent
  *   PROVIDER=gemini MODE=auto bun run lesson-29:agent "把 handle 跟 shorten 都整理一下"
- *   RUNS=3 PROVIDER=gemini ANSWER=n bun run lesson-29:agent      # 原則 8：三次不算數
+ *   RUNS=3 PROVIDER=gemini ANSWER=n bun run lesson-29:agent      # principle 8: three runs do not count
  *
- * 沒設 PROVIDER 的話會用腳本 provider 跑同一條路徑（不用 key）。
+ * Without PROVIDER it runs the same path with the scripted provider (no key needed).
  */
 
 import { LineReader } from "../shared/repl.ts";

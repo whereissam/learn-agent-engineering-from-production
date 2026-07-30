@@ -1,15 +1,15 @@
 /**
- * create_incident_report：這一課唯一會產生副作用的工具。
+ * create_incident_report: this lesson's only tool with a side effect.
  *
- * 它示範另一個領域工具的設計重點：**用 schema 強迫模型結構化思考。**
+ * It demonstrates another key point in domain tool design: **use a schema to force structured thinking.**
  *
- * 如果只給模型一個 write_file，它會寫出一段散文。散文沒辦法：
- *   - 程式化地檢查（Lesson 7 的評估要用）
- *   - 存進資料庫、串到 dashboard
- *   - 保證它真的有引用證據
+ * Given only a write_file, a model writes prose. Prose cannot:
+ *   - be checked programmatically (needed by Lesson 7's evaluation)
+ *   - go into a database or a dashboard
+ *   - guarantee evidence was actually cited
  *
- * 把「結論」「信心」「證據」拆成必填欄位之後，模型就不能含糊帶過。
- * 這比在 prompt 裡拜託它「請附上證據」有效得多。
+ * Split "conclusion", "confidence" and "evidence" into required fields and the model cannot be vague.
+ * Far more effective than asking it in a prompt to "please attach evidence".
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -18,7 +18,7 @@ import type { Tool } from "../../shared/tools/registry.ts";
 
 const REPORT_DIR = resolve(import.meta.dirname, "../reports");
 
-/** 分類是固定選項，不是自由文字。這樣下游才能統計。 */
+/** The classification is a fixed set of options, not free text. That is what makes downstream statistics possible. */
 const CLASSIFICATIONS = [
 	"fall",
 	"near_miss",
@@ -85,8 +85,8 @@ export const createIncidentReportTool: Tool = {
 		const sessionId = String(args.session_id ?? "");
 		const classification = String(args.classification ?? "");
 
-		// enum 驗證要自己做。模型「大部分時候」會遵守 schema，但不保證,
-		// 而且不同 provider 的遵守程度不一樣。
+			// Enum validation is your job. A model follows a schema **most of the time** without guaranteeing it,
+			// and different providers follow it to different degrees.
 		if (!CLASSIFICATIONS.includes(classification as (typeof CLASSIFICATIONS)[number])) {
 			throw new Error(
 				`Invalid classification "${classification}". Must be one of: ${CLASSIFICATIONS.join(", ")}`,
@@ -95,8 +95,8 @@ export const createIncidentReportTool: Tool = {
 
 		const evidence = Array.isArray(args.evidence) ? args.evidence.map(String) : [];
 
-		// 「有結論就必須有證據」這條規則用程式強制，不是用 prompt 請求。
-		// 這是 harness 在替你把關模型的輸出品質。
+			// "A conclusion requires evidence" is enforced by code rather than requested in a prompt.
+			// This is the harness policing the model's output quality for you.
 		if (classification !== "nominal" && evidence.length === 0) {
 			throw new Error(
 				`A "${classification}" classification requires at least one evidence entry. ` +
@@ -114,7 +114,7 @@ export const createIncidentReportTool: Tool = {
 			evidence,
 			caveats: Array.isArray(args.caveats) ? args.caveats.map(String) : [],
 			next_steps: Array.isArray(args.next_steps) ? args.next_steps.map(String) : [],
-			// 這個欄位讓報告可追溯。真實系統還會記 model id、prompt 版本、資料版本。
+				// This field makes a report traceable. A real system also records the model id, prompt version and data version.
 			generated_at: new Date().toISOString(),
 		};
 

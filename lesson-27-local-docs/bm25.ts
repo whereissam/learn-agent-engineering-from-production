@@ -1,14 +1,14 @@
 /**
- * 通用版的 BM25。
+ * A general-purpose BM25.
  *
- * Lesson 20 那支是寫死在語料上的（直接讀 `corpus/index.json`），
- * 因為那時候只有一份資料。現在有兩份了（本地文件和網頁），
- * 所以把它抽成「給我一堆文件，我幫你排序」。
+ * Lesson 20's version is hardcoded to its corpus (reading `corpus/index.json` directly),
+ * because there was only one dataset then. There are two now (local documents and web pages),
+ * so it is extracted into "give me some documents and I will rank them".
  *
- * **這就是重複第二次的時候該做的事。** 第一次寫死沒問題，
- * 第二次才抽象，不然你會為了想像中的第二個使用者過度設計。
+ * **This is what to do the second time something repeats.** Hardcoding the first time is fine,
+ * and abstracting on the second, or you over-design for an imagined second user.
  *
- * 演算法本身跟 Lesson 20 一模一樣，註解不重複寫，去看
+ * The algorithm itself is identical to Lesson 20's, and its comments are not repeated; see
  * `lesson-20-search-agent/search/engine.ts`。
  */
 
@@ -50,7 +50,7 @@ interface Prepared {
 export class Bm25Index {
 	private readonly docs: Prepared[];
 	private readonly avgLength: number;
-	/** term → 有幾篇含這個字。先算好，不然每次查詢都要掃全部。 */
+	/** term → how many documents contain it. Precomputed, or every query would scan everything. */
 	private readonly docFreq = new Map<string, number>();
 
 	constructor(documents: Document[]) {

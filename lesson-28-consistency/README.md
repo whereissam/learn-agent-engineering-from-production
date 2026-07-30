@@ -1,11 +1,14 @@
-# Lesson 28: 中斷之後，session 不能說謊
+# Lesson 28: After an Interruption, the Session Must Not Lie
 
-> **OpenCode 篇第二課。** 前置：[Lesson 3](../lesson-03-streaming/)（串流與中斷）、
-> [Lesson 4](../lesson-04-sessions/)（session 持久化）。
-> **建議先讀 [Lesson 29](../lesson-29-evidence/)**（它是同一個問題比較簡單的版本），
-> 但這一課不依賴它的程式碼。
+> [繁體中文](README.zh-TW.md)
 >
-> 對照原始碼：`opencode/packages/opencode/src/session/processor.ts`（718 行）、
+> Second lesson of the OpenCode part. Prerequisites:
+> [Lesson 3](../lesson-03-streaming/) (streaming and interruption),
+> [Lesson 4](../lesson-04-sessions/) (session persistence).
+> Reading [Lesson 29](../lesson-29-evidence/) first helps (it is the simpler
+> version of the same problem), but this lesson does not depend on its code.
+>
+> Source: `opencode/packages/opencode/src/session/processor.ts` (718 lines),
 > `packages/schema/src/session-message.ts`
 
 ```bash
@@ -17,23 +20,25 @@ PROVIDER=gemini bun run lesson-28:agent                 # 中斷一個真的串�
 INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent
 ```
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. Lesson 3 的中斷已經能停下串流了，還缺什麼？
-2. 中斷的那一刻，同時有幾件事沒做完？
-3. 一個「還在跑」的工具，存到硬碟裡之後會變成什麼？
-4. 怎麼**可靠地**在指定位置中斷一次串流？
+1. Lesson 3's interruption already stops the stream — what is still missing?
+2. At the moment of interruption, how many things are unfinished at once?
+3. What does a tool that is "still running" become once it is on disk?
+4. How do you **reliably** interrupt a stream at a specified point?
 
 ---
 
-## Step 0：Lesson 3 停下來的是串流，不是 session
+## Step 0: what Lesson 3 stopped was the stream, not the session
 
-Lesson 3 教的中斷是：`SIGINT` → `AbortController` → provider 停止讀取 →
-發出 `{ type: "error", aborted: true }`。那一課的結論是
-「錯誤是事件，不是 throw，因為你需要一個機會把已經拿到的部分保存下來」。
+The interruption Lesson 3 taught is `SIGINT` → `AbortController` → the provider
+stops reading → emit `{ type: "error", aborted: true }`. That lesson's conclusion
+was "an error is an event, not a throw, because you need a chance to save what you
+already have".
 
-**那個結論是對的，但那一課只用了它的一半。** provider 停了不代表 session
-一致，因為中斷的那一刻可能同時有：
+That conclusion is right, and that lesson used only half of it. The provider
+stopping does not make the session consistent, because at the moment of
+interruption there may simultaneously be:
 
 ```
 reasoning 在輸出          一個沒有結束時間的 part
@@ -44,20 +49,23 @@ text 在輸出               使用者已經看到半句話
 session 還是 busy         下次載回來會被當成還在跑
 ```
 
-**每一格都不會丟例外。** 這是設計原則 7 的最集中的一次出現。
+None of those throws. This is the most concentrated appearance of design
+principle 7.
 
 ---
 
-## Step 1：怎麼可靠地中斷一次串流 ★
+## Step 1: how to interrupt a stream reliably
 
-這一課要先解決的不是收尾邏輯，是**實驗裝置**。兩個直覺的做法都不行：
+The first thing to solve here is not the cleanup logic but the **apparatus**.
+Both intuitive approaches fail:
 
-| 做法 | 為什麼不行 |
+| Approach | Why it fails |
 |---|---|
-| `setTimeout(() => abort(), 30)` | 那 30ms 落在哪兩個事件之間是**運氣**。同一支測試今天中斷在 reasoning、明天中斷在 tool，而你不會知道它換過 |
-| 真的按 Ctrl-C | 位置更不可控，而且沒辦法寫成測試 |
+| `setTimeout(() => abort(), 30)` | which two events those 30ms land between is **luck**. The same test interrupts during reasoning today and during a tool tomorrow, and you will not know it changed |
+| actually pressing Ctrl-C | even less controllable, and impossible to write as a test |
 
-`fake-provider.ts` 的做法是**讓串流自己在指定位置 abort**：
+`fake-provider.ts`'s approach is **having the stream abort itself at a named
+point**:
 
 ```ts
 const stop = (at: InterruptPoint) => {
@@ -71,20 +79,21 @@ if (stop("reasoning")) return      // ← 中斷位置變成一個參數
 yield { type: "reasoning_end", ... }
 ```
 
-`return` 而不是繼續 yield，因為真實的 provider 就是這樣：
-**`text_end`、`step_finish` 這些「結束事件」永遠不會來了。**
-收尾之所以必須存在，就是因為沒有人會替你發結束事件。
+`return` rather than continuing to yield, because that is what a real provider
+does: `text_end` and `step_finish` are never coming. Cleanup has to exist
+precisely because nobody will emit the finishing events for you.
 
-> **任何「時序造成的 bug」，都要先做出一個能指定時序的裝置，再開始修。**
-> 這條在這個系列出現第三次了：Lesson 18 的假時鐘、
-> Lesson 29 的 `CAPTURE` 抓取點、現在是中斷位置。
+> For any timing-caused bug, build an apparatus that can specify the timing before
+> starting to fix it. This is the third appearance of that rule in the series:
+> Lesson 18's fake clock, Lesson 29's `CAPTURE` points, and now interruption
+> points.
 
 ---
 
-## Step 2：一個工具呼叫是生命週期，不是一次函式呼叫
+## Step 2: a tool call is a lifecycle, not a function call
 
-opencode 的 `ToolState` 是四個各自帶不同欄位的型別
-（`schema/src/session-message.ts:81-119`）：
+opencode's `ToolState` is four types each carrying different fields
+(`schema/src/session-message.ts:81-119`):
 
 ```ts
 pending    { status: "pending";   input: string }              // ⚠️ string
@@ -93,27 +102,33 @@ completed  { status: "completed"; input; output }
 error      { status: "error";     input; error; interrupted? }
 ```
 
-**`pending.input` 是字串而不是物件，這是整個型別最值得抄的一格。**
-它在型別上就講清楚了一件事：工具參數是逐字送來的，
-中途中斷會留下**半截 JSON**：
+`pending.input` being a string rather than an object is the single most worth
+copying cell of the whole type. It states a fact at the type level: tool arguments
+arrive character by character, and interrupting midway leaves **half a JSON
+document**:
 
 ```
 {"path":"src/a.ts","content        ← parse 不了
 ```
 
-用一個 `input?: Record` 表示四種狀態的話，這個事實就不見了 ——
-而它不見的那天你會拿到一個 `JSON.parse` 例外，或者更糟：一個空物件。
+Represent all four states with one `input?: Record` and that fact disappears — and
+on the day it disappears you get a `JSON.parse` exception, or worse, an empty
+object.
 
-還有兩個小細節同樣是「少了就分不出兩種情況」：
+Two smaller details are equally "without it, two situations become
+indistinguishable":
 
-- **三個時間點**（`created` / `ran` / `completed`，`session-message.ts:132-137`）。
-  少了中間那個，「參數還沒收完」和「跑很久」就分不出來 —— 兩種完全不同的卡住
-- **`interrupted: true`**（`processor.ts:589`）。被中斷跟工具自己壞了都是
-  `error`，但下游要分得出來：**工具壞了值得重試，被使用者中斷不值得**
+- **three timestamps** (`created` / `ran` / `completed`,
+  `session-message.ts:132-137`). Without the middle one, "the arguments have not
+  finished arriving" and "it is taking a long time" become indistinguishable — two
+  completely different kinds of stuck
+- **`interrupted: true`** (`processor.ts:589`). Being interrupted and the tool
+  breaking are both `error`, but downstream needs to tell them apart: **a broken
+  tool is worth retrying, a user interruption is not**
 
 ---
 
-## Step 3：矩陣 ★★
+## Step 3: the matrix
 
 ```bash
 bun run lesson-28
@@ -132,39 +147,43 @@ before_step_finish    乾淨         message-never-completed, unrecorded-patch
 none（不中斷）        乾淨         message-never-completed
 ```
 
-判定是 `audit.ts` 的五條規則，跑在**存檔上**（存檔 → 重新載入 → 稽核），
-因為中斷的重點就是「進程沒了之後，留下來的東西還能不能相信」。
+The verdict comes from five rules in `audit.ts`, run **against the saved file**
+(save → reload → audit), because the whole point of interruption is whether what
+is left behind can be trusted once the process is gone.
 
-| 規則 | 它在防什麼 |
+| Rule | What it guards against |
 |---|---|
-| `in-flight-in-storage` | 存檔裡有 pending / running → 畫面上那個 spinner 會轉到宇宙盡頭 |
-| `unfinished-span` | 有 created 沒有 completed → 算不出耗時，也不知道它是不是還活著 |
-| `message-never-completed` | 載回來的 session 被當成還在跑 |
-| `terminal-without-result` | 「改成 error 就算處理完了」，但沒有內容等於沒有訊息 |
-| `unrecorded-patch` | 檔案系統說變了，session 說沒有（→ Lesson 29） |
+| `in-flight-in-storage` | storage contains pending / running → the spinner on screen turns until the end of the universe |
+| `unfinished-span` | created without completed → duration cannot be computed, and nobody knows if it is alive |
+| `message-never-completed` | the reloaded session is treated as still running |
+| `terminal-without-result` | "changing it to error counts as handling it", but no content means no message |
+| `unrecorded-patch` | the filesystem says it changed, the session says it did not (→ Lesson 29) |
 
-### 最後一列的 `none` 值得看
+### The last row, `none`, is worth a look
 
-**不中斷、正常跑完，CLEANUP=off 一樣是壞的。** 因為「把訊息標成結束」
-本來就是收尾的工作之一。收尾不是「中斷的補救措施」，
-它是**每一輪都要做的事**，只是中斷讓它變得看得見。
+No interruption, a normal complete run, and CLEANUP=off is still broken. Because
+"mark the message finished" is one of cleanup's jobs in the first place. Cleanup is
+not "a remedy for interruption"; it is **something every turn must do**, and
+interruption only makes it visible.
 
-### `tool_finishing` 那一格：為什麼要有寬限窗口
+### The `tool_finishing` cell: why a grace window
 
-opencode 在放棄一個工具之前給它 250ms（`processor.ts:573`）：
+opencode gives a tool 250ms before giving up on it (`processor.ts:573`):
 
 ```ts
 Deferred.await(call.done).pipe(Effect.timeout("250 millis"), Effect.ignore)
 ```
 
-那一格的工具 20ms 後就會回來，所以它被記成 **completed，不是 interrupted**。
+That cell's tool comes back after 20ms, so it is recorded as **completed, not
+interrupted**.
 
-> 這個窗口不是為了效能，是為了**正確性**。
-> 沒有它，一個其實成功了的工具會被記成中斷 —— **紀錄會說一件沒發生的事。**
+> That window is not for performance but for **correctness**.
+> Without it, a tool that actually succeeded gets recorded as interrupted — the
+> record would state something that did not happen.
 
 ---
 
-## Step 4：收尾的五件事，順序有意義
+## Step 4: cleanup's five jobs, in a meaningful order
 
 ```ts
 async cleanup(reason) {
@@ -176,69 +195,73 @@ async cleanup(reason) {
 }
 ```
 
-第 3 步的「內容留著」不是節省，是一致性：
-**半截的回答是使用者已經看過的東西**，丟掉就等於畫面跟紀錄不一致。
+Step 3's "keep the content" is not thrift but consistency: **half an answer is
+something the user has already seen**, and discarding it makes the screen and the
+record disagree.
 
-第 4 步對照 `processor.ts:539-552`：opencode 的 cleanup 也算 patch。
-這是那一課（29）和這一課的接縫 —— **中斷不能變成一個讓紀錄消失的洞。**
+Step 4 corresponds to `processor.ts:539-552`: opencode's cleanup computes patches
+too. That is the seam between that lesson (29) and this one — an interruption must
+not become a hole through which records vanish.
 
-### ⚠️ 這裡我寫錯過一次，而且是真模型抓出來的
+### A path only the real model found
 
-第一版的第 1 步對所有情況都套用 250ms 寬限窗口。然後某一次真模型跑的時候，
-**模型沒有先輸出文字就直接呼叫工具**，於是串流正常結束、走進
-`cleanup("end")`，而那個工具還在跑 → 250ms 到了 → 它被標成 `interrupted`，
-**而 `finish` 是 `"end"`**。
+The first version applied the 250ms grace window to every case. Then on one real
+model run, **the model called a tool without emitting text first**, so the stream
+finished normally, went into `cleanup("end")` with that tool still running, the
+250ms elapsed, and it was marked `interrupted` — **with `finish` being `"end"`**.
 
 ```
 finish=end
 tool write_file [error (interrupted)] Tool execution interrupted
 ```
 
-一份自相矛盾的紀錄，沒有任何錯誤。
+A self-contradictory record, with no error anywhere.
 
-> **寬限窗口只屬於中斷路徑。** 正常結束時「工具還沒回來」不是異常，
-> 只是還沒好 —— 那就等它。
+> The grace window belongs to the interruption path only. On a normal finish, "the
+> tool has not come back" is not an anomaly, only not-yet-done — so wait for it.
 >
-> 而抓到它的原因值得記下來：**我沒有設計那條路徑，是模型走出來的。**
-> 腳本化的六格矩陣每一格都是我想像得到的情況，
-> 真模型走的是我沒想到的那一格。`tests/consistency.test.ts` 現在有一條守它。
+> And why it was caught is worth recording: that path was never designed; the
+> model walked it. Every cell of the scripted six-case matrix is a situation
+> somebody imagined, and the real model went through the one nobody did.
+> `tests/consistency.test.ts` now has a case guarding it.
 
 ---
 
-## Step 5：真模型只能重現六格裡的兩格 ★
+## Step 5: the real model can only reproduce two of the six cells
 
 ```bash
 PROVIDER=gemini bun run lesson-28:agent                 # 中斷在 text
 INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # 中斷在工具執行中
 ```
 
-**而漏掉的四格的原因在我們自己的抽象**：
+**And the reason the other four are missing is in our own abstraction:**
 
-| 中斷位置 | 真模型 | 為什麼 |
+| Interruption point | Real model | Why |
 |---|---|---|
-| `text` | ✅ | 有 `text_delta` 事件 |
-| `tool_running` | ✅ | 工具是我們自己執行的 |
-| `reasoning` | ❌ | `shared/streaming` 沒有 reasoning 的串流事件 |
-| `tool_input` | ❌ | `tool_call` 是**參數收完才發**的 |
+| `text` | | there is a `text_delta` event |
+| `tool_running` | | the tool is executed by us |
+| `reasoning` | | `shared/streaming` has no reasoning stream events |
+| `tool_input` | | `tool_call` is **emitted only once the arguments are complete** |
 
-最後一列直接引用 `shared/streaming/types.ts:44-51` 那段刻意的簡化：
+The last row cites the deliberate simplification at
+`shared/streaming/types.ts:44-51` directly:
 
 > 注意：這是在參數「完整收到之後」才發出。
 > 有些 provider 會逐字串流工具參數，但半截的 JSON 對 UI 沒用，
 > 所以我們等它完整了再發。
 
-那個決定對 Lesson 3-27 都是對的。但它讓「參數收到一半被中斷」
-**在型別上不可表示**。
+That decision is right for Lessons 3-27. But it makes "interrupted mid-arguments"
+**unrepresentable in the type system**.
 
-> **一個好的抽象會藏起你不需要的東西；
-> 你只會在需要它的那一天，才發現它藏了什麼。**
+> **A good abstraction hides what you do not need;
+> you only discover what it hid on the day you need it.**
 >
-> 這不是要你把所有 provider 事件都攤開。是要記住：
-> **你的事件模型決定了你能觀察到哪些失敗。**
+> This is not an argument for exposing every provider event. It is a reminder:
+> your event model determines which failures you can observe.
 
-### 真模型實測（Gemini 3.6 Flash）
+### Measured with a real model (Gemini 3.6 Flash)
 
-**中斷在工具執行中**：
+**Interrupted during tool execution:**
 
 ```
 → write_file {"path":"a.ts","content":"export const A = 2;\n"}
@@ -251,114 +274,120 @@ finish=interrupted                            finish=（沒有）
 稽核：沒有違規                                 稽核：4 條違規
 ```
 
-`CLEANUP=off` 那一欄的四條：`in-flight-in-storage`、`unfinished-span`、
-`message-never-completed`、**`unrecorded-patch`** ——
-最後一條最值錢：**檔案真的改了，而紀錄裡沒有。**
+The four in the `CLEANUP=off` column: `in-flight-in-storage`,
+`unfinished-span`, `message-never-completed`, and **`unrecorded-patch`** — the
+last being the valuable one: the file really changed, and the record does not say
+so.
 
-**中斷在文字輸出中**（第 2 個 delta 之後）：
+**Interrupted during text output** (after the second delta):
 
 ```
 CLEANUP=on   text "我打算使用 `write_file` 工具重新寫入 `a.ts` 檔案，"  finish=interrupted  稽核乾淨
 CLEANUP=off  text "我將會讀取並更新 `a.ts` 檔案的內容，將其中的常數值從 1 修改為"…  finish=（沒有）  2 條違規
 ```
 
-半截的字**保留下來了**，那正是使用者在畫面上看到的東西。
+The half sentence **is kept**, which is precisely what the user saw on screen.
 
-⚠️ 順帶一個沒預期的細節：`AFTER_DELTAS` 第一版設 4，
-結果 Gemini 把那一句話切成兩三塊就講完了，**中斷從來沒發生**。
-delta 的顆粒度不是你能控制的 —— 又一個「陰性結果要先證明測試有鑑別度」。
+One unanticipated detail in passing: `AFTER_DELTAS` was 4 in the first version,
+and Gemini finished that sentence in two or three chunks, so **the interruption
+never happened**. Delta granularity is not yours to control — another instance of
+"a negative result must first prove the test can discriminate".
 
 ---
 
-## 這課刻意不做的事
+## What this lesson deliberately leaves out
 
-| 沒做 | 為什麼 |
+| Left out | Why |
 |---|---|
-| 介紹 13 種串流事件 | 這一課的判準是那張矩陣，不是事件列表。**這是這一課最大的風險**，`docs/TODO.md` 事先寫下來了 |
-| 真的算 git diff | `diff()` 是一個參數。「怎麼知道檔案真的變了」是 [Lesson 29](../lesson-29-evidence/) 的題目，那一課的 `snapshot.patch()` 就是它的真實版本 |
-| 中斷之後怎麼**續跑** | 那是 Lesson 33（可序列化的狀態機）。這一課只管「留下來的紀錄誠不誠實」 |
-| 多輪 / 多訊息的 session | 一輪就足以呈現全部六格。加上 session 樹只會讓矩陣變模糊 |
-| 重試被中斷的工具 | **刻意不做**：`interrupted` 的工具值不值得重試是工作的性質決定的（Lesson 18 的 `unknown`、Lesson 34 的冪等） |
+| introducing 13 kinds of stream event | this lesson's criterion is that matrix, not an event list. **This is the lesson's biggest risk**, written down in advance in `docs/TODO.md` |
+| computing a real git diff | `diff()` is a parameter. "How do you know a file really changed" is [Lesson 29](../lesson-29-evidence/)'s subject, and its `snapshot.patch()` is the real version |
+| how to **resume** after an interruption | that is Lesson 33 (serialisable state machines). This lesson only cares whether the record left behind is honest |
+| multi-turn / multi-message sessions | one turn suffices to show all six cells. A session tree would only blur the matrix |
+| retrying an interrupted tool | **deliberately not done**: whether an `interrupted` tool deserves a retry is decided by the nature of the job (Lesson 18's `unknown`, Lesson 34's idempotency) |
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 |
+| Symptom | Cause |
 |---|---|
-| 稽核每一格都乾淨 | 檢查 `CLEANUP` 有沒有真的關掉。`bun run lesson-28` 兩欄一起跑就看得出來 |
-| `INTERRUPT=text` 沒有中斷 | 模型沒有先輸出文字（或 delta 太少）。程式會警告；調 `AFTER_DELTAS=1` 或改用 `INTERRUPT=tool` |
-| 工具被標成 interrupted 但它其實成功了 | 寬限窗口太短，或者你在正常結束的路徑上套用了它（Step 4 的那個 bug） |
-| 半截 JSON 讓程式爆掉 | 不要 parse `pending.input`。它是字串，而且**故意**是字串 |
+| every cell audits clean | check `CLEANUP` is really off. `bun run lesson-28` runs both columns together so the difference shows |
+| `INTERRUPT=text` did not interrupt | the model emitted no text first (or too few deltas). The program warns; set `AFTER_DELTAS=1` or use `INTERRUPT=tool` |
+| a tool marked interrupted when it actually succeeded | the grace window is too short, or you applied it on the normal-finish path (Step 4's bug) |
+| half a JSON document crashes the program | do not parse `pending.input`. It is a string, and **deliberately** a string |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：加第六條規則 ⭐
+### Exercise 1: add a sixth rule ⭐
 
-`finish === "interrupted"` 但所有工具都是 `completed` —— 這合法嗎？
-（提示：寬限窗口。）先想清楚它是不是違規，再決定要不要寫成規則。
+`finish === "interrupted"` while every tool is `completed` — is that legal? (Hint:
+the grace window.) Decide whether it is a violation before deciding whether to
+write the rule.
 
-**這一題的重點是：不是每一種「看起來怪」都是錯的。**
+The point of this exercise: not everything that looks odd is wrong.
 
-### 練習 2：把 reasoning 串流接進 provider ⭐⭐
+### Exercise 2: wire reasoning streaming into the provider ⭐⭐
 
-`shared/streaming/anthropic.ts` 已經處理了 thinking block。
-加一組 `reasoning_*` 事件，然後就能量到第三格了。
+`shared/streaming/anthropic.ts` already handles thinking blocks. Add a set of
+`reasoning_*` events, and the third cell becomes measurable.
 
-做完會遇到一個決定：**reasoning 要不要存進 session？**
-存了會膨脹、而且下一輪送回 provider 可能被拒絕；不存的話，
-被中斷的那一輪就少了一段使用者看過的東西。
+Doing it brings a decision: should reasoning be stored in the session? Storing it
+bloats the session and it may be rejected when sent back on the next round; not
+storing it means an interrupted turn loses something the user saw.
 
-### 練習 3：多輪的 session ⭐⭐
+### Exercise 3: multi-turn sessions ⭐⭐
 
-現在稽核的是一個訊息。改成整個 session 檔案，然後加一條規則：
-**同一時間只能有一個訊息是「還沒完成」的。**
+The audit currently covers one message. Change it to the whole session file, then
+add a rule: only one message may be unfinished at a time.
 
-一份有兩個未完成訊息的 session 幾乎一定是 bug —— 想清楚為什麼。
+A session with two unfinished messages is almost certainly a bug — work out why.
 
-### 練習 4：接上真的 patch ⭐⭐
+### Exercise 4: wire up a real patch ⭐⭐
 
-把 `diff()` 換成 Lesson 29 的 `Snapshot`。做完之後
-`unrecorded-patch` 就從「示範」變成「真的量測」。
+Replace `diff()` with Lesson 29's `Snapshot`. Once done, `unrecorded-patch` goes
+from "a demonstration" to "a real measurement".
 
-順便你會發現一件事：**snapshot 要在串流開始之前抓**（Lesson 29 Step 4），
-所以這兩課的收尾其實是同一段程式碼的兩半。
+You will also discover something: **the snapshot has to be taken before the stream
+starts** (Lesson 29 Step 4), so these two lessons' cleanup is really two halves of
+the same code.
 
 ---
 
-## 對照原始碼
+## Compared with the source
 
-| 這課的概念 | OpenCode |
+| Concept in this lesson | OpenCode |
 |---|---|
-| 四個 tool state，`pending.input` 是字串 | `packages/schema/src/session-message.ts:81-119` |
-| 工具的三個時間點 | `session-message.ts:132-137` |
-| reasoning 的 `completed` 是選填 | `session-message.ts:153-156` |
-| 訊息的 `time.completed` 是選填 | `session-message.ts:185-188` |
-| `cleanup()` 的五件事 | `session/processor.ts:539-595` |
-| 給還在跑的工具 250ms 寬限 | `session/processor.ts:573` |
-| 清不掉的工具標成 `interrupted: true` | `session/processor.ts:589` |
-| 被中斷時也要算 patch | `session/processor.ts:540-552` |
-| 訊息收尾 | `session/processor.ts:595` |
+| four tool states, `pending.input` a string | `packages/schema/src/session-message.ts:81-119` |
+| a tool's three timestamps | `session-message.ts:132-137` |
+| reasoning's `completed` is optional | `session-message.ts:153-156` |
+| a message's `time.completed` is optional | `session-message.ts:185-188` |
+| `cleanup()`'s five jobs | `session/processor.ts:539-595` |
+| 250ms of grace for a running tool | `session/processor.ts:573` |
+| tools that cannot be cleared get `interrupted: true` | `session/processor.ts:589` |
+| patches are computed on interruption too | `session/processor.ts:540-552` |
+| finishing the message | `session/processor.ts:595` |
 
-> opencode 還有一段我們沒抄的：`message-v2.ts:349-357` 把 `pending`/`running`
-> 的工具在**送回 provider 之前**轉成 `output-error`，註解寫的理由是
-> 「Anthropic/Claude APIs require every tool_use to have a corresponding
-> tool_result」—— 那正是 Lesson 3 學到的硬規則。
+> There is one more piece of opencode not copied here: `message-v2.ts:349-357`
+> converts `pending`/`running` tools into `output-error` **before sending them back
+> to the provider**, with the comment giving the reason as "Anthropic/Claude APIs
+> require every tool_use to have a corresponding tool_result" — precisely the hard
+> rule from Lesson 3.
 >
-> 所以同一個問題有三個位置：**存檔不能說謊、畫面不能說謊、
-> 送回模型的歷史也不能說謊。** 而第三個位置如果漏掉，
-> 症狀不是紀錄不一致，是下一輪直接 400。
+> So the same problem has three locations: **storage must not lie, the screen must
+> not lie, and the history sent back to the model must not lie either.** Miss the
+> third and the symptom is not an inconsistent record but a 400 on the next round.
 
 ---
 
-## 下一課
+## Next lesson
 
-**照閱讀順序，證據這條支線接下來是 [Lesson 37](../docs/TODO.md)**
-（action / observation trajectory，還沒寫）。這一課把 part 變成有生命週期的
-東西，37 再往前一步：**把「誰說的」寫進型別**（observation 的 source
-永遠是 `"environment"`）。
+In reading order, the evidence thread continues with
+[Lesson 37](../lesson-37-trajectory/) (the action/observation trajectory). This
+lesson gave parts a lifecycle; 37 goes one step further and **writes "who said it"
+into the type** (an observation's source is always `"environment"`).
 
-29 從量測下手、28 從生命週期下手、37 從資料結構下手，
-**三課講的是同一件事：紀錄不能比事實更樂觀。**
+29 attacks it through measurement, 28 through lifecycles and 37 through data
+structures. All three are about one thing: a record must not be more optimistic
+than the facts.

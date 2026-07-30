@@ -43,8 +43,8 @@ your risk rules, when to stop, or what "correct" means for you.
 | Layer | Covered by |
 |---|---|
 | **1. Agent mechanics** — model → tool → result → stop | Lessons 1-5 |
-| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12 and 30 written; 28-29, 31-37 planned |
-| **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-17 written; 18-19 planned |
+| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12, 28-31 and 37 written; 32-36 planned |
+| **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-19 |
 | **4. Domain tools** — the ceiling is what it can operate, not prompt wording | Lesson 6; Lessons 20-27 at full scale |
 | **5. Evaluation** — otherwise you can't tell whether a change helped | Lessons 7, 22, 25 |
 
@@ -207,6 +207,10 @@ reset` puts them back.
 
 > Use `bun run test`, not bare `bun test`. From Lesson 23 on there are cloned
 > reference projects on disk and a bare `bun test` would run their suites too.
+
+> One Lesson 1 conversation usually costs under US$0.05, but token usage climbs
+> fast as a conversation grows, because every turn resends the whole history.
+> Lesson 5 is where that gets dealt with.
 
 ## How this is verified
 

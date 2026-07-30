@@ -1,28 +1,28 @@
 /**
- * 把本地文件和網頁放進同一份排序。
+ * Putting local documents and web pages into one ranking.
  *
- * ## 為什麼這件事沒有想像中難
+ * ## Why this is easier than it sounds
  *
- * 因為 Lesson 22 選了 RRF。
+ * Because Lesson 22 chose RRF.
  *
- * RRF **只看名次，不看分數**——當初的理由是「BM25 的 2.771 和 cosine 的
- * 0.83 不在同一個尺度上」。現在同一個性質順便解決了另一個問題：
- * 本地 chunk 的 BM25 分數和網頁的融合分數也不在同一個尺度上，
- * 但**名次永遠可以比**。
+ * RRF **looks only at rank, not at score** — the original reason being "BM25's 2.771 and a
+ * cosine's 0.83 are not on the same scale". That same property now solves another problem:
+ * a local chunk's BM25 score and a web page's fusion score are not on the same scale either,
+ * but **ranks are always comparable**.
  *
  * ```text
- * 本地第 1 名 + 網頁第 3 名  →  1/61 + 1/63
+ * local 1st + web 3rd  →  1/61 + 1/63
  * ```
  *
- * 如果當初選的是加權相加，這一課就要重新設計正規化。
- * **好的抽象會在你沒預期的地方付利息。**
+ * Had a weighted sum been chosen back then, this lesson would have to redesign normalisation.
+ * **A good abstraction pays interest where you did not expect it.**
  *
- * ## 真正難的是別的東西
+ * ## What is genuinely hard is elsewhere
  *
- *   本地文件沒有 URL      → 來源識別要自己造（ingest.ts）
- *   本地文件沒有權威度    → Lesson 22 的訊號公式不能照抄
- *   本地文件會變          → 索引要能增量更新（ingest.ts）
- *   兩邊講的不一樣時信誰  → 見 README Step 4
+ *   local documents have no URL   → source identity has to be constructed (ingest.ts)
+ *   local documents have no authority → Lesson 22's signal formula cannot be copied as is
+ *   local documents change        → the index needs incremental updates (ingest.ts)
+ *   who to believe when they disagree → see README Step 4
  */
 
 import { ALL_STAGES, retrieve } from "../lesson-22-retrieval/retrieve/pipeline.ts";
@@ -33,7 +33,7 @@ import { type LocalChunk, readIndex } from "./ingest.ts";
 export interface HybridHit {
 	rank: number;
 	kind: "local" | "web";
-	/** 網頁是 URL，本地是 `path#L12-L48`。兩者都能點開、都能驗證。 */
+	/** A URL for the web, `path#L12-L48` for local. Both are clickable and verifiable. */
 	source: string;
 	title: string;
 	snippet: string;
@@ -43,69 +43,70 @@ export interface HybridHit {
 
 export interface HybridResult {
 	hits: HybridHit[];
-	/** dense 有沒有真的跑起來。沒金鑰又沒快取的時候會退化成純關鍵字。 */
+	/** Whether dense actually ran. Without a key and without a cache it degrades to pure keyword. */
 	denseAvailable: boolean;
 	counts: { local: number; web: number };
-	/** 被相關性門檻擋掉的筆數（本地 / 網頁）。 */
+	/** How many were blocked by the relevance floor (local / web). */
 	filtered: { local: number; web: number };
 }
 
 /**
- * 相關性門檻：低於最高分這個比例的就丟掉。
+ * The relevance floor: drop anything below this fraction of the top score.
  *
- * ## 這條是實測逼出來的
+ * ## This line was forced out by measurement
  *
- * 第一版沒有門檻，兩邊各取前 N 名直接融合。結果查
- * 「chunk 大小要怎麼選」的時候，**一篇 sous vide 烹飪指南排到第 4 名**。
+ * The first version had no floor, taking the top N from each side and fusing. Querying
+ * "how do you choose chunk size" then put **a sous vide cooking guide in 4th place**.
  *
- * 原因不是排序壞了，是 **RRF 只看名次**：網頁那一側跟這個問題完全無關，
- * 但它還是交出了一份「前五名」，而 RRF 看到「第 1 名」就給高分。
- * 相關性的絕對高低在融合的時候被丟掉了。
- *
- * ```text
- * 單一來源  top-k 沒事：爛結果排在後面，使用者自己會忽略
- * 跨來源    top-k 有害：爛來源的第 1 名會被當成「第 1 名」對待
- * ```
- *
- * 這正好是 Lesson 23 Step 3 讀到、當時只是「記下來」的那個差異：
- * gpt-researcher 用**相似度門檻**過濾（`SIMILARITY_THRESHOLD = 0.35`），
- * 而不是取 top-k。當時寫「對 agent 來說門檻常常更好」，
- * 現在知道**跨來源融合的時候它不是更好，是必要**。
- *
- * ## 而且門檻要用「絕對」的分數
- *
- * 第一版的門檻是相對的（低於最高分的 35% 就丟），結果**一筆都沒擋掉**。
- * 因為 Lesson 22 的 `score` 是候選集內 min-max 正規化過的，
- * **最高分永遠接近 1**，不管那一批到底相不相關。相對門檻對它沒有意義。
- *
- * 所以網頁那一側改用 `denseScore`（cosine 相似度）——那是整個回傳值裡
- * 唯一有絕對意義的分數。
- *
- * ## 門檻不能照抄別人的
- *
- * 第二版我直接抄 gpt-researcher 的 `SIMILARITY_THRESHOLD = 0.35`
- * （`context/compression.py:123`），結果**還是一筆都沒擋掉**。
- *
- * 量一下才知道為什麼——`gemini-embedding-001` 的無關基線就很高：
+ * The cause is not broken ranking but that **RRF looks only at rank**: the web side is wholly
+ * unrelated to this question and still hands over a "top five", and RRF gives anything called
+ * "rank 1" a high score. The absolute level of relevance is discarded during fusion.
  *
  * ```text
- * query                        web 結果的 cosine 範圍
- * "unitree g1 retargeting…"    0.70 - 0.79    ← 真的相關
- * "chunk 大小要怎麼選"          0.45 - 0.50    ← 完全不相關
- * "BM25 RRF 融合 排序"          0.47 - 0.52    ← 完全不相關
+ * single source  top-k is fine: bad results rank low and the user ignores them
+ * cross-source   top-k is harmful: a bad source's 1st place is treated as "1st place"
  * ```
  *
- * **不相關的東西也有 0.45-0.52。** gpt-researcher 那個 0.35 是配
- * OpenAI embedding 的，換一個模型就完全失效。
+ * This is exactly the difference read in Lesson 23 Step 3 and merely noted at the time:
+ * gpt-researcher filters by a **similarity threshold** (`SIMILARITY_THRESHOLD = 0.35`)
+ * rather than taking top-k. What was written then was "a threshold is often better for an
+ * agent"; **for cross-source fusion it is not better, it is necessary**.
  *
- * 分界很乾淨（0.52 vs 0.70），所以取中間的 0.60。
+ * ## And the threshold must use an absolute score
  *
- * > **教訓：門檻是模型的性質，不是通則。抄別人的常數之前先量自己的分佈。**
- * > 這跟 Lesson 22 猜錯去重門檻（憑印象 0.5，實際 0.17）是同一種錯，
- * > 只是這次我抄的是「權威來源」，更容易讓人放心地不去驗證。
+ * The first version's floor was relative (drop below 35% of the top score) and **blocked
+ * nothing**. Because Lesson 22's `score` is min-max normalised within the candidate set,
+ * **the top score is always near 1** regardless of whether that batch is relevant. A relative
+ * floor means nothing against it.
+ * So the web side switched to `denseScore` (the cosine similarity) — the only score in the
+ * whole return value with absolute meaning.
  *
- * 本地那一側沒有 embedding，所以還是用相對門檻。BM25 分數在同一個索引裡
- * 是可比的，跨索引才不可比。
+ * ## A threshold cannot be copied from somebody else
+ *
+ * The second version copied gpt-researcher's `SIMILARITY_THRESHOLD = 0.35`
+ * (`context/compression.py:123`), and it **still blocked nothing**.
+ *
+ * Measuring shows why — `gemini-embedding-001`'s irrelevant baseline is already high:
+ *
+ * ```text
+ * query                        cosine range of the web results
+ * "unitree g1 retargeting…"    0.70 - 0.79    ← genuinely relevant
+ * "how do you choose chunk size" 0.45 - 0.50   ← wholly irrelevant
+ * "BM25 RRF fusion ranking"     0.47 - 0.52   ← wholly irrelevant
+ * ```
+ *
+ * **Irrelevant things score 0.45-0.52 too.** gpt-researcher's 0.35 is calibrated for OpenAI
+ * embeddings and stops working the moment the model changes.
+ *
+ * The separation is clean (0.52 vs 0.70), so take the middle: 0.60.
+ *
+ * > **The lesson: a threshold is a property of the model, not a general rule. Measure your own
+ * > distribution before copying somebody's constant.** Same error as Lesson 22's wrong dedup
+ * > threshold (0.5 from intuition, 0.17 in reality), except this time what was copied came
+ * > from an authoritative source, which makes it more comfortable not to verify.
+ *
+ * The local side has no embeddings, so it keeps a relative floor. BM25 scores are comparable
+ * within one index and not across indexes.
  */
 const DENSE_FLOOR = 0.6;
 const LOCAL_RELATIVE_FLOOR = 0.35;
@@ -121,8 +122,8 @@ function applyWebFloor<T extends { denseScore?: number }>(
 	hits: T[],
 	denseAvailable: boolean,
 ): { kept: T[]; dropped: number } {
-	// dense 沒跑成功的時候沒有絕對分數可用，只好全收，
-	// 但呼叫端會看到 denseAvailable=false，知道這批結果比較髒。
+		// With dense unavailable there is no absolute score, so everything is kept,
+		// and the caller sees denseAvailable=false and knows this batch is dirtier.
 	if (!denseAvailable) return { kept: hits, dropped: 0 };
 	const kept = hits.filter((hit) => (hit.denseScore ?? 0) >= DENSE_FLOOR);
 	return { kept, dropped: hits.length - kept.length };
@@ -147,13 +148,13 @@ function snippetOf(text: string, limit = 150): string {
 
 export interface HybridOptions {
 	/**
-	 * 關掉相關性門檻，兩邊各取前 N 名直接融合。
+		 * Turn the relevance floor off, taking the top N from each side and fusing directly.
 	 *
-	 * **這個選項的存在只有一個目的：讓你親眼看到門檻在擋什麼。**
-	 * 真實系統不該有這個開關。
+		 * **This option exists for one purpose: letting you see what the floor blocks.**
+		 * A real system should not have this switch.
 	 *
-	 * （跟 Lesson 17 的 `disableSourceWeighting` 是同一個用途。
-	 * 一個機制值不值得存在，最好的說明方式是把它關掉跑一次。）
+		 * (The same purpose as Lesson 17's `disableSourceWeighting`. The best way to explain
+		 * whether a mechanism deserves to exist is switching it off and running once.)
 	 */
 	disableFloor?: boolean;
 }
@@ -171,10 +172,10 @@ export async function hybridSearch(
 		: applyLocalFloor(localRaw);
 	const byId = new Map(chunks.map((chunk) => [chunk.id, chunk]));
 
-	// 網頁那一側直接用 Lesson 22 的完整管線。
-	// 沒有金鑰而且 query 不在 embedding 快取裡時，dense 會丟例外——
-	// 那時候退回純 BM25，而不是整個查詢失敗。
-	// **降級要能自動發生，而且要說出來**（見回傳的 denseAvailable）。
+	// The web side goes straight through Lesson 22's full pipeline.
+	// Without a key and with the query absent from the embedding cache, dense throws —
+	// and then it falls back to pure BM25 rather than failing the whole query.
+	// **Degradation must happen automatically and be stated** (see denseAvailable in the return).
 	let webRaw: Awaited<ReturnType<typeof retrieve>>["hits"] = [];
 	let denseAvailable = true;
 	try {

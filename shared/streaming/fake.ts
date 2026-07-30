@@ -1,14 +1,14 @@
 /**
- * 假的 streaming provider。
+ * The fake streaming provider.
  *
- * 它會「慢慢地」吐字，這樣你才看得到打字機效果，也才有時間按 Ctrl+C 測中斷。
- * 每個 delta 之間的延遲會檢查 signal，所以中斷是即時的。
+ * It emits characters **slowly**, so you can see the typewriter effect and have time to press Ctrl+C to test interruption.
+ * The delay between deltas checks the signal, so interruption is immediate.
  */
 
 import type { ModelRequest, ModelResponse, StreamEvent, StreamingProvider } from "./types.ts";
 import { drain } from "./types.ts";
 
-/** 每個字之間停多久（毫秒）。調大一點比較容易手動測中斷。 */
+/** How long to pause between characters (milliseconds). Raise it to test interruption by hand. */
 const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 25);
 
 export function fakeStreamingProvider(): StreamingProvider {
@@ -19,9 +19,9 @@ export function fakeStreamingProvider(): StreamingProvider {
 		model: "scripted-stream",
 
 		async *stream(request: ModelRequest, signal?: AbortSignal): AsyncIterable<StreamEvent> {
-			// 壓縮請求長得跟一般對話不一樣：沒有工具，而且 system prompt
-			// 在講「summarizing」。認出它，回一段像樣的短摘要，
-			// 不然假 provider 會把它的罐頭長文當成摘要，壓縮後反而變大。
+				// A compaction request looks different from an ordinary conversation: no tools, and the system prompt
+				// talks about "summarizing". Recognise it and return a plausible short summary,
+				// or the fake provider's canned long passage becomes the summary and compaction makes things bigger.
 			if (request.tools.length === 0 && request.system.includes("summarizing")) {
 				const summary =
 					"- 使用者請 agent 檢查一個 URL 短網址服務的專案\n" +
@@ -44,7 +44,7 @@ export function fakeStreamingProvider(): StreamingProvider {
 			const turn = step++;
 			const hasTools = request.tools.length > 0;
 
-			// 前兩輪呼叫工具，之後講一段長話（方便你測中斷）
+				// Call tools for the first two turns, then say a long passage (so you can test interruption)
 			if (hasTools && turn === 0) {
 				yield* say("我先看一下專案結構。", signal);
 				if (signal?.aborted) return yield aborted();
@@ -86,7 +86,7 @@ export function fakeStreamingProvider(): StreamingProvider {
 				return;
 			}
 
-			// 一段刻意寫長的回覆，讓你有足夠時間按 Ctrl+C
+				// A deliberately long reply, giving you time to press Ctrl+C
 			const long =
 				"這是一段刻意寫得很長的回覆，目的是讓你有足夠的時間按下 Ctrl+C 試試看中斷。\n\n" +
 				"當你按下去的時候，注意三件事：\n" +
@@ -116,7 +116,7 @@ export function fakeStreamingProvider(): StreamingProvider {
 	return provider;
 }
 
-/** 一個字一個字吐出去，中間留空檔給中斷。 */
+/** Emit character by character, leaving gaps for an interruption. */
 async function* say(text: string, signal?: AbortSignal): AsyncIterable<StreamEvent> {
 	yield { type: "text_start" };
 	for (const char of text) {

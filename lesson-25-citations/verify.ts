@@ -1,50 +1,50 @@
 /**
- * 引用驗證：那一頁真的說了這句話嗎？
+ * Citation verification: does that page really say this sentence?
  *
- * Lesson 24 已經擋掉一半的問題：learning 只能引用**真的抓過**的網址。
- * 但還有一種錯沒擋到，而且它出現在我們真的跑出來的報告裡：
+ * Lesson 24 already blocks half the problem: a learning may only cite URLs that were **really fetched**.
+ * But one error remains unblocked, and it appeared in a report really produced here:
  *
- *   「其預訓練權重屬於非商業授權
+ *   "its pretrained weights carry a non-commercial licence"
  *    (github.com/kinelabs/humanoid-mimic, discourse.ros.org/t/...45211, blog.kinelabs.dev/...)」
  *
- * 前兩個網址其中一個根本沒提過授權。**網址是真的、抓過的、存在的，
- * 但它不支持這句話。** 這叫引用嫁接（citation grafting），
- * 而它比整段幻覺危險，因為它看起來完全合規。
+ * One of the first two URLs never mentions licensing. **The URL is real, fetched and existing,
+ * and it does not support the sentence.** This is called citation grafting,
+ * and it is more dangerous than a wholesale hallucination, because it looks entirely compliant.
  *
- * ## 怎麼驗，而且不用 LLM 當裁判
+ * ## How to verify it without an LLM judge
  *
- * 「這句話有沒有被這一頁支持」聽起來像語義判斷，很容易就想找個模型來評分。
- * 但 Lesson 7 那條原則在這裡一樣成立：**評分要是確定性的**，
- * 不然你沒辦法回答「改了 prompt 之後有沒有退步」——因為裁判自己也會飄。
+ * "Is this sentence supported by this page" sounds like a semantic judgement, and reaching for a
+ * model to score it is tempting.
+ * But Lesson 7's principle holds here too: **scoring must be deterministic**, or you cannot answer
+ * "did that prompt change make things worse" — because the judge drifts as well.
+ * The method used here is crude, and it catches the real problems:
  *
- * 這裡用的方法很土，但抓得到真正的問題：
+ *   1. extract **checkable atoms** from the sentence: numbers, versions, dates, identifiers, licence names
+ *   2. look for those atoms in each cited source's body text
+ *   3. a source where not one atom is found → that citation is grafted
+ *   4. an atom found in no source at all → that number was invented
  *
- *   1. 從句子裡抽出**可查核的原子**：數字、版本、日期、識別字、授權名稱
- *   2. 去每一個被引用的來源正文裡找這些原子
- *   3. 一個原子都找不到的來源 → 這個引用是嫁接的
- *   4. 所有來源都找不到的原子 → 這個數字是編的
+ * ## This method's limits (stated up front)
  *
- * ## 這個方法的限制（要先講清楚）
+ * **It checks no semantics, only whether these specific things are present.**
  *
- * **它不檢查語義，只檢查「這些具體的東西在不在」。**
+ *   ✗ misses: subjective sentences with no atoms, like "A is better than B"
+ *   ✗ misses: all atoms present but the sentence reverses the causality
+ *   ✗ false positive: the source happens to contain the same number somewhere unrelated
  *
- *   ✗ 抓不到：「A 比 B 好」這種沒有原子的主觀句
- *   ✗ 抓不到：原子都在，但句子把因果關係說反了
- *   ✗ 會誤判：來源剛好在無關的地方出現同一個數字
+ * So why is it worth doing? Because **the class of error it catches is the most common one in
+ * measurement**: a model attaching a real number to a source that never said it.
+ * And it is cheap, reproducible and CI-able.
  *
- * 那為什麼還值得做？因為**它抓得到的那一類錯，正是實測最常見的那一類**：
- * 模型把一個真實的數字接到一個沒說過這件事的來源上。
- * 而且它便宜、可重現、可以進 CI。
- *
- * > 寧可要一個抓得到 70% 問題的確定性檢查，
- * > 也不要一個號稱抓得到 95% 但自己每次結果都不一樣的 LLM 裁判。
+ * > Better a deterministic check that catches 70% of problems
+ * > than an LLM judge claiming 95% whose results differ every run.
  */
 
-/** 一個可查核的原子。 */
+/** One checkable atom. */
 export interface Atom {
-	/** 正規化後的值，用來比對。 */
+	/** The normalised value, used for comparison. */
 	value: string;
-	/** 原文長什麼樣，給人看的。 */
+	/** What it looked like in the original, for humans. */
 	raw: string;
 	kind: "number" | "identifier";
 }
@@ -55,10 +55,10 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * 把數字正規化。
+ * Normalise a number.
  *
- * `06` 和 `6`、`0.80` 和 `0.8` 要算同一個，
- * 不然「2026-06-30」對不上「2026 年 6 月」。
+ * `06` and `6`, and `0.80` and `0.8`, must count as the same,
+ * or "2026-06-30" will not line up with "June 2026".
  */
 function normalizeNumber(text: string): string {
 	const value = Number(text);
@@ -66,16 +66,16 @@ function normalizeNumber(text: string): string {
 }
 
 /**
- * 抽出可查核的原子。
+ * Extract checkable atoms.
  *
- * 兩類：
+ * Two kinds:
  *
- *   數字      17、0.8、2026、50、23      ← 版本、日期、量測值都在這裡
- *   識別字    MIT、Apache-2.0、URDF、left_knee、humanoid-mimic、RTX
+ *   numbers      17, 0.8, 2026, 50, 23      ← versions, dates and measurements all live here
+ *   identifiers  MIT, Apache-2.0, URDF, left_knee, humanoid-mimic, RTX
  *
- * 識別字的條件是「含數字、含連字號底線點、或全大寫」——
- * 這樣才會抓到專有名詞而不是一般英文單字。中文不抽，因為中文的
- * 斷詞太不可靠，抽出來的東西比對起來雜訊比訊號多。
+ * An identifier must contain a digit, a hyphen/underscore/dot, or be all caps —
+ * that is what catches proper nouns rather than ordinary English words. Chinese is not extracted,
+ * because Chinese segmentation is too unreliable and yields more noise than signal in comparison.
  */
 export function extractAtoms(text: string): Atom[] {
 	const atoms: Atom[] = [];
@@ -88,7 +88,7 @@ export function extractAtoms(text: string): Atom[] {
 		atoms.push({ value, raw, kind });
 	};
 
-	// 網址不算原子（它是引用本身，不是被引用的內容）
+		// A URL is not an atom (it is the citation itself, not the cited content)
 	const body = text.replace(/https?:\/\/\S+/g, " ");
 
 	for (const match of body.matchAll(/\d+(?:\.\d+)?/g)) {
@@ -112,25 +112,25 @@ const MONTHS: Record<string, string> = {
 };
 
 /**
- * 來源正文正規化。**數字和識別字要用不同的正規化。**
+ * Normalising a source's body text. **Numbers and identifiers need different normalisation.**
  *
- * 這是實測逼出來的。原本兩者共用一份「全部空白拿掉」的文字，結果：
+ * This was forced out by measurement. Both used to share one "strip all whitespace" text, and:
  *
- *   來源「released June 2026」→ 月份換成數字 →「6 2026」→ 去空白 →「62026」
- *   報告的原子「6」比對 `(?<!\d)6(?!\d)` → 後面接著 2 → **判定查無來源**
+ *   the source "released June 2026" → month to a number → "6 2026" → whitespace stripped → "62026"
+ *   the report's atom "6" matched against `(?<!\d)6(?!\d)` → followed by 2 → **judged unsourced**
  *
- * 同樣的碰撞也讓「January 2004」裡的 2004 查不到。
- * 兩個都是誤判，而且誤判的方向最糟：**它會叫你去修一個沒壞的東西。**
+ * The same collision also made 2004 in "January 2004" unfindable.
+ * Both are false positives, and in the worst direction: **they send you to fix something that is not broken.**
  *
- * 正確的做法是分開：
+ * The right approach is to separate them:
  *
- *   識別字 → 去掉空白（這樣「Apache-2.0」和「Apache - 2.0」算同一個）
- *   數字   → 保留單一空白當邊界（這樣相鄰的數字不會黏成一串）
+ *   identifiers → strip whitespace (so "Apache-2.0" and "Apache - 2.0" count as one)
+ *   numbers     → keep a single space as a boundary (so adjacent numbers do not glue together)
  */
 interface NormalizedSource {
-	/** 給識別字比對用：空白全部拿掉。 */
+	/** For identifier matching: all whitespace removed. */
 	packed: string;
-	/** 給數字比對用：空白壓成一個，保留邊界。 */
+	/** For number matching: whitespace collapsed to one, keeping boundaries. */
 	spaced: string;
 }
 
@@ -145,7 +145,7 @@ function normalizeSource(text: string): NormalizedSource {
 
 function containsAtom(source: NormalizedSource, atom: Atom): boolean {
 	if (atom.kind === "number") {
-		// 數字要避免「1」命中「2026」裡的 1，所以前後不能緊接其他數字
+			// A number must avoid "1" matching the 1 inside "2026", so no digit may adjoin it
 		const pattern = new RegExp(`(?<!\\d)0*${escapeRegex(atom.value)}(?!\\d)`);
 		return pattern.test(source.spaced);
 	}
@@ -160,9 +160,9 @@ function escapeRegex(text: string): string {
 
 export interface SourceVerdict {
 	url: string;
-	/** 這個來源支持了幾個原子。0 = 這個引用是嫁接的。 */
+		/** How many atoms this source supports. 0 = this citation is grafted. */
 	supported: number;
-	/** 這個來源在不在我們抓過的語料裡。false = 更嚴重，網址是編的。 */
+		/** Whether this source is in the corpus we fetched. false = worse; the URL was invented. */
 	known: boolean;
 }
 
@@ -170,17 +170,17 @@ export interface ClaimVerdict {
 	claim: string;
 	atoms: Atom[];
 	sources: SourceVerdict[];
-	/** 完全沒有任何來源支持的原子。這些就是被改掉或編出來的數字。 */
+		/** Atoms supported by no source at all. These are the altered or invented numbers. */
 	unsupportedAtoms: Atom[];
-	/** 被引用但一個原子都不支持的來源。 */
+		/** Sources that were cited and support not one atom. */
 	graftedSources: string[];
 }
 
 /**
- * 驗證一條 claim。
+ * Verify one claim.
  *
- * `corpus` 是「網址 → 正文」。只有真的抓過的頁面在裡面，
- * 所以「引用了不存在的網址」也會在這裡被抓到。
+ * `corpus` maps URL → body text. Only genuinely fetched pages are in it,
+ * so "cited a URL that does not exist" is caught here as well.
  */
 export function verifyClaim(
 	claim: string,
@@ -215,8 +215,8 @@ export function verifyClaim(
 		atoms,
 		sources: verdicts,
 		unsupportedAtoms: atoms.filter((a) => !supportedValues.has(`${a.kind}:${a.value}`)),
-		// 只有「這句話真的有東西可以查」的時候，嫁接才判得準。
-		// 一條原子都沒有的句子（純主觀敘述）不該因為「沒支持」被判嫁接。
+			// Grafting can only be judged accurately when the sentence has something checkable in it.
+			// A sentence with no atoms (pure subjective narration) must not be judged grafted for lack of support.
 		graftedSources:
 			atoms.length === 0 ? [] : verdicts.filter((s) => s.supported === 0).map((s) => s.url),
 	};

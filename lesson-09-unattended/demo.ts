@@ -1,12 +1,12 @@
 /**
- * Lesson 9 示範：agent 真的會停下來等。
+ * Lesson 9's demonstration: the agent really does stop and wait.
  *
- * 不需要 API key。這裡模擬三個情境：
- *   1. 無人值守：agent 停住 → 從「另一個介面」回答 → agent 繼續
- *   2. 冪等：同一個項目回答兩次，第二次是 no-op
- *   3. session 被刪：孤兒項目要收乾淨，不然等待者永遠卡住
+ * No API key needed. Three scenarios are simulated:
+ *   1. unattended: the agent pauses → an answer arrives from "another interface" → the agent continues
+ *   2. idempotency: answering the same item twice makes the second a no-op
+ *   3. a deleted session: orphaned items must be cleaned up or the waiter hangs forever
  *
- * 執行：bun run lesson-09-unattended/demo.ts
+ * Run: bun run lesson-09-unattended/demo.ts
  */
 
 import {
@@ -25,7 +25,7 @@ const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 假的 agent：需要批准才能做事。 */
+/** A fake agent: it needs approval to do anything. */
 async function fakeAgentTurn(label: string, approve: Approver, sessionId: string): Promise<void> {
 	console.log(dim(`  [${label}] agent 想要寄信給 team@example.com…`));
 
@@ -55,13 +55,13 @@ async function scenario1(): Promise<void> {
 	const store = new InboxStore();
 	const sessionId = "sess_nightly";
 
-	// agent 開始跑。注意我們「不 await」，因為它會卡住。
+	// The agent starts. Note it is **not awaited**, because it will block.
 	const agentDone = fakeAgentTurn("agent", inboxApprover(store, sessionId), sessionId);
 
-	// 給它一點時間跑到批准那一步
+	// Give it a moment to reach the approval step
 	await sleep(50);
 
-	// 這時候 agent 是停住的
+	// At this point the agent is paused
 	const pending = store.pending(sessionId);
 	console.log(`  ${yellow("⏸")}  agent 暫停中。inbox 有 ${pending.length} 個待處理項目：`);
 	for (const item of pending) {
@@ -72,12 +72,12 @@ async function scenario1(): Promise<void> {
 	console.log(dim("\n  …八小時過去了…\n"));
 	await sleep(300);
 
-	// 你早上起床，從手機（另一個介面）回答
+	// You wake up and answer from your phone (another interface)
 	console.log(dim("  [你的手機] 看到通知，按了「允許」"));
 	const item = pending[0];
 	if (item) await store.resolve(item.id, "allow");
 
-	// agent 自動繼續
+	// The agent continues by itself
 	await agentDone;
 
 	console.log(dim("\n  重點：agent 沒有逾時、沒有跳過、沒有自己猜。它就是停在那裡。"));
@@ -100,7 +100,7 @@ async function scenario2(): Promise<void> {
 	const first = await store.resolve(item.id, "allow");
 	console.log(`         → ${first ? green("成功") : dim("no-op")}`);
 
-	// 讓 agent 先把它的輸出印完，畫面才看得懂順序
+	// Let the agent finish printing first, so the ordering on screen makes sense
 	await agentDone;
 
 	console.log(dim(`\n  [App ] 同一個項目再回答一次，這次想改成拒絕`));
@@ -142,7 +142,7 @@ async function scenario4(): Promise<void> {
 	const store = new InboxStore();
 	const sessionId = "sess_resume";
 
-	// 模擬夜裡發生的事
+	// Simulate what happened overnight
 	const a = await store.add({
 		sessionId,
 		kind: "approval",

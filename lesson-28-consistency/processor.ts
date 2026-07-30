@@ -1,30 +1,30 @@
 /**
- * 把串流事件變成 part，以及**被中斷時的收尾**。
+ * Turning stream events into parts, and **cleaning up after an interruption**.
  *
- * 對照 opencode：`session/processor.ts`。那個檔案 718 行，這個 200 出頭，
- * 差別幾乎都在事件種類（13 種）和儲存層，`cleanup()` 的形狀是一樣的。
+ * Against opencode's `session/processor.ts`. That file is 718 lines and this is a little over 200;
+ * the difference is almost entirely event kinds (13 of them) and the storage layer, and `cleanup()` has the same shape.
  *
- * ⚠️ **這一課要先承認我們自己的抽象漏掉了什麼。**
+ * ⚠️ **This lesson has to start by admitting what our own abstraction hides.**
  *
- * `shared/streaming/types.ts:44-51` 對 `tool_call` 寫了一段刻意的簡化：
+ * `shared/streaming/types.ts:44-51` states a deliberate simplification about `tool_call`:
  *
- *   > 注意：這是在參數「完整收到之後」才發出。
- *   > 有些 provider 會逐字串流工具參數，但半截的 JSON 對 UI 沒用，
- *   > 所以我們等它完整了再發。
+ *   > Note: this is emitted only once the arguments are complete.
+ *   > Some providers stream tool arguments character by character, but half a JSON document
+ *   > is useless to a UI, so we wait for it to be complete.
  *
- * 那個決定對 Lesson 3-27 都是對的。但它讓「參數收到一半就被中斷」
- * **在型別上不可表示** —— 而那正是這一課矩陣裡的一行。
- * 所以這一課自己定義一組比較細的事件。
+ * That decision is right for Lessons 3-27. And it makes "interrupted mid-arguments"
+ * **unrepresentable in the type system** — which is one row of this lesson's matrix.
+ * So this lesson defines its own finer-grained events.
  *
- * > **一個好的抽象會藏起你不需要的東西；
- * > 你只會在需要它的那一天，才發現它藏了什麼。**
+ * > **A good abstraction hides what you do not need;
+ * > you only discover what it hid on the day you need it.**
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { type AssistantMessage, type Clock, newMessage, type Part } from "./parts.ts";
 
-/** 比 `shared/streaming` 細的一組事件，理由見檔頭。 */
+/** A finer set of events than `shared/streaming`'s; see the file header for why. */
 export type SessionEvent =
 	| { type: "reasoning_start"; id: string }
 	| { type: "reasoning_delta"; id: string; delta: string }
@@ -32,9 +32,9 @@ export type SessionEvent =
 	| { type: "text_start"; id: string }
 	| { type: "text_delta"; id: string; delta: string }
 	| { type: "text_end"; id: string }
-	/** 工具參數的一小塊。**半截的 JSON 就是從這裡來的。** */
+	/** A fragment of a tool's arguments. **Half a JSON document comes from here.** */
 	| { type: "tool_input_delta"; id: string; name: string; chunk: string }
-	/** 參數收完了。 */
+	/** The arguments are complete. */
 	| { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
 	| { type: "step_finish" };
 
@@ -42,26 +42,26 @@ export interface ProcessorOptions {
 	clock: Clock;
 	execute: (name: string, args: Record<string, unknown>) => Promise<string>;
 	/**
-	 * 中斷之後要不要收尾。**false 是這一課要示範的錯誤版本**：
-	 * 串流停了、進程結束了，但 part 全部停在中斷的那一刻。
+		 * Whether to clean up after an interruption. **false is the broken version this lesson demonstrates**:
+		 * the stream stopped, the process ended, and every part is frozen at the moment of interruption.
 	 */
 	cleanup?: boolean;
 	/**
-	 * 給還在跑的工具多少毫秒把自己做完。
+		 * How many milliseconds a running tool gets to finish itself.
 	 *
-	 * opencode 給 250ms（`session/processor.ts:573`）。
-	 * 這個窗口不是為了效能，是為了**正確性**：一個 20ms 後就會回來的工具
-	 * 如果被標成 interrupted，那份紀錄就錯了 —— 它其實跑完了。
+		 * opencode gives 250ms (`session/processor.ts:573`).
+		 * That window is not for performance but for **correctness**: a tool that comes back after 20ms
+		 * and gets marked interrupted makes the record wrong — it actually finished.
 	 */
 	graceMs?: number;
-	/** 這一輪有哪些檔案變了。Lesson 29 的 `snapshot.patch()` 是它的真實版本。 */
+	/** Which files changed this turn. Lesson 29's `snapshot.patch()` is the real version. */
 	diff?: () => string[] | Promise<string[]>;
 	log?: (line: string) => void;
 }
 
 export class SessionProcessor {
 	readonly message: AssistantMessage;
-	/** 還在跑的工具：part id → 它的 promise。 */
+	/** Tools still running: part id → its promise. */
 	private readonly inFlight = new Map<string, Promise<void>>();
 	private readonly options: ProcessorOptions;
 
@@ -115,9 +115,9 @@ export class SessionProcessor {
 			}
 
 			case "tool_input_delta": {
-				// 第一塊參數到達時就建立 part。**這是刻意的**：
-				// 如果等參數收完才建立，中斷在這個窗口裡就完全沒有紀錄，
-				// 使用者會看到「什麼都沒發生」，而其實模型已經決定要呼叫工具了。
+					// The part is created when the first argument fragment arrives. **Deliberately**:
+					// waiting for complete arguments would leave an interruption in this window with no record
+					// at all, so the user sees "nothing happened" when the model had in fact decided to call a tool.
 				const existing = this.find(event.id, "tool");
 				if (existing && existing.type === "tool" && existing.state.status === "pending") {
 					existing.state.input += event.chunk;
@@ -150,9 +150,9 @@ export class SessionProcessor {
 				part.state = { status: "running", input: event.args };
 				part.time.ran = now;
 
-				// ⚠️ **不 await。** 工具在背景跑，串流繼續 ——
-				// 這正是「中斷的時候有工具正在執行」得以發生的原因。
-				// await 掉的話這一課的第三行矩陣就不存在了。
+					// ⚠️ **Not awaited.** The tool runs in the background while the stream continues —
+					// which is exactly what makes "a tool executing at the moment of interruption" possible.
+					// Await it and this lesson's third matrix row would not exist.
 				const promise = this.options
 					.execute(event.name, event.args)
 					.then((output) => {
@@ -187,27 +187,27 @@ export class SessionProcessor {
 	}
 
 	/**
-	 * 中斷（或錯誤）之後的收尾。**五件事，順序有意義。**
+		 * Cleanup after an interruption (or an error). **Five things, in a meaningful order.**
 	 *
-	 * 對照 `session/processor.ts:539-595` 的 `cleanup`。
+		 * Against `cleanup` at `session/processor.ts:539-595`.
 	 */
 	async cleanup(reason: AssistantMessage["finish"]): Promise<void> {
 		if (this.options.cleanup === false) {
-			// 錯誤版本：串流停了就結束。什麼都不做。
+				// The broken version: the stream stopped, so end. Do nothing.
 			this.options.log?.("  （CLEANUP=off：不收尾）");
 			return;
 		}
 
-		// 1. 還在跑的工具。**正常結束和被中斷要用不同的等法。**
+			// 1. Tools still running. **A normal finish and an interruption wait differently.**
 		//
-		// ⚠️ 這一段第一版寫錯了，而且是真模型跑出來的：
-		// 那次模型沒有先輸出文字就直接呼叫工具，於是串流正常結束、
-		// 走進 `cleanup("end")`，而工具還在跑 → 250ms 寬限窗口到了 →
-		// **一個成功的工具被標成 interrupted，而 finish 是 "end"**。
-		// 一份自相矛盾的紀錄，而且不會有任何錯誤。
+			// ⚠️ The first version got this wrong, and a real model exposed it:
+			// the model called a tool without emitting text first, so the stream finished normally,
+			// went into `cleanup("end")` with the tool still running → the 250ms grace window elapsed →
+			// **a successful tool was marked interrupted while finish was "end"**.
+			// A self-contradictory record, with no error anywhere.
 		//
-		// 寬限窗口只屬於中斷路徑。正常結束時，「工具還沒回來」不是異常，
-		// 只是還沒好 —— 那就等它。
+			// The grace window belongs to the interruption path only. On a normal finish, "the tool has
+			// not come back" is not an anomaly, only not-yet-done — so wait for it.
 		if (this.inFlight.size > 0) {
 			if (reason === "end") {
 				await Promise.allSettled([...this.inFlight.values()]);
@@ -222,13 +222,13 @@ export class SessionProcessor {
 			}
 		}
 
-		// 2. 沒趕上的：標成 error + interrupted，**不是**讓它停在 running。
+			// 2. Those that did not make it: marked error plus interrupted, **not** left in running.
 		for (const part of this.message.parts) {
 			if (part.type !== "tool") continue;
 			if (part.state.status === "pending") {
 				part.state = {
 					status: "error",
-					// 半截的 JSON parse 不了，所以這裡不能假裝有參數物件。
+						// Half a JSON document cannot be parsed, so this must not pretend to have an arguments object.
 					input: {},
 					error: `Interrupted while its arguments were still streaming (partial: ${JSON.stringify(part.state.input)})`,
 					interrupted: true,
@@ -245,18 +245,18 @@ export class SessionProcessor {
 			}
 		}
 
-		// 3. 沒結束的 reasoning / text：補上結束時間，**內容留著**。
-		//    半截的推理和半截的回答都是使用者已經看過的東西，丟掉等於畫面跟紀錄不一致。
+			// 3. Unfinished reasoning / text: fill in an end time and **keep the content**.
+			//    Half a thought and half an answer are things the user already saw; discarding them makes screen and record disagree.
 		for (const part of this.message.parts) {
 			if (part.type !== "tool" && part.time.completed === undefined) {
 				part.time.completed = this.now;
 			}
 		}
 
-		// 4. patch 照算。**被中斷的那一輪也可能改過檔案。**
+			// 4. Compute the patch anyway. **An interrupted turn may also have changed files.**
 		await this.recordDiff();
 
-		// 5. 訊息收尾。少了這一行，載回來的 session 會被當成還在跑。
+			// 5. Finish the message. Without this line, the reloaded session is treated as still running.
 		this.message.time.completed = this.now;
 		this.message.finish = reason;
 	}
@@ -266,7 +266,7 @@ export class SessionProcessor {
 		this.message.snapshot = { files: await this.options.diff() };
 	}
 
-	/** 存檔。這一課稽核的對象是這個檔案，不是記憶體裡的物件。 */
+		/** Persist. What this lesson audits is this file, not the object in memory. */
 	async persist(path: string): Promise<void> {
 		await mkdir(dirname(path), { recursive: true });
 		await writeFile(path, `${JSON.stringify(this.message)}\n`, "utf8");

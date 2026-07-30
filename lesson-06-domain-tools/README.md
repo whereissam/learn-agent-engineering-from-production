@@ -1,60 +1,62 @@
-# Lesson 6: 領域工具
+# Lesson 6: Domain Tools
 
-> 前置：[Lesson 3](../lesson-03-streaming/)（streaming）。
+> [繁體中文](README.zh-TW.md)
 >
-> 這是**第 3 層**。前五課教的是怎麼造引擎，這一課開始教怎麼讓引擎在
-> 你自己的領域裡真的有用。
+> Prerequisites: [Lesson 3](../lesson-03-streaming/) (streaming).
+>
+> This is layer 3. The first five lessons built the engine; this one starts on
+> making the engine useful in a domain of your own.
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. 為什麼不能只給 agent `read_file`，讓它自己讀資料想辦法？
-2. 哪些工作該給程式做，哪些該給模型做？
-3. 工具的錯誤訊息要怎麼寫，模型才修得好？
-4. 怎麼強迫模型「有結論就要有證據」？
+1. Why not just hand the agent `read_file` and let it work the data out?
+2. Which work belongs to code, and which to the model?
+3. How should a tool's error messages read, so the model can recover?
+4. How do you force the model to cite evidence for a conclusion?
 
 ---
 
-## 不需要機器人知識
+## No robotics knowledge required
 
-這一課用「四足機器人的事故分析」當領域。**你完全不需要懂機器人。**
-需要知道的只有三個訊號：
+This lesson uses incident analysis for a quadruped robot as its domain. You do
+not need to know anything about robots. Three signals are enough:
 
-| 訊號 | 白話 |
+| Signal | In plain terms |
 |---|---|
-| `imu_pitch_deg` | 身體前後傾幾度。正常走路 0-5 度 |
-| `foot_contact` | 四隻腳有沒有踩在地上 |
-| `joint_torque_max` | 關節出力多大。正常走路 15-25 Nm |
+| `imu_pitch_deg` | how far the body tilts forwards or back. Normal walking is 0-5 degrees |
+| `foot_contact` | whether each of the four feet is on the ground |
+| `joint_torque_max` | how hard the joints are pushing. Normal walking is 15-25 Nm |
 
-而整課最核心的判斷，其實是常識：
+And the central judgement in the whole lesson is common sense:
 
-> **跌倒 = 腳全部離地，而且爬不起來。**
-> **蹲下 = 腳一直踩在地上。**
+> A fall means every foot left the ground and it could not get up.
+> A crouch means the feet stayed down.
 
-兩者的 pitch 看起來很像（都會大幅前傾），但 `foot_contact` 完全不同。
-這個「一個訊號就能區分兩個看起來很像的情況」，正是領域知識的典型長相。
+The pitch looks similar in both (a big forward tilt), while `foot_contact` is
+completely different. One signal separating two situations that look alike is
+what domain knowledge typically looks like.
 
-> 換成你的領域也一樣：電商的「棄單」跟「還在逛」、
-> SEO 的「排名掉了」跟「季節性波動」，都是同一種形狀的問題。
+> The same shape appears in your domain: an abandoned cart versus a shopper
+> still browsing, a ranking drop versus seasonal variation.
 
-資料是合成的，用固定亂數種子產生，跑一百次都一樣。**七個 session**，
-每一個對應 Lesson 7 的一個評估案例：
+The data is synthetic, generated from a fixed random seed, so a hundred runs
+are identical. There are seven sessions, one per evaluation case in Lesson 7:
 
-| session | 是什麼 | 測什麼 |
+| session | What it is | What it tests |
 |---|---|---|
-| `sess_001` | 真正跌倒 | 抓得到嗎 |
-| `sess_002` | 快速蹲下 | 會不會假警報（`foot_contact` 是關鍵） |
-| `sess_003` | 外力碰撞 | 分得出成因嗎 |
-| `sess_004` | 取樣缺口 | 知不知道自己不知道 |
-| `sess_005` | 影片時鐘偏移 | 有沒有察覺陷阱 |
-| `sess_006` | **同一段紀錄裡兩次事件** | 會不會只報最嚴重的那個 |
-| `sess_007` | **極慢傾倒（6 秒）** | 候選視窗來得晚，會不會照抄 |
+| `sess_001` | a real fall | can it be detected |
+| `sess_002` | a fast crouch | false alarm? (`foot_contact` is the key) |
+| `sess_003` | an external collision | can the cause be distinguished |
+| `sess_004` | a sampling gap | does it know what it does not know |
+| `sess_005` | a video clock offset | is the trap noticed |
+| `sess_006` | two events in one recording | does it report only the worst |
+| `sess_007` | a very slow tip-over (6 seconds) | the candidate window arrives late; is it copied blindly |
 
-後兩個是後來補的。原本五個有一個共同的形狀——**一個 session 一個突發
-事件**——而真實 telemetry 不長那樣。`sess_007` 特別值得看：
-`find_anomalies` 的候選從 t=7060ms 才開始（門檻要 `pitch>30` 才觸發），
-但傾倒其實 t=4000ms 就開始了。**候選晚了三秒。**
-
-
+The last two were added later. The original five shared a shape, one sudden
+event per session, and real telemetry does not look like that. `sess_007` is
+worth studying: `find_anomalies` only starts producing candidates at
+t=7060ms, because the threshold needs `pitch>30`, while the tip-over began at
+t=4000ms. The candidate is three seconds late.
 
 ```bash
 bun run lesson-06:data
@@ -62,7 +64,7 @@ bun run lesson-06:data
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
 ```bash
 bun run lesson-06
@@ -72,7 +74,7 @@ bun run lesson-06
 > 分析 sess_002 發生了什麼事，寫報告
 ```
 
-實際跑出來的軌跡（Gemini 3.6 Flash）：
+The trajectory it actually produced, Gemini 3.6 Flash:
 
 ```
 → get_session(sess_002)            檢查資料品質
@@ -87,7 +89,7 @@ bun run lesson-06
 → create_incident_report(...)
 ```
 
-產出的報告：
+And the report:
 
 ```json
 {
@@ -104,19 +106,21 @@ bun run lesson-06
 }
 ```
 
-**注意它沒有說這是跌倒。** pitch 衝到 37 度看起來很像跌倒，
-但它去查了 `foot_contact`，發現腳一直在地上，所以判定為 near_miss。
+Note that it did not call this a fall. A pitch spiking to 37 degrees looks
+exactly like one, so it checked `foot_contact`, found the feet never left the
+ground, and classified it as a near miss.
 
-這就是領域工具在做的事：把「該看哪個訊號」做進工具裡。
+That is what a domain tool does: it builds "which signal to look at" into the
+tool.
 
 ---
 
-## Step 1：loop 一行都沒改
+## Step 1: the loop did not change at all
 
-先講最重要的一件事。把 `lesson-06-domain-tools/agent.ts` 的 `runTurn` 跟 Lesson 3 對照，
-**它們是一樣的**。
+The most important point first. Compare `runTurn` in
+`lesson-06-domain-tools/agent.ts` with Lesson 3's: they are the same.
 
-改的只有兩個地方：
+Two things changed:
 
 ```diff
 - const registry = new ToolRegistry([readFileTool, writeFileTool, editFileTool, ...]);
@@ -126,18 +130,19 @@ bun run lesson-06
 + const SYSTEM_PROMPT = "You are an incident analyst for a quadruped robot fleet...";
 ```
 
-**換工具 + 換 prompt = 換領域。** 引擎不用動。
+New tools plus a new prompt equals a new domain. The engine stays put.
 
-這也回答了一個常見問題：「我要做一個 XX 領域的 agent，該用哪個 framework？」
-通常答案是：你不需要新的 framework，你需要新的工具。
+That also answers a common question: "I want an agent for domain X, which
+framework should I use?" Usually you do not need a new framework, you need new
+tools.
 
 ---
 
-## Step 2：能用程式算的，不要給模型算
+## Step 2: whatever code can compute, do not ask the model to
 
-這是領域工具設計的第一原則。
+The first principle of domain tool design.
 
-假設我只給模型 `read_file`，它要分析一個 session 就得：
+Suppose the model only has `read_file`. To analyse one session it must:
 
 ```
 讀進 600 筆 JSON 樣本（100KB）
@@ -146,15 +151,16 @@ bun run lesson-06
 → 自己判斷哪段異常
 ```
 
-三個問題：
+Three problems:
 
-| 問題 | 後果 |
+| Problem | Consequence |
 |---|---|
-| **token 爆炸** | 一個 session 100KB，五個就把 context 塞滿了 |
-| **算術不可靠** | LLM 做數值統計會出錯，而且錯得很有自信 |
-| **不可重現** | 同一份資料問兩次，可能給出不同的峰值 |
+| **token explosion** | one session is 100KB; five of them fill the context |
+| **unreliable arithmetic** | LLMs make numerical mistakes, confidently |
+| **not reproducible** | ask twice about the same data and the peak may differ |
 
-所以 `query_telemetry` 回傳的不是原始樣本，是**統計摘要**：
+So `query_telemetry` does not return raw samples, it returns a statistical
+summary:
 
 ```
 imu_pitch_deg      min=  -2.31  max=  37.70  mean=   5.42  peak@5620ms
@@ -163,17 +169,18 @@ joint_torque_max   min=  11.02  max=  51.36  mean=  22.15  peak@5580ms
 foot_contact: at least one foot on the ground for the entire window
 ```
 
-600 筆樣本壓成 8 行。而且 `max=37.70` 這個數字是**程式算的，永遠正確**。
+600 samples compressed into 8 lines, and `max=37.70` is computed by
+code, so it is always right.
 
-> **分工原則：程式負責算，模型負責解讀。**
-> 模型擅長的是「37 度加上腳沒離地，所以這不是跌倒」這種判斷，
-> 不是「這 600 個數字裡最大的是哪個」。
+> The division of labour: code computes, the model interprets. The model is
+> good at "37 degrees with the feet still down, so this is not a fall", not at
+> "which of these 600 numbers is largest".
 
 ---
 
-## Step 3：工具給候選，模型下結論
+## Step 3: tools propose candidates, the model concludes
 
-`find_anomalies` 用寫死的門檻掃過整個 session：
+`find_anomalies` sweeps the session with hardcoded thresholds:
 
 ```ts
 if (Math.abs(s.imu_pitch_deg) > 30) hits.push({ ... });
@@ -181,7 +188,7 @@ if (s.imu_accel_z > 15) hits.push({ ... });
 if (s.foot_contact.every((c) => !c)) hits.push({ ... });
 ```
 
-但它的 description 寫得很小心：
+But its description is carefully worded:
 
 ```
 Returns candidate windows with the signal that triggered them.
@@ -189,24 +196,26 @@ These are CANDIDATES, not conclusions: you must inspect each one
 to decide what actually happened.
 ```
 
-**這個分工是刻意的：**
+The split is deliberate:
 
 ```
 確定性的規則  →  負責 recall（不要漏掉任何可疑的地方）
 模型          →  負責 precision（判斷哪些是真的）
 ```
 
-反過來做（讓模型自己掃全部資料找異常）既貴又不穩定。
-規則掃描是 O(n) 而且免費，模型只需要看幾個候選區間。
+The other way round (asking the model to sweep all the data itself) is both
+expensive and unstable. A rule-based scan is O(n) and free; the model only
+looks at a few candidate windows.
 
-這個模式在很多領域都適用：log 分析、異常偵測、code review、
-安全掃描。**先用便宜的確定性方法縮小範圍，再讓模型做判斷。**
+The pattern generalises: log analysis, anomaly detection, code review,
+security scanning. Narrow the field with something cheap and deterministic,
+then let the model judge.
 
 ---
 
-## Step 4：工具要主動報告資料品質
+## Step 4: tools must volunteer data-quality problems
 
-`get_session` 有一段看起來多餘的東西：
+`get_session` carries something that looks redundant:
 
 ```ts
 const gaps = findGaps(samples, meta.sample_rate_hz);
@@ -220,39 +229,42 @@ if (gaps.length > 0) {
 }
 ```
 
-為什麼要主動講？
+Why say it unprompted?
 
-**因為模型不會主動懷疑資料。** 如果工具不說，它會很自然地假設資料是完整的，
-然後對一段根本沒有資料的時間做出結論。
+Because the model does not spontaneously distrust its data. If the tool says
+nothing, the model naturally assumes the data is complete and then draws
+conclusions about a stretch of time with no data in it.
 
-這是 agent 產生幻覺結論最常見的來源之一：
+This is one of the most common sources of hallucinated conclusions:
 
-> 不是模型在唬爛，是工具沒說實話。
+> The model is not making things up; the tool failed to tell the truth.
 
-`sess_004` 就是為了這個做的：中間 3 秒完全沒有取樣。試試看：
+`sess_004` exists for this, with three seconds missing in the middle. Try it:
 
 ```
 > 分析 sess_004
 ```
 
-好的行為是回報 `inconclusive` 並在 caveats 說明資料有洞。
-壞的行為是對那 3 秒編一個故事。Lesson 7 會把這個做成正式的評估案例。
+Good behaviour reports `inconclusive` and notes the hole in the caveats. Bad
+behaviour invents a story about those three seconds. Lesson 7 turns this into
+a formal evaluation case.
 
-同理，`sess_005` 的影片時間戳比 telemetry 早 2300ms。
-`get_video_frame` **自動幫你換算**，而不是要求模型自己算：
+Likewise `sess_005`, whose video timestamps run 2300ms ahead of the telemetry.
+`get_video_frame` converts automatically instead of asking the model to:
 
 ```ts
 const videoT = t + meta.video_offset_ms;
 ```
 
-能在工具裡消掉的複雜度，就不要留給模型。每一個「要模型記得做」的
-換算，都是一個它遲早會忘記的地方。
+Complexity you can absorb in a tool should not be left to the model. Every
+conversion the model is expected to remember is a place it will eventually
+forget.
 
 ---
 
-## Step 5：錯誤訊息是寫給模型的 prompt
+## Step 5: an error message is prompt for the model
 
-比較這兩種寫法：
+Compare these:
 
 ```ts
 // ✗ 沒用的錯誤
@@ -267,15 +279,16 @@ throw new Error(
 );
 ```
 
-第二種包含三個要素：
+The second carries three things:
 
-1. **發生什麼事**（這個區間沒資料）
-2. **實際狀況是什麼**（資料範圍是 0..12000）
-3. **下一步可以做什麼**（去呼叫 get_session 確認）
+1. what happened (no data in this window)
+2. what is actually true (the data spans 0..12000)
+3. what to do next (call get_session to check)
 
-模型看到第一種只能瞎猜；看到第二種會直接修正查詢範圍。
+Given the first, the model can only guess. Given the second, it corrects the
+query.
 
-同樣的原則用在 session id 上：
+The same principle applies to session ids:
 
 ```ts
 throw new Error(
@@ -284,13 +297,14 @@ throw new Error(
 );
 ```
 
-**每一個錯誤訊息都該告訴模型「接下來該做什麼」。**
+Every error message should tell the model what to do next.
 
 ---
 
-## Step 6：用 schema 強迫結構化
+## Step 6: use a schema to force structure
 
-`create_incident_report` 不是「寫一段文字到檔案」，它的參數是有結構的：
+`create_incident_report` is not "write some text to a file". Its parameters
+have structure:
 
 ```ts
 classification: { type: "string", enum: ["fall", "near_miss", "external_collision", "nominal", "inconclusive"] },
@@ -299,16 +313,17 @@ evidence:       { type: "array", items: { type: "string" } },
 caveats:        { type: "array", items: { type: "string" } },
 ```
 
-如果只給 `write_file`，模型會寫出一段散文。散文沒辦法：
+Given only `write_file`, the model writes prose. Prose cannot be:
 
-- 程式化檢查（Lesson 7 的評估需要）
-- 存進資料庫、串到 dashboard
-- 保證它真的有引用證據
+- checked programmatically (which Lesson 7's evaluation needs)
+- stored in a database or fed to a dashboard
+- guaranteed to cite any evidence at all
 
-而且分類是 **enum 不是自由文字**。不然你會得到「疑似跌倒」「輕微失衡」
-「可能碰撞」十幾種說法，下游根本沒辦法統計。
+And the classification is an enum, not free text. Otherwise you get a dozen
+phrasings of "probably a fall" and "slight instability", and nothing
+downstream can count them.
 
-### 用程式強制規則，不要用 prompt 拜託
+### Enforce rules in code, do not beg in the prompt
 
 ```ts
 if (classification !== "nominal" && evidence.length === 0) {
@@ -319,20 +334,22 @@ if (classification !== "nominal" && evidence.length === 0) {
 }
 ```
 
-在 system prompt 裡寫「請附上證據」，模型**大部分時候**會照做。
-在工具裡檢查，它**每次**都得照做，否則工具就失敗，它得重來。
+Write "please cite evidence" in the system prompt and the model complies most
+of the time. Check it in the tool and it complies every time, because
+otherwise the tool fails and it has to try again.
 
-> **能用 harness 保證的事，不要交給 prompt 祈禱。**
+> Whatever the harness can guarantee should not be left to the prompt to pray
+> for.
 
 ---
 
-## Step 7：實測踩到的坑（Gemini `thought_signature`）
+## Step 7: a trap found in practice (Gemini's `thought_signature`)
 
-這一課第一次接真模型時，第二輪請求直接 `400 status code (no body)`，
-沒有錯誤訊息，完全看不出原因。
+The first time this lesson ran against a real model, the second request
+returned `400 status code (no body)`, with no error message and no clue.
 
-查了半天發現：**Gemini 會在 tool call 上附一個 `thought_signature`，
-而且下一輪必須原封不動送回去。**
+The cause: Gemini attaches a `thought_signature` to a tool call, and it must
+be sent back untouched on the next turn.
 
 ```json
 {
@@ -343,12 +360,15 @@ if (classification !== "nominal" && evidence.length === 0) {
 }
 ```
 
-我的 streaming provider 在重建訊息時把 `extra_content` 丟掉了，於是 400。
+The streaming provider dropped `extra_content` while rebuilding the message,
+hence the 400.
 
-**這跟 Lesson 1 講的 `raw` 欄位是同一件事。** 當時的例子是 Anthropic 的
-thinking block 必須原樣傳回，現在多了一個：Gemini 的 thought_signature。
+This is the same thing as Lesson 1's `raw` field. That example was Anthropic's
+thinking blocks needing to go back verbatim; now there is a second, Gemini's
+thought signature.
 
-修法是在累積 tool call 碎片時，把 provider 自訂的欄位一起收下來：
+The fix is to keep provider-specific fields while accumulating tool call
+fragments:
 
 ```ts
 for (const [key, value] of Object.entries(call)) {
@@ -357,54 +377,59 @@ for (const [key, value] of Object.entries(call)) {
 }
 ```
 
-**教訓：中立抽象永遠涵蓋不了所有 provider 的內部欄位。
-不認得的東西要原樣保留，不要丟掉。**
+The lesson: a neutral abstraction can never cover every provider's internal
+fields. Preserve what you do not recognise instead of discarding it.
 
-（非串流版本沒這個問題，因為它直接把 API 回傳的整個 message 物件存進 `raw`。
-是我在串流版本自己重建訊息時才引入的 bug。）
+(The non-streaming version never had this problem, because it stores the API's
+whole message object in `raw`. The bug was introduced by rebuilding messages
+in the streaming version.)
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `Session sess_XXX not found` | id 打錯 | 先問 agent「有哪些 session」 |
-| 沒有 `data/sessions/` | 資料還沒產生 | `bun run lesson-06-domain-tools/data/generate.ts` |
-| `400 status code (no body)`（Gemini） | tool call 的 `extra_content` 被丟掉 | 見 Step 7，已修 |
-| 模型把 sess_002 判成 fall | prompt 沒強調 foot contact | 看 `SYSTEM_PROMPT` 的 discriminator 那段 |
-| 報告寫得很空泛 | evidence 沒有強制檢查 | 見 Step 6 |
+| `Session sess_XXX not found` | mistyped id | ask the agent which sessions exist |
+| No `data/sessions/` | the data was never generated | `bun run lesson-06-domain-tools/data/generate.ts` |
+| `400 status code (no body)` (Gemini) | a tool call's `extra_content` was dropped | see Step 7, already fixed |
+| The model calls sess_002 a fall | the prompt does not stress foot contact | see the discriminator section of `SYSTEM_PROMPT` |
+| The report is vague | evidence is not enforced | see Step 6 |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：把好工具改成爛工具 ⭐
+### Exercise 1: turn a good tool into a bad one ⭐
 
-把 `query_telemetry` 改成直接回傳原始 JSON 樣本（不做統計），
-然後問同一個問題。
+Change `query_telemetry` to return raw JSON samples with no statistics, then
+ask the same question.
 
-觀察：token 用量差多少？模型算的峰值正確嗎？問兩次答案一樣嗎？
+Watch: how much does token usage differ? Is the peak the model computes
+correct? Do two runs agree?
 
-**這題最能體會第 3 層的價值。**
+This exercise conveys the value of layer 3 better than any argument.
 
-### 練習 2：拿掉資料品質警告 ⭐
+### Exercise 2: remove the data-quality warning ⭐
 
-把 `get_session` 的 gap 警告註解掉，然後問 `sess_004`（有 3 秒資料洞）。
+Comment out `get_session`'s gap warning, then ask about `sess_004`, which has
+a three-second hole.
 
-看模型會不會對那 3 秒編故事。這就是「工具不說實話」的後果。
+Watch whether the model invents a story about those three seconds. That is the
+cost of a tool that does not tell the truth.
 
-### 練習 3：加一個 `get_robot_history` 工具 ⭐⭐
+### Exercise 3: add a `get_robot_history` tool ⭐⭐
 
-同一台機器人過去的事故紀錄。這會讓 agent 能回答
-「這台機器人是不是常常跌倒？」
+Past incidents for the same robot, so the agent can answer "does this robot
+fall over a lot?"
 
-思考：這個工具該回傳原始紀錄，還是統計摘要？（回想 Step 2）
+Think: should that tool return raw records or a statistical summary? (Recall
+Step 2.)
 
-### 練習 4：換一個你自己的領域 ⭐⭐⭐
+### Exercise 4: switch to a domain of your own ⭐⭐⭐
 
-這是這一課真正的作業。挑一個你熟悉的領域，設計 5-7 個工具。
-例如 SEO：
+This is the real assignment. Pick a domain you know and design 5 to 7 tools.
+For SEO, say:
 
 ```text
 get_page_metrics(url, date_range)
@@ -414,36 +439,40 @@ get_page_content(url)
 create_seo_report(...)
 ```
 
-自問四個問題：
+Ask yourself four questions:
 
-1. 哪些計算該在工具裡做完？（不要讓模型算平均值）
-2. 哪些工具是 mutating，需要批准？
-3. 每個工具的錯誤訊息有沒有告訴模型下一步？
-4. 最終產出有沒有 schema，能不能程式化檢查？
+1. Which computations should finish inside the tool? (Do not make the model
+   average things.)
+2. Which tools are mutating and need approval?
+3. Does every error message tell the model what to do next?
+4. Does the final output have a schema, and can it be checked by code?
 
-### 練習 5：找出你的「foot contact」訊號 ⭐⭐⭐
+### Exercise 5: find your own "foot contact" signal ⭐⭐⭐
 
-這一課的核心是：**有一個訊號能區分兩個看起來很像的情況。**
+The core of this lesson is that one signal separates two situations that look
+alike.
 
-在你的領域裡找出那個訊號，然後把它寫進 system prompt 的
-「discriminator」段落，並確保有工具能取得它。
+Find that signal in your domain, write it into the discriminator section of
+the system prompt, and make sure a tool can fetch it.
 
-這通常是領域專家最有價值的知識，也是最難從資料裡自動學到的東西。
+This is usually the most valuable thing a domain expert knows, and the hardest
+thing to learn automatically from data.
 
 ---
 
-## 對照 Pi 原始碼
+## Compared with Pi's source
 
-Pi 本身是 coding agent，沒有領域工具。但工具的**形狀**是共用的：
+Pi is a coding agent and has no domain tools. But the shape of a tool is
+shared:
 
-| 這一課的概念 | Pi 的對應位置 |
+| Concept in this lesson | Where it lives in Pi |
 |---|---|
-| Tool 介面 | `packages/agent/src/types.ts:380` (`AgentTool`) |
-| content vs details 分離 | `types.ts:355` (`AgentToolResult`) |
-| 輸出截斷 | `harness/utils/truncate.ts` |
-| 執行環境抽象 | `harness/types.ts:373` (`ExecutionEnv`) |
+| the Tool interface | `packages/agent/src/types.ts:380` (`AgentTool`) |
+| separating content from details | `types.ts:355` (`AgentToolResult`) |
+| output truncation | `harness/utils/truncate.ts` |
+| the execution-environment abstraction | `harness/types.ts:373` (`ExecutionEnv`) |
 
-`AgentToolResult` 有個欄位值得特別看：
+One field of `AgentToolResult` deserves attention:
 
 ```ts
 export interface AgentToolResult<T> {
@@ -452,15 +481,18 @@ export interface AgentToolResult<T> {
 }
 ```
 
-我們這一課的工具只回傳字串（也就是只有 `content`）。真實產品會用
-`details` 回傳結構化資料給 UI 畫圖，同時只給模型精簡的文字結論。
-**同一次工具呼叫，兩種消費者，兩種格式。**
+The tools in this lesson return only strings, which is to say only `content`.
+A real product uses `details` to hand structured data to the UI for charts
+while giving the model a compact textual conclusion. One tool call, two
+consumers, two formats.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 7: Evaluation](../lesson-07-evaluation/)**：你現在有一個會分析事故的 agent。
-但它**準不準**？換個 model 會變好還變壞？改了 prompt 有沒有退步？
+[Lesson 7: Evaluation](../lesson-07-evaluation/): you now have an agent that
+analyses incidents. But is it any good? Does swapping models make it better or
+worse? Did that prompt change regress anything?
 
-沒有評估，你只是在憑感覺調 prompt。下一課處理這個。
+Without evaluation you are tuning prompts on vibes. The next lesson deals with
+that.

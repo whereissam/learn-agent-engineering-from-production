@@ -1,9 +1,9 @@
 /**
- * Lesson 15 示範：記憶的三個掛勾點，以及圍欄防禦。
+ * Lesson 15's demonstration: memory's three hook points, and the fence defence.
  *
- * 不需要 API key。
+ * No API key needed.
  *
- * 執行：bun run lesson-15-memory/demo.ts
+ * Run: bun run lesson-15-memory/demo.ts
  */
 
 import { rm } from "node:fs/promises";
@@ -73,7 +73,7 @@ async function scenario3(): Promise<void> {
 	console.log(bold("\n\n情境 3：偽造圍欄（這是本課的核心防禦）"));
 	console.log(dim("攻擊者讓記憶裡帶著圍欄標籤，想假裝自己是系統訊息。\n"));
 
-	// 一個惡意的 provider，模擬「記憶被污染」的狀況
+		// A malicious provider, simulating "memory has been poisoned"
 	const evil: MemoryProvider = {
 		name: "evil",
 		isAvailable: () => true,
@@ -113,7 +113,7 @@ async function scenario3(): Promise<void> {
 		`\n  圍欄外面有沒有攻擊內容？ ${leaked ? red("有（防禦失敗）") : green("沒有 ✓")}`,
 	);
 
-	// 這裡要講清楚，不然讀者會覺得「攻擊字串還在啊，這哪叫擋住了」
+		// State this clearly, or the reader thinks "the attack string is still there, how is that blocked"
 	console.log(dim("\n  注意：那句偽造的訊息**還在**，只是被關進圍欄裡面了。"));
 	console.log(dim("  這是刻意的。防禦目標不是「消滅所有可疑文字」"));
 	console.log(dim("  （那做不到，攻擊者有無限種寫法），而是「保證不會逃出圍欄」。"));

@@ -1,22 +1,22 @@
 /**
- * Inbox：跨 session 的「人類注意力佇列」。
+ * Inbox: a cross-session queue for human attention.
  *
- * 問題：排程半夜三點跑，agent 需要批准，但你在睡覺。怎麼辦？
+ * The problem: a schedule runs at 3 AM, the agent needs approval, and you are asleep. What now?
  *
- * 三個錯誤答案：
- *   1. 直接放行  → 你等於沒有批准機制
- *   2. 直接拒絕  → 自動化永遠做不完事
- *   3. 跳過繼續  → 最糟。agent 會基於「那步沒做成」繼續往下做
+ * Three wrong answers:
+ *   1. allow it outright  → you effectively have no approval mechanism
+ *   2. deny it outright   → automation never finishes anything
+ *   3. skip and continue  → the worst. The agent proceeds on the basis of a step that did not happen
  *
- * 正確答案：**把要求存起來，讓 agent 停在那裡等，你醒來再回答。**
+ * The right answer: **store the request, let the agent wait there, and answer when you wake up.**
  *
- * 聽起來簡單，但有幾個不明顯的要求：
- *   - 同一個要求可能從多個地方被回答（App、Slack、手機）→ 要冪等
- *   - agent 要真的「暫停」，不是輪詢，也不是逾時放棄
- *   - session 被刪掉時，那些永遠不會被回答的要求要收乾淨
- *   - 你回來的時候，要看得到「睡覺時發生了什麼」
+ * It sounds simple, and it has several non-obvious requirements:
+ *   - the same request may be answered from several places (the app, Slack, a phone) → idempotency
+ *   - the agent must genuinely pause, rather than poll or give up on a timeout
+ *   - when a session is deleted, requests that will never be answered must be cleaned up
+ *   - when you come back, you must be able to see what happened while you slept
  *
- * 對照：openworker/coworker/inbox.py
+ * Source: openworker/coworker/inbox.py
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -27,20 +27,20 @@ export type ItemKind = "approval" | "question" | "notification";
 export type ItemState = "pending" | "resolved";
 
 /**
- * 這個要求要在哪裡出現。
+ * Where this request should appear.
  *
- * 關鍵設計（OpenWorker 的註解講得很好）：
+ * The key design (OpenWorker's comment states it well):
  *
  *   > Either way it's the same parked, awaitable, resolve-from-anywhere
  *   > record, only the visibility differs.
  *
- * 也就是說 inline 跟 inbox **用的是同一套機制**,差別只在「顯示在哪」。
- * 不是兩套程式碼，是同一套加一個欄位。
+ * That is, inline and inbox **use the same mechanism**, differing only in where it is displayed.
+ * Not two codebases but one plus a field.
  */
 export type Visibility =
-	/** 有人在場的 session,在對話框裡回答。不進跨 session 佇列。 */
+	/** A session with somebody present; answered in the conversation. Never enters the cross-session queue. */
 	| "inline"
-	/** 無人值守，加入跨 session 的 inbox。 */
+	/** Unattended; joins the cross-session inbox. */
 	| "inbox";
 
 export interface InboxItem {
@@ -50,10 +50,10 @@ export interface InboxItem {
 	visibility: Visibility;
 	title: string;
 	body: string;
-	/** 哪一個工具呼叫產生的，方便回來時對照。 */
+	/** Which tool call produced it, for reference when you return. */
 	toolCallId?: string;
 	state: ItemState;
-	/** 使用者的回答。pending 時是 undefined。 */
+	/** The user's answer. undefined while pending. */
 	resolution?: string;
 	createdAt: string;
 	resolvedAt?: string;
@@ -69,14 +69,14 @@ export interface AddOptions {
 }
 
 /**
- * Inbox 的儲存與狀態機。
+ * The inbox's storage and state machine.
  *
- * 狀態機只有一條邊：pending → resolved。
- * 而且**只能走一次**,第一個回答的人贏。
+ * The state machine has one edge: pending → resolved.
+ * And it **may only be taken once**; the first answer wins.
  */
 export class InboxStore {
 	private readonly items = new Map<string, InboxItem>();
-	/** item id -> 正在等它的人。 */
+	/** item id -> whoever is waiting on it. */
 	private readonly waiters = new Map<string, Array<(resolution: string) => void>>();
 	private readonly path?: string;
 	private counter = 0;
@@ -94,7 +94,7 @@ export class InboxStore {
 				store.counter++;
 			}
 		} catch {
-			// 檔案不存在很正常
+				// A missing file is entirely normal
 		}
 		return store;
 	}
@@ -123,13 +123,13 @@ export class InboxStore {
 	}
 
 	/**
-	 * 回答一個要求。**只會成功一次。**
+		 * Answer a request. **Succeeds exactly once.**
 	 *
-	 * 回傳 false 代表「已經被別人回答過了」，這不是錯誤，是正常情況：
-	 * 你可能在手機上按了允許，又忘記了，再從 App 按一次。
-	 * 第二次應該安靜地變成 no-op,而不是把 agent 叫醒兩次。
+		 * Returning false means "somebody already answered", which is not an error but normal:
+		 * you may have pressed allow on your phone, forgotten, and pressed it again in the app.
+		 * The second time should quietly become a no-op rather than waking the agent twice.
 	 *
-	 * 這就是 OpenWorker 說的
+		 * This is what OpenWorker means by
 	 * 「resolved once, idempotent + first-responder-wins」。
 	 */
 	async resolve(itemId: string, resolution: string): Promise<boolean> {
@@ -141,7 +141,7 @@ export class InboxStore {
 		item.resolvedAt = new Date().toISOString();
 		await this.save();
 
-		// 叫醒正在等的人
+			// Wake whoever is waiting
 		const waiting = this.waiters.get(itemId) ?? [];
 		this.waiters.delete(itemId);
 		for (const notify of waiting) notify(resolution);
@@ -150,16 +150,16 @@ export class InboxStore {
 	}
 
 	/**
-	 * 等一個要求被回答。**這就是 agent 暫停的地方。**
+		 * Wait for a request to be answered. **This is where the agent pauses.**
 	 *
-	 * 注意它沒有 timeout。這是刻意的：
-	 * 逾時之後你要做什麼？放行（危險）還是拒絕（任務失敗）？
-	 * 兩個都不好，所以就一直等。真正該有 timeout 的是「整個任務」,
-	 * 不是「單一個批准」。
+		 * Note there is no timeout. That is deliberate:
+		 * what would you do after one? Allow (dangerous) or deny (the task fails)?
+		 * Neither is good, so it waits. What should have a timeout is **the whole task**,
+		 * not a single approval.
 	 */
 	wait(itemId: string): Promise<string> {
 		const item = this.items.get(itemId);
-		// 已經被回答了就直接回傳，不要卡住
+			// Already answered, so return immediately rather than blocking
 		if (item?.state === "resolved") return Promise.resolve(item.resolution ?? "");
 
 		return new Promise<string>((resolveWait) => {
@@ -187,12 +187,12 @@ export class InboxStore {
 	}
 
 	/**
-	 * session 被刪掉時，把它所有還沒回答的要求收乾淨。
+		 * When a session is deleted, clean up all of its unanswered requests.
 	 *
-	 * 為什麼需要？因為那些要求**永遠不可能被有意義地回答**了
-	 * （session 都不在了，批准它幹嘛）。不收的話：
-	 *   - inbox 會累積一堆殭屍項目
-	 *   - 還在等的 agent 會永遠卡著
+		 * Why? Because those requests **can never be meaningfully answered** any more
+		 * (the session is gone; approving it achieves nothing). Without cleanup:
+		 *   - the inbox accumulates zombie items
+		 *   - agents still waiting hang forever
 	 */
 	async resolveSession(sessionId: string, resolution = "session deleted"): Promise<number> {
 		let closed = 0;
@@ -203,12 +203,12 @@ export class InboxStore {
 	}
 
 	/**
-	 * 使用者回來接手時要看到的東西。
+		 * What the user should see when they come back and take over.
 	 *
-	 * 兩部分：還沒回答的（現在要處理）、以及睡覺時已經被回答的（補上下文）。
+		 * Two parts: what is unanswered (to handle now), and what was answered while you slept (context).
 	 *
-	 * 第二部分容易被忽略但很重要：你不知道「睡覺時發生了什麼」的話,
-	 * 就不敢相信這個 agent。
+		 * The second part is easy to overlook and matters: without knowing what happened while you
+		 * slept, you cannot trust this agent.
 	 */
 	reconcileOnResume(sessionId: string): { pending: InboxItem[]; recap: InboxItem[] } {
 		return {
@@ -218,7 +218,7 @@ export class InboxStore {
 	}
 }
 
-/** 把工具參數壓成一行，給批准卡片顯示用。 */
+/** Flatten tool arguments onto one line for the approval card. */
 export function argsPreview(args: Record<string, unknown>, limit = 240): string {
 	const parts = Object.entries(args).map(([key, value]) => {
 		let s = typeof value === "string" ? value : JSON.stringify(value);

@@ -1,15 +1,15 @@
 /**
- * 檢索評估執行器。
+ * The retrieval evaluation runner.
  *
- * Lesson 7 教的是「量測 → 發現問題 → 修 → 確認沒退步」，
- * 那一課量的是 agent 的報告。這一課量的是**排序**。
+ * Lesson 7 teaches "measure → find the problem → fix → confirm nothing regressed";
+ * that lesson measured the agent's reports. This one measures **ranking**.
  *
- * 用法：
- *   bun run lesson-22:eval              六種組態各跑一次，印比較表
- *   bun run lesson-22:eval --show q1    看某一題的實際排序和每一筆的來歷
- *   bun run lesson-22:embed             重算 embedding 快取（要金鑰）
+ * Usage:
+ *   bun run lesson-22:eval              run all six configurations and print a comparison table
+ *   bun run lesson-22:eval --show q1    see one query's actual ranking and where each result came from
+ *   bun run lesson-22:embed             recompute the embedding cache (needs a key)
  *
- * 沒有金鑰也能跑，因為 embedding 已經算好放在 `embed/cache.json`。
+ * It runs without a key, because the embeddings are precomputed in `embed/cache.json`.
  */
 
 import { loadCorpus, warmCorpusEmbeddings } from "../retrieve/dense.ts";
@@ -22,16 +22,16 @@ const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 
 /**
- * nDCG@k：排序品質最常用的指標。
+ * nDCG@k: the most common ranking quality metric.
  *
- * 它同時回答兩件事：**相關的有沒有被找到**，以及**有沒有排在前面**。
- * 一個相關度 3 的頁面排第 1 拿滿分，排第 5 只拿一半左右。
+ * It answers two things at once: **was the relevant thing found**, and **is it near the top**.
+ * A relevance-3 page scores full marks at rank 1 and about half at rank 5.
  *
- * 公式裡的 `2^rel - 1` 是在放大高相關度的重要性：
- * 一個 rel=3 的結果值 7 分，三個 rel=1 的結果加起來才 3 分。
- * **這符合使用者的實際感受**：一個完全正確的答案，勝過三個沾到邊的。
+ * The `2^rel - 1` in the formula amplifies the importance of high relevance:
+ * one rel=3 result is worth 7 points, and three rel=1 results add up to 3.
+ * **That matches how users actually feel**: one entirely correct answer beats three tangential ones.
  *
- * 分母 `log2(i+1)` 是位置折扣：越後面的位置，就算相關也拿不到多少分。
+ * The `log2(i+1)` denominator is the positional discount: later positions score little even when relevant.
  */
 function ndcg(rankedUrls: string[], relevance: Record<string, number>, k = 5): number {
 	const gains = rankedUrls.slice(0, k).map((url) => relevance[url] ?? 0);
@@ -45,7 +45,7 @@ function ndcg(rankedUrls: string[], relevance: Record<string, number>, k = 5): n
 	return idcg === 0 ? 0 : dcg / idcg;
 }
 
-/** 前 k 名裡有幾個是相關的（rel >= 1）。比 nDCG 粗糙，但很直觀。 */
+/** How many of the top k are relevant (rel >= 1). Cruder than nDCG and very intuitive. */
 function recall(rankedUrls: string[], relevance: Record<string, number>, k = 5): number {
 	const total = Object.keys(relevance).length;
 	if (total === 0) return 1;
@@ -54,19 +54,19 @@ function recall(rankedUrls: string[], relevance: Record<string, number>, k = 5):
 }
 
 /**
- * novelty@k：前 k 名裡，有幾個不是前面某一筆的近似重複。
+ * novelty@k: how many of the top k are not near-duplicates of something above them.
  *
- * **這個指標是後來才加的，因為 nDCG 看不到我在乎的事。**
+ * **This metric was added later, because nDCG cannot see something that matters here.**
  *
- * nDCG 只問「相關嗎、排得夠前面嗎」。兩份幾乎一樣的內容如果都相關，
- * 它會給兩份都算分——但對使用者來說第二份的價值接近零，
- * 對 agent 來說更糟：它要多花一次 `fetch_page` 才發現自己讀了同一篇。
+ * nDCG only asks "is it relevant, is it high enough". Two nearly identical documents that are both
+ * relevant both score — and to a user the second is worth almost nothing,
+ * while to an agent it is worse: it spends another `fetch_page` before discovering it read the same thing.
  *
- * 學術界處理這件事的指標叫 α-nDCG（把已經看過的資訊打折）。
- * 這裡用一個更好懂的版本：**直接數有幾筆是新的。**
+ * The academic metric for this is α-nDCG (discounting information already seen).
+ * This uses a more legible version: **count how many are new.**
  *
- * 教訓：**當既有指標看不到你在乎的東西時，就再加一個指標**，
- * 不要為了讓數字好看去改評估集。
+ * The lesson: **when an existing metric cannot see what you care about, add another metric**,
+ * rather than editing the evaluation set to make the numbers look good.
  */
 function novelty(rankedUrls: string[], texts: Map<string, string>, k = 5): number {
 	const top = rankedUrls.slice(0, k);
@@ -93,11 +93,11 @@ function shingle(text: string, n = 3): Set<string> {
 }
 
 /**
- * 課程裡會示範到的 query，也要一起放進 embedding 快取。
+ * Queries the lesson demonstrates must also go into the embedding cache.
  *
- * 不然沒有金鑰的人一跑 `PROVIDER=fake bun run lesson-22` 就會炸，
- * 因為 dense retrieval 需要 query 的向量。
- * **「離線也能跑」不是只有評估要顧，示範用的輸入也要顧。**
+ * Otherwise somebody without a key running `PROVIDER=fake bun run lesson-22` blows up,
+ * because dense retrieval needs the query's vector.
+ * **"It runs offline" has to cover the demonstration inputs too, not just the evaluation.**
  */
 const DEMO_QUERIES = [
 	"有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？",
@@ -108,9 +108,9 @@ const DEMO_QUERIES = [
 	"retarget-anything 還能用在 2026 SDK 嗎",
 ];
 
-// 六種組態，一層一層疊上去。
-// 這個順序就是這一課的敘事順序，也是實際開發時該有的順序：
-// **一次只加一個東西，然後看數字。**
+// Six configurations, layered one at a time.
+// That order is this lesson's narrative order, and the order real development should follow:
+// **add one thing at a time, then look at the numbers.**
 const CONFIGS: Array<{ label: string; stages: Stages }> = [
 	{
 		label: "BM25 only（Lesson 20）",
@@ -138,7 +138,7 @@ const CONFIGS: Array<{ label: string; stages: Stages }> = [
 	},
 ];
 
-// LLM rerank 要金鑰，所以只有 --rerank 才加進來比較
+// LLM rerank needs a key, so it joins the comparison only with --rerank
 if (process.argv.includes("--rerank")) {
 	CONFIGS.push({
 		label: "+ LLM rerank",
@@ -234,7 +234,7 @@ if (import.meta.main) {
 	const args = process.argv.slice(2);
 
 	if (args.includes("--warm")) {
-		// 把語料和評估 query 的向量全部算好寫進快取
+			// Compute every vector for the corpus and the evaluation queries and write the cache
 		await warmCorpusEmbeddings();
 		await embed([...QUERIES.map((q) => q.query), ...DEMO_QUERIES]);
 		const stats = cacheStats();

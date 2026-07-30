@@ -1,14 +1,14 @@
 /**
- * 這一課專用的假 provider。
+ * The fake provider specific to this lesson.
  *
- * 它演的軌跡跟 Lesson 20 的假 provider 是**同一個問題、不同的做法**：
+ * The trajectory it acts out is **the same question with a different approach** from Lesson 20's fake provider:
  *
- *   Lesson 20   搜尋 → 直接下結論              → 錯
- *   Lesson 21   搜尋 → 把兩個 repo 打開來讀 → 對
+ *   Lesson 20   search → conclude immediately            → wrong
+ *   Lesson 21   search → open and read both repos        → right
  *
- * 兩邊對照著看，就是這一課的全部重點。
+ * Reading the two side by side is this lesson's whole point.
  *
- * 用法：PROVIDER=fake bun run lesson-21
+ * Usage: PROVIDER=fake bun run lesson-21
  */
 
 import type {

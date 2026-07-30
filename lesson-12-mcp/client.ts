@@ -1,16 +1,16 @@
 /**
  * MCP client。
  *
- * 對照 `openworker/coworker/mcp/client.py`（158 行）跟
- * `mastra/packages/mcp/src/client/`。兩份的形狀一樣，
- * 因為 MCP 的形狀就這麼一個。
+ * Against `openworker/coworker/mcp/client.py` (158 lines) and
+ * `mastra/packages/mcp/src/client/`. The two have the same shape,
+ * because MCP has only one shape.
  *
- * 跟自己寫的工具（Lesson 2）最大的差別**不是**協定，是信任：
+ * The biggest difference from tools you wrote yourself (Lesson 2) is **not** the protocol but trust:
  *
- *   自己寫的工具   在你的進程裡、你寫的、會 throw 你認得的錯
- *   MCP 工具       在別人的進程裡、別人寫的、可能永遠不回應
+ *   your own tools   in your process, written by you, throwing errors you recognise
+ *   MCP tools        in somebody else's process, written by somebody else, possibly never answering
  *
- * 所以這個檔案裡有一半的程式碼在處理「它不乖怎麼辦」。
+ * So half the code in this file handles "what if it misbehaves".
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -18,15 +18,15 @@ import { spawn, type ChildProcess } from "node:child_process";
 const PROTOCOL_VERSION = "2025-06-18";
 
 /**
- * 每一個請求的逾時。
+ * A timeout on every request.
  *
- * 為什麼一定要有：MCP server 是**別人的進程**。它可以當掉、可以卡住、
- * 可以永遠不回你。沒有逾時的話，一個壞掉的 server 會讓整個 agent 停住。
+ * Why there must be one: an MCP server is **somebody else's process**. It can crash, it can hang,
+ * it can never answer. Without a timeout, one broken server stops the whole agent.
  *
- * 對照 Lesson 9 的 inbox 刻意**沒有**逾時。判準是同一條：
- * 逾時之後有沒有安全的預設行為？
- *   - inbox 等的是人的決定，逾時之後放行或拒絕都不安全 → 不設
- *   - MCP 等的是一個工具結果，逾時就當它失敗 → 要設
+ * Note Lesson 9's inbox deliberately has **no** timeout. The criterion is the same:
+ * is there a safe default behaviour after a timeout?
+ *   - the inbox waits for a human decision, and neither allowing nor denying is safe → none
+ *   - MCP waits for a tool result, and a timeout means treating it as failed → set one
  */
 const CONNECT_TIMEOUT_MS = Number(process.env.MCP_CONNECT_TIMEOUT_MS ?? 5000);
 const CALL_TIMEOUT_MS = Number(process.env.MCP_CALL_TIMEOUT_MS ?? 10_000);
@@ -36,9 +36,9 @@ export interface McpServerDef {
 	command: string;
 	args: string[];
 	env?: Record<string, string>;
-	/** 只允許這些工具。省略 = 全部。 */
+	/** Allow only these tools. Omitted = all of them. */
 	includeTools?: string[];
-	/** 擋掉這些工具。 */
+	/** Block these tools. */
 	excludeTools?: string[];
 }
 
@@ -68,29 +68,29 @@ export class McpConnection {
 
 		child.stdout?.on("data", (chunk: Buffer) => this.onData(chunk));
 
-		// server 的 stderr 不是協定通道，但也不該直接丟掉：
-		// 大部分「MCP server 不動了」的原因都寫在這裡。
+			// A server's stderr is not a protocol channel, and it must not be discarded either:
+			// most reasons for "the MCP server stopped working" are written there.
 		child.stderr?.on("data", (chunk: Buffer) => {
 			for (const line of chunk.toString("utf8").split("\n")) {
 				if (line.trim()) this.onLog?.(`[${this.serverName}] ${line.trim()}`);
 			}
 		});
 
-		// 進程死掉的時候要把所有等待中的請求叫醒，
-		// 不然它們會一直等到逾時，而那個逾時是沒必要的。
+			// When the process dies, wake every pending request,
+			// or they wait out a timeout that serves no purpose.
 		child.on("exit", (code) => {
 			this.closed = true;
 			this.failAll(new Error(`MCP server "${this.serverName}" 結束了（code ${code}）`));
 		});
 	}
 
-	/** 收到 server 的 stderr 一行。 */
+		/** A line of stderr arrived from the server. */
 	onLog?: (line: string) => void;
 
 	/**
-	 * 連上一台 server 並完成握手。
+		 * Connect to one server and complete the handshake.
 	 *
-	 * **這個函式失敗是正常的**，呼叫端必須能承受（見 agent.ts 的失敗隔離）。
+		 * **This function failing is normal**, and the caller must survive it (see the failure isolation in agent.ts).
 	 */
 	static async connect(def: McpServerDef): Promise<McpConnection> {
 		const child = spawn(def.command, def.args, {
@@ -115,7 +115,7 @@ export class McpConnection {
 			throw error;
 		}
 
-		// 握手的第三步是一個通知，沒有回應。
+			// The handshake's third step is a notification with no response.
 		connection.notify("notifications/initialized", {});
 		return connection;
 	}
@@ -126,13 +126,13 @@ export class McpConnection {
 		};
 		let tools = result.tools ?? [];
 
-		// ── per-tool 控制 ────────────────────────────────────
+			// ── per-tool control ──────────────────────────────────
 		//
-		// 為什麼需要：一台 MCP server 可能給你 40 個工具，其中你只要 2 個。
-		// 全部收下來的話，索引成本每一輪都在燒（Lesson 16 Step 1），
-		// 而且多出來的 38 個都是攻擊面。
+			// Why it is needed: one MCP server may offer 40 tools when you want 2.
+			// Taking them all burns indexing cost every turn (Lesson 16 Step 1),
+			// and the extra 38 are all attack surface.
 		//
-		// 對照 openworker/coworker/mcp/tools.py 的 `_filtered`。
+			// Against `_filtered` in openworker/coworker/mcp/tools.py.
 		if (def.includeTools) {
 			const allow = new Set(def.includeTools);
 			tools = tools.filter((tool) => allow.has(tool.name));
@@ -151,10 +151,10 @@ export class McpConnection {
 			CALL_TIMEOUT_MS,
 		)) as { content?: Array<{ type: string; text?: string }>; isError?: boolean };
 
-		// 把 content 陣列壓成一段字串。
-		// 非文字的區塊（圖片、resource）用一個佔位符描述，
-		// 因為模型看得懂「這裡有一張圖」比看到一坨 base64 有用。
-		// 對照 client.py 的 `_result_payload`。
+			// Flatten the content array into one string.
+			// Non-text blocks (images, resources) become a placeholder description,
+			// because a model finds "there is an image here" more useful than a blob of base64.
+			// Against `_result_payload` in client.py.
 		const text = (result.content ?? [])
 			.map((block) => block.text ?? `[${block.type}]`)
 			.join("\n");
@@ -170,7 +170,7 @@ export class McpConnection {
 		this.failAll(new Error("connection closed"));
 	}
 
-	// ── JSON-RPC 底層 ────────────────────────────────────────
+		// ── the JSON-RPC layer ────────────────────────────────────
 
 	private request(method: string, params: unknown, timeoutMs: number): Promise<unknown> {
 		if (this.closed) return Promise.reject(new Error("connection closed"));
@@ -228,22 +228,21 @@ export class McpConnection {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 命名
+// Naming
 // ─────────────────────────────────────────────────────────────
 
-/** OpenAI 的 function name 規則：`[A-Za-z0-9_-]{1,64}`。 */
+/** OpenAI's function name rule: `[A-Za-z0-9_-]{1,64}`. */
 const MAX_TOOL_NAME = 64;
 const ILLEGAL = /[^a-zA-Z0-9_-]/g;
 
 /**
- * `mcp__<server>__<tool>`，消毒過而且截斷到 64 字。
+ * `mcp__<server>__<tool>`, sanitised and truncated to 64 characters.
  *
- * 對照 openworker/coworker/mcp/tools.py 的 `tool_name`（同樣的規則、
- * 同樣的上限）。
+ * Against `tool_name` in openworker/coworker/mcp/tools.py (the same rule and the same limit).
  *
- * ⚠️ **截斷會造成碰撞**，而 openworker 那份跟我們這份都沒有處理。
- * 兩台 server 名字很長又有同名工具的時候，第二個會覆蓋第一個，
- * 而且**沒有任何警告**。見 README Step 4 跟練習 2。
+ * ⚠️ **Truncation causes collisions**, and neither openworker's version nor this one handles it.
+ * When two servers have long names and a tool name in common, the second overwrites the first
+ * **with no warning at all**. See README Step 4 and Exercise 2.
  */
 export function toolName(server: string, tool: string): string {
 	const full = `mcp__${server.replace(ILLEGAL, "_")}__${tool.replace(ILLEGAL, "_")}`;

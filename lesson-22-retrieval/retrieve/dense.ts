@@ -1,17 +1,17 @@
 /**
- * Dense retrieval：用意思找，不是用字找。
+ * Dense retrieval: finding by meaning rather than by word.
  *
- * BM25 問「這些字出現了嗎」，dense 問「這段文字的意思跟 query 像不像」。
- * 兩者的失敗方式剛好互補：
+ * BM25 asks "do these words appear"; dense asks "is this text's meaning close to the query's".
+ * Their failure modes are exactly complementary:
  *
- *   BM25  查得到罕見的專有名詞（`waist_yaw`、`v0.7`、`Apache-2.0`），
- *         但同義詞、換句話說、跨語言全部掛掉。
- *   Dense 抓得到「意思接近」，
- *         但精確的字串反而容易被稀釋（型號、版本、錯誤碼常常查不準）。
+ *   BM25  finds rare proper nouns (`waist_yaw`, `v0.7`, `Apache-2.0`),
+ *         and fails entirely on synonyms, paraphrases and other languages.
+ *   Dense catches "close in meaning",
+ *         and dilutes precise strings (model numbers, versions and error codes are often imprecise).
  *
- * **所以正解不是二選一，是兩個都跑再融合**（`rank.ts` 的 RRF）。
- * 「AI Search = 把文件丟進 vector database」這個印象，
- * 漏掉的就是左邊那一半。
+ * **So the answer is not choosing one but running both and fusing** (RRF in `rank.ts`).
+ * The impression "AI search = put the documents in a vector database"
+ * is missing the left-hand half.
  */
 
 import { readFileSync } from "node:fs";
@@ -40,14 +40,14 @@ export function loadCorpus(): IndexedPage[] {
 }
 
 /**
- * 一篇文件拿去 embed 的文字。
+ * The text a document is embedded from.
  *
- * 標題要放進去，因為標題常常是整頁最濃縮的一句話。
+ * The title goes in, because a title is often the page's most condensed sentence.
  *
- * 這裡把**整篇**丟進一個向量，是因為語料每篇都很短。真實系統會
- * 先 chunk（Lesson 21 做過）再一塊一塊 embed，然後用「最相似的那一塊」
- * 代表整篇——不然一篇長文的向量會被平均成一團什麼都不像的東西。
- * 這叫 dilution，是 dense retrieval 最常見的坑。
+ * The **whole** document goes into one vector here, because every document in this corpus is short. A real system
+ * chunks first (Lesson 21 did) and embeds chunk by chunk, then represents the document by its most similar chunk —
+ * otherwise a long document's vector is averaged into something resembling nothing.
+ * That is called dilution, and it is dense retrieval's most common trap.
  */
 export function docText(page: IndexedPage): string {
 	return `${page.title}\n\n${page.text}`;
@@ -57,7 +57,7 @@ export async function warmCorpusEmbeddings(): Promise<void> {
 	await embed(loadCorpus().map(docText));
 }
 
-/** 用向量相似度排序整份語料。 */
+/** Rank the whole corpus by vector similarity. */
 export async function denseRank(query: string): Promise<Scored[]> {
 	const pages = loadCorpus();
 	const [queryVector] = await embed([query]);

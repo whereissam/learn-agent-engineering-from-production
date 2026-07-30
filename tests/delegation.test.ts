@@ -1,15 +1,15 @@
 /**
- * 委派（Lesson 19）。
+ * Delegation (Lesson 19).
  *
- * 兩組：
+ * Two groups:
  *
- *   delegate  子 agent 的邊界（工具、context、批准）
- *   fixture   **標準答案本身是對的嗎**
+ *   delegate  the subagent's boundaries (tools, context, approval)
+ *   fixture   **is the ground truth itself right**
  *
- * 第二組容易被跳過，但它守的是整個實驗的地基：如果 `GROUND_TRUTH`
- * 跟語料對不上，那 `bun run lesson-19:agent` 量到的「正確率」
- * 只是在量我有沒有寫錯 fixture。Lesson 25 踩過這個坑
- * （評估的來源必須跟系統看到的是同一份）。
+ * The second is easy to skip and it guards the whole experiment's foundation: if `GROUND_TRUTH`
+ * does not match the corpus, the "accuracy" `bun run lesson-19:agent` measures
+ * only measures whether the fixture was written correctly. Lesson 25 hit this trap
+ * (the evaluation's sources must be the same ones the system saw).
  */
 
 import assert from "node:assert/strict";
@@ -32,7 +32,7 @@ const TOOLS: ToolSpec[] = [
 	{ name: "cronjob", description: "", parameters: { type: "object", properties: {} } },
 ];
 
-/** 記下每次 stream 拿到的工具清單，才驗得了「子 agent 看到什麼」。 */
+/** Record the tool list every stream received, so "what the subagent saw" can be verified. */
 function spy(beats: { say: string; tool?: { name: string } }[]) {
 	const seenTools: string[][] = [];
 	const seenMessages: string[] = [];
@@ -72,7 +72,7 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 	});
 
 	test("憑記憶叫出被擋的工具 → isError，而且記下來", async () => {
-		// 工具清單裡沒有不代表模型不會叫（Lesson 20 那次它搜了不存在的專案名）。
+			// Absent from the tool list does not mean the model will not call it (in Lesson 20 it searched for a project that did not exist).
 		const { provider } = spy([{ say: "再拆一次", tool: { name: "delegate_task" } }, { say: "done" }]);
 		let executed = 0;
 		const child = await runChild(
@@ -145,7 +145,7 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 });
 
 describe("標準答案本身（Lesson 19）", () => {
-	/** 直接數語料，不看 GROUND_TRUTH，然後比對。 */
+		/** Count the corpus directly, ignoring GROUND_TRUTH, and compare. */
 	function mostFrequentCode(text: string): string {
 		const counts = new Map<string, number>();
 		for (const match of text.matchAll(/\bERROR (E-\d+)/g)) {

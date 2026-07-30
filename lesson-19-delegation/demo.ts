@@ -1,19 +1,19 @@
 /**
- * Lesson 19 - 委派的四個機制（不用金鑰）
+ * Lesson 19 - delegation's four mechanisms (no key needed)
  *
- *   isolation  子 agent 到底看得到什麼
- *   blocklist  子 agent 不准做的五件事，以及關掉之後
- *   approval   子 agent 那一側沒有人可以批准
- *   locate     出錯的時候，看不看得出是哪一步壞了
+ *   isolation  what a subagent can actually see
+ *   blocklist  the five things a subagent may not do, and what happens with it off
+ *   approval   there is nobody on the subagent's side to approve
+ *   locate     when something breaks, can you tell which step broke
  *
- * 執行：
+ * Run:
  *   bun run lesson-19
  *   bun run lesson-19 blocklist
- *   BLOCK=off bun run lesson-19 blocklist     # 遞迴委派
- *   APPROVE=auto bun run lesson-19 approval   # 子 agent 自己按了 y
+ *   BLOCK=off bun run lesson-19 blocklist     # recursive delegation
+ *   APPROVE=auto bun run lesson-19 approval   # the subagent pressed y itself
  *
- * 每個情境的腳本 provider 都寫在情境旁邊（五行），沒有抽成共用檔案：
- * 抽出去之後要讀兩個地方才知道這一段在演什麼，而共用的部分只有樣板。
+ * Each scenario's scripted provider sits beside the scenario (five lines) rather than in a shared file:
+ * extracting it would mean reading two places to know what a passage acts out, and only the boilerplate is shared.
  */
 
 import { BLOCKED_FOR_CHILDREN, runChild } from "./delegate.ts";
@@ -38,7 +38,7 @@ const TOOLS: ToolSpec[] = [
 	{ name: "clarify", description: "Ask the user a question.", parameters: { type: "object", properties: { question: { type: "string" } } } },
 ];
 
-/** 一個只會照著劇本走的 provider。 */
+/** A provider that only follows the script. */
 function scripted(beats: { say: string; tool?: { name: string; args: Record<string, unknown> } }[]): StreamingProvider {
 	let step = 0;
 	const provider: StreamingProvider = {
@@ -69,7 +69,7 @@ function scripted(beats: { say: string; tool?: { name: string; args: Record<stri
 async function scenarioIsolation(): Promise<void> {
 	console.log(`\n${bold("── isolation · 子 agent 看得到什麼")}`);
 
-	// 父 agent 的對話裡有一件只有它知道的事。
+	// The parent's conversation contains something only it knows.
 	const parentHistory = [
 		"使用者：我們的 staging 環境從上週開始就一直噴 E-118。",
 		"使用者：喔對了，**staging 的資料是假的，不要拿去做結論**。",
@@ -136,13 +136,13 @@ async function scenarioBlocklist(): Promise<void> {
 		console.log(`    ${dim(String(tool).padEnd(15))}${dim(String(reason))}`);
 	}
 
-	// 子 agent 拿到的工具清單裡就沒有它們。
+		// The subagent's tool list simply does not contain them.
 	const available = BLOCK_ON ? TOOLS.filter((t) => !BLOCKED_FOR_CHILDREN.has(t.name)) : TOOLS;
 	console.log(
 		`\n  子 agent 拿到的工具：${available.map((t) => t.name).join(", ")}`,
 	);
 
-	// ── 遞迴 ────────────────────────────────────────────────
+		// ── recursion ───────────────────────────────────────────
 	let spawned = 0;
 	const DEPTH_CAP = 4;
 
@@ -161,7 +161,7 @@ async function scenarioBlocklist(): Promise<void> {
 				blocklist: BLOCK_ON,
 				execute: async (name) => {
 					if (name === "delegate_task") {
-						// 沒有 blocklist 的話，子 agent 真的可以再叫子 agent。
+							// Without the blocklist, a subagent really can call subagents.
 						await spawn(depth + 1);
 						await spawn(depth + 1);
 						return "done";
@@ -247,15 +247,15 @@ async function scenarioLocate(): Promise<void> {
 	const results: { goal: string; toolFailed: boolean; summary: string }[] = [];
 
 	for (const [index, goal] of goals.entries()) {
-		// 第二個子 agent 的檔案讀不到，**但它的劇本照樣給出一個數字** ——
-		// 這正是模型真的會做的事（Lesson 8 那個「謊報完成」的家族）。
+			// The second subagent cannot read its file, **and its script gives a number anyway** —
+			// which is exactly what a model really does (the family of Lesson 8's "false completion report").
 		const broken = index === 1;
 		const provider = scripted([
 			{ say: "讀檔。", tool: { name: "read_file", args: { path: `logs/${index}.log` } } },
 			{ say: broken ? "最常見的是 E-118。" : `最常見的是 E-${400 + index}。` },
 		]);
 
-		// 真相由 demo 自己記，不是問子 agent —— 問它就等於相信它。
+			// The truth is recorded by the demo rather than asked of the subagent — asking it means trusting it.
 		let toolFailed = false;
 		const child = await runChild(
 			{ goal },

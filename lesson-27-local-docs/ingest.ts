@@ -1,33 +1,33 @@
 /**
- * 把本地文件變成可檢索的索引。
+ * Turning local documents into a searchable index.
  *
  *   bun run lesson-27:ingest
  *
- * ## 本地文件跟網頁最大的差別：它會變
+ * ## The biggest difference from web pages: local documents change
  *
- * Lesson 20-26 的語料是固定的十四頁，產生一次就不動了。本地文件不是：
- * 你今天改了 README，索引就過期了。而 embedding 是要花錢的，
- * 所以**不能每次都全部重算**。
+ * Lessons 20-26's corpus is a fixed fourteen pages generated once and left alone. Local documents are not:
+ * edit a README today and the index is stale. And embeddings cost money,
+ * so **recomputing everything every time is out**.
  *
- * 這個檔案的重點因此不是「怎麼切 chunk」（那是 Lesson 21 做過的事），
- * 而是**怎麼知道哪些檔案變了**：
+ * So this file's point is not "how to chunk" (Lesson 21 did that)
+ * but **how to know which files changed**:
  *
- *   內容雜湊沒變  → 直接沿用舊的 chunk（和舊的 embedding）
- *   內容雜湊變了  → 重切這一個檔案
- *   檔案不見了    → 把它的 chunk 移除
+ *   the content hash is unchanged  → reuse the old chunks (and their old embeddings)
+ *   the content hash changed       → re-chunk this one file
+ *   the file is gone               → remove its chunks
  *
- * 這是本地 RAG 真正的工程量所在。很多教學跳過它，
- * 於是你做出一個「第二次跑就開始給過期答案」的系統。
+ * This is where the real engineering in local RAG lives. Many tutorials skip it,
+ * leaving you with a system that starts giving stale answers on its second run.
  *
- * ## 來源識別
+ * ## Source identity
  *
- * 網頁的來源是 URL，天生唯一而且可以點開。本地文件沒有 URL，
- * 所以要自己造一個**看得懂、對得回去**的識別字：
+ * A web source is a URL: unique by nature and clickable. A local document has no URL,
+ * so it needs a **legible, resolvable** identifier of its own:
  *
  *   docs/TODO.md#L120-L168
  *
- * 這個格式有三個好處：使用者看得懂、編輯器點得開、
- * 而且 Lesson 25 的引用驗證可以拿它回去撈原文對答案。
+ * The format has three benefits: a user can read it, an editor can open it,
+ * and Lesson 25's citation verification can use it to fetch the original text and check.
  */
 
 import { createHash } from "node:crypto";
@@ -40,17 +40,17 @@ const ROOT = resolve(import.meta.dirname, "..");
 const INDEX_PATH = resolve(import.meta.dirname, "index.json");
 
 /**
- * 要收哪些檔案。
+ * Which files to collect.
  *
- * 刻意只收 markdown，而且只收「文件」而不是「程式碼」——
- * 混在一起檢索的效果通常比較差，因為程式碼的詞彙分佈跟散文差太多。
- * 真的要索引程式碼，該用不同的 chunk 策略（按函式切，而不是按段落切）。
+ * Deliberately markdown only, and documents rather than code —
+ * retrieving them together usually works worse, because code's vocabulary distribution is too far from prose's.
+ * Indexing code properly needs a different chunking strategy (by function rather than by paragraph).
  */
 const INCLUDE_DIRS = ["docs"];
 const INCLUDE_FILES = ["README.md", "README.zh-TW.md"];
 const LESSON_README = /^lesson-\d+[a-z-]*\/README\.md$/;
 
-/** 跳過 clone 下來的參考專案和 node_modules，不然會掃到幾萬個檔案。 */
+/** Skip cloned reference projects and node_modules, or it scans tens of thousands of files. */
 const SKIP_DIRS = new Set([
 	"node_modules",
 	".git",
@@ -61,19 +61,19 @@ const SKIP_DIRS = new Set([
 ]);
 
 export interface LocalChunk {
-	/** `path#L12-L48`，唯一而且人看得懂。 */
+	/** `path#L12-L48`: unique and human-readable. */
 	id: string;
 	path: string;
-	/** 這一塊在檔案裡的行號範圍（1-based，含頭含尾）。 */
+	/** This chunk's line range in the file (1-based, inclusive). */
 	startLine: number;
 	endLine: number;
-	/** 最近的標題，當成這一塊的「標題」。 */
+	/** The nearest heading, used as this chunk's "title". */
 	heading: string;
 	text: string;
 }
 
 export interface LocalIndex {
-	/** path → 內容雜湊。下次 ingest 用它判斷要不要重切。 */
+	/** path → content hash. The next ingest uses it to decide what to re-chunk. */
 	hashes: Record<string, string>;
 	chunks: LocalChunk[];
 }
@@ -117,18 +117,18 @@ function listMarkdown(): string[] {
 }
 
 /**
- * 把一個 markdown 檔切成 chunk，並記住每一塊的行號和所屬標題。
+ * Split one markdown file into chunks, remembering each one's line range and owning heading.
  *
- * 行號是這裡唯一比 Lesson 21 多做的事，但它很重要：
- * **沒有行號，本地來源就沒辦法被驗證**（Lesson 25 要拿它回去比對）。
+ * Line numbers are the only thing done here beyond Lesson 21, and they matter:
+ * **without line numbers a local source cannot be verified** (Lesson 25 needs them to compare back).
  *
- * 做法是先按行累積，再交給 `chunkText` 切——這樣切點還是在段落邊界，
- * 但我們自己知道每一塊落在哪幾行。
+ * The approach accumulates by line first, then hands off to `chunkText` — so cut points still land on
+ * paragraph boundaries, and we know which lines each chunk covers.
  */
 export function chunkMarkdown(path: string, content: string): LocalChunk[] {
 	const lines = content.split("\n");
 
-	// 先找出每一行「當下的標題」是什麼
+	// First work out each line's current heading
 	const headings: string[] = [];
 	let current = "";
 	for (const line of lines) {
@@ -139,8 +139,8 @@ export function chunkMarkdown(path: string, content: string): LocalChunk[] {
 
 	const chunks = chunkText(content, { maxChars: 1200, overlapMaxChars: 200 });
 
-	// 用「這一塊的第一段」去原文找行號。段落是唯一的機率很高，
-	// 找不到就退回上一塊的結尾，不會算錯太多。
+	// Use the chunk's first paragraph to find its line numbers in the original. A paragraph is very likely unique,
+	// and failing that it falls back to the previous chunk's end, which cannot be far wrong.
 	const result: LocalChunk[] = [];
 	let cursor = 0;
 
@@ -200,8 +200,8 @@ if (import.meta.main) {
 		hashes[path] = hash;
 
 		if (previous.hashes[path] === hash) {
-			// 內容沒變，沿用舊的 chunk。**這一行就是省錢的地方**：
-			// 沿用 chunk 等於沿用它們的 embedding。
+				// The content is unchanged, so the old chunks are reused. **This line is where the money is saved**:
+				// reusing chunks means reusing their embeddings.
 			chunks.push(...previous.chunks.filter((c) => c.path === path));
 			reused++;
 			continue;

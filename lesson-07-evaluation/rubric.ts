@@ -1,16 +1,16 @@
 /**
- * 評分標準。
+ * The scoring rubric.
  *
- * 每一項檢查都是**確定性的**：同樣的報告評一百次，分數一樣。
+ * Every check is **deterministic**: score the same report a hundred times and the score is the same.
  *
- * 為什麼不用 LLM 當裁判？
+ * Why no LLM judge?
  *
- * LLM-as-judge 有它的用處（評估文筆、語氣、幫助程度這種主觀的東西），
- * 但它本身也會出錯、也要花錢、也不可重現。能用程式檢查的就用程式檢查。
+ * LLM-as-judge has its uses (evaluating style, tone, helpfulness — subjective things),
+ * and it also errs, costs money and is irreproducible. Whatever a program can check, a program should check.
  *
- * 這裡的原則是：**先把能確定性檢查的部分做完，剩下的才考慮 LLM judge。**
- * 大部分人跳過第一步直接上 LLM judge，然後得到一堆看起來很科學但
- * 其實不可靠的分數。
+ * The principle here: **finish everything that can be checked deterministically first, and only then consider an LLM judge.**
+ * Most people skip the first step and go straight to an LLM judge, then get a pile of scores that look
+ * scientific and are unreliable.
  */
 
 import type { EvalCase, IncidentReport } from "./cases.ts";
@@ -18,23 +18,23 @@ import type { EvalCase, IncidentReport } from "./cases.ts";
 export interface CheckResult {
 	name: string;
 	passed: boolean;
-	/** 這項檢查佔的權重。 */
+	/** This check's weight. */
 	weight: number;
 	detail: string;
-	/** true 代表這是「危險錯誤」，整個案例直接判定失敗。 */
+	/** true means a **dangerous error**: the whole case fails outright. */
 	critical?: boolean;
 }
 
 export interface CaseResult {
 	caseId: string;
 	sessionId: string;
-	/** 沒有產出報告就是直接失敗。 */
+	/** Producing no report at all is an outright failure. */
 	report: IncidentReport | null;
 	checks: CheckResult[];
 	score: number;
 	maxScore: number;
 	passed: boolean;
-	/** 有沒有觸犯危險錯誤。 */
+	/** Whether any dangerous error was committed. */
 	criticalFailure: boolean;
 	toolCalls: number;
 	elapsedMs: number;
@@ -42,10 +42,10 @@ export interface CaseResult {
 }
 
 /**
- * 從 evidence 字串裡撈出數字。
+ * Pull the numbers out of an evidence string.
  *
- * 用來檢查「模型引用的數字是不是真的存在於資料中」。
- * 這是抓幻覺最直接的方法：模型很會編出看起來合理的數字。
+ * Used to check whether the numbers the model cited really exist in the data.
+ * The most direct way to catch hallucination: models are very good at inventing plausible numbers.
  */
 function extractNumbers(text: string): number[] {
 	const matches = text.match(/-?\d+(?:\.\d+)?/g) ?? [];
@@ -53,7 +53,7 @@ function extractNumbers(text: string): number[] {
 }
 
 export interface TelemetryFacts {
-	/** 各欄位的實際峰值，用來驗證引用的數字。 */
+	/** Each field's actual peak, for validating cited numbers. */
 	peaks: Record<string, number>;
 	durationMs: number;
 }
@@ -65,7 +65,7 @@ export function gradeReport(
 ): { checks: CheckResult[]; criticalFailure: boolean } {
 	const checks: CheckResult[] = [];
 
-	// ── 0. 有沒有產出報告 ────────────────────────────────
+	// ── 0. Was a report produced ─────────────────────────
 	if (!report) {
 		return {
 			checks: [
@@ -81,10 +81,10 @@ export function gradeReport(
 		};
 	}
 
-	// ── 1. 危險錯誤檢查（最重要）────────────────────────
+	// ── 1. Dangerous error check (the most important) ────
 	//
-	// 先檢查這個。一個把真跌倒說成 nominal 的 agent，
-	// 就算其他項目都滿分也不能用。
+	// Check this first. An agent that calls a real fall nominal
+	// is unusable even with full marks everywhere else.
 	const forbidden = testCase.forbiddenClassifications ?? [];
 	const hitForbidden = forbidden.includes(report.classification);
 	checks.push({
@@ -97,7 +97,7 @@ export function gradeReport(
 			: "沒有危險的誤判",
 	});
 
-	// ── 2. 分類正確性 ───────────────────────────────────
+	// ── 2. Classification correctness ───────────────────
 	const isIdeal = report.classification === testCase.idealClassification;
 	const isAcceptable = testCase.acceptableClassifications.includes(report.classification);
 	checks.push({
@@ -111,13 +111,13 @@ export function gradeReport(
 				: `"${report.classification}"，期望 ${testCase.acceptableClassifications.join(" 或 ")}`,
 	});
 
-	// ── 3. 時間窗有沒有找對 ─────────────────────────────
+	// ── 3. Was the time window found ────────────────────
 	if (testCase.trueWindow) {
 		const { start_ms: ts, end_ms: te } = testCase.trueWindow;
 		const rs = report.window_start_ms;
 		const re = report.window_end_ms;
 
-		// 有重疊就算對。不要求精確吻合，因為「事件何時開始」本來就有解釋空間。
+		// Overlap counts as correct. Exact agreement is not required, because "when the event began" is genuinely open to interpretation.
 		const overlaps = rs !== null && re !== null && rs <= te && re >= ts;
 
 		checks.push({
@@ -132,7 +132,7 @@ export function gradeReport(
 		});
 	}
 
-	// ── 4. 有沒有引用證據 ───────────────────────────────
+	// ── 4. Was evidence cited ───────────────────────────
 	checks.push({
 		name: "has_evidence",
 		passed: report.evidence.length >= 2,
@@ -140,14 +140,14 @@ export function gradeReport(
 		detail: `${report.evidence.length} 條證據`,
 	});
 
-	// ── 5. 引用的數字是不是真的（抓幻覺）───────────────
+	// ── 5. Are the cited numbers real (catching hallucination) ──
 	//
-	// 把 evidence 裡的數字跟真實峰值比對。允許 15% 誤差，
-	// 因為模型可能引用區間平均或稍微四捨五入。
+	// Compare the numbers in evidence against the real peaks. A 15% tolerance is allowed,
+	// because the model may cite an interval average or round slightly.
 	const cited = report.evidence.flatMap(extractNumbers);
 	const realValues = Object.values(facts.peaks);
 	const plausible = cited.filter((n) =>
-		// 時間戳（0..duration）或接近某個真實峰值，都算合理
+		// A timestamp (0..duration) or something close to a real peak both count as reasonable
 		(n >= 0 && n <= facts.durationMs) ||
 		realValues.some((v) => v !== 0 && Math.abs((n - v) / v) < 0.15),
 	);
@@ -163,7 +163,7 @@ export function gradeReport(
 				: `${plausible.length}/${cited.length} 個引用的數字對得上實際資料 (${Math.round(ratio * 100)}%)`,
 	});
 
-	// ── 6. 該提的有沒有提（資料品質意識）───────────────
+	// ── 6. Was what should be mentioned mentioned (data quality awareness) ──
 	if (testCase.mustMention) {
 		const haystack = [
 			report.summary,
@@ -188,14 +188,14 @@ export function gradeReport(
 		});
 	}
 
-	// ── 7. 信心度校準 ───────────────────────────────────
+	// ── 7. Confidence calibration ───────────────────────
 	//
-	// 資料有問題卻回報 high confidence，是一種校準失敗。
-	// ⚠️ 這裡原本看的是 `testCase.mustMention` 的存在，
-	// 也就是拿「有沒有要求提到某些關鍵字」當成「資料有沒有問題」的代理。
-	// 加了 two-events 那一題（用 mustMention 檢查「有沒有提到前一次踉蹌」）
-	// 之後就誤判了：資料明明很乾淨，卻因為 high confidence 被扣分。
-	// 現在改成看明確的 `dataQualityIssue`。
+	// Reporting high confidence when the data has a problem is a calibration failure.
+	// ⚠️ This used to look at the presence of `testCase.mustMention`,
+	// that is, using "were certain keywords required" as a proxy for "does the data have a problem".
+	// Adding the two-events case (which uses mustMention to check "was the earlier stumble mentioned")
+	// made it misjudge: the data was perfectly clean and high confidence still lost points.
+	// It now looks at an explicit `dataQualityIssue`.
 	if (testCase.dataQualityIssue && report.confidence === "high") {
 		checks.push({
 			name: "calibrated_confidence",

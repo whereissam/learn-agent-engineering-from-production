@@ -1,10 +1,10 @@
 /**
- * Lesson 8 決策表。
+ * Lesson 8's decision table.
  *
- * 不需要 API key、不用網路、跑不到一秒。
- * 這是理解權限引擎最快的方法：同一組工具呼叫，四種模式，看決策怎麼變。
+ * No API key, no network, and under a second to run.
+ * The fastest way to understand the permission engine: the same tool calls in four modes, watching the decisions change.
  *
- * 執行：bun run lesson-08-permissions/table.ts
+ * Run: bun run lesson-08-permissions/table.ts
  */
 
 import { resolve } from "node:path";
@@ -91,7 +91,7 @@ for (const sample of SAMPLES) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 三個值得單獨看的行為
+// Three behaviours worth looking at individually
 // ─────────────────────────────────────────────────────────────
 
 console.log(bold("\n\n1. AUTO 模式也擋不住路徑逃逸"));

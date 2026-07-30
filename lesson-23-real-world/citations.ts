@@ -1,15 +1,15 @@
 /**
- * 這一課引用的每一段原始碼。
+ * Every passage of source this lesson cites.
  *
- * 設計原則 4 說「對照原始碼的行號要驗證過」。前面幾課的對照表只敢寫
- * 「概念對應到哪個專案」，不敢寫行號，因為我還沒真的讀過。這一課讀了，
- * 所以每一條都有檔案和行號——但**行號會過期**。
+ * Design principle 4 says citations into other people's source must be verified. Earlier lessons' tables only dared say
+ * which project a concept corresponds to, without line numbers, because the source had not been read. This lesson read it,
+ * so every entry has a file and a line — and **line numbers go stale**.
  *
- * 所以這份清單是可以執行的：`bun run lesson-23:check` 會去你本機的
- * clone 裡確認每一行還在不在。上游改版之後，你會看到哪幾條漂掉了，
- * 而不是讀到一份看起來很精確、其實已經對不上的文件。
+ * So this list is executable: `bun run lesson-23:check` goes into your local
+ * clones and confirms each line is still there. After an upstream change you see which entries drifted,
+ * rather than reading a document that looks precise and no longer matches.
  *
- * 我讀的版本（`git rev-parse --short HEAD`）：
+ * The versions read (`git rev-parse --short HEAD`):
  *
  *   deep-research    1f8f3e2    2026-04-11
  *   gpt-researcher   5d84d2f5   2026-07-14
@@ -18,19 +18,19 @@
  */
 
 export interface Citation {
-	/** 我們哪一課的哪個主題 */
+	/** Which lesson and which topic here */
 	topic: string;
 	repo: "deep-research" | "gpt-researcher" | "firecrawl" | "crawl4ai";
 	path: string;
 	line: number;
-	/** 那一行（或附近）一定要出現的字串。用它來判斷行號有沒有漂掉。 */
+	/** A string that must appear on (or near) that line. Used to tell whether the line number drifted. */
 	contains: string;
-	/** 這一條在講什麼 */
+	/** What this entry is about */
 	note: string;
 }
 
 export const CITATIONS: Citation[] = [
-	// ── Lesson 20：query 生成 ──────────────────────────────────
+		// ── Lesson 20: query generation ────────────────────────────
 	{
 		topic: "L20 query 生成：不要用搜尋運算子",
 		repo: "gpt-researcher",
@@ -72,7 +72,7 @@ export const CITATIONS: Citation[] = [
 		note: "整個函式在處理「模型回了 list / dict / 字串 / None」四種情況。生產環境的樣子。",
 	},
 
-	// ── Lesson 21：抓取與抽取 ─────────────────────────────────
+		// ── Lesson 21: fetching and extraction ────────────────────
 	{
 		topic: "L21 抽取：整塊丟掉的標籤",
 		repo: "crawl4ai",
@@ -130,7 +130,7 @@ export const CITATIONS: Citation[] = [
 		note: "主要走 Rust transformer，失敗才退回 cheerio。效能與可靠性分兩層。",
 	},
 
-	// ── Lesson 22：檢索與排序 ─────────────────────────────────
+		// ── Lesson 22: retrieval and ranking ──────────────────────
 	{
 		topic: "L22 chunk 大小",
 		repo: "gpt-researcher",
@@ -164,7 +164,7 @@ export const CITATIONS: Citation[] = [
 		note: "每一頁裁到 25k token 才進 prompt。沒有 rerank，沒有排序，就是硬裁。",
 	},
 
-	// ── Lesson 24 的伏筆：loop 與停止條件 ──────────────────────
+		// ── Setting up Lesson 24: the loop and stopping conditions ─
 	{
 		topic: "L24 停止條件是結構性的，不是模型決定的",
 		repo: "deep-research",

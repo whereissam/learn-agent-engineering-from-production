@@ -1,21 +1,21 @@
 /**
- * 評估案例。
+ * Evaluation cases.
  *
- * 每一個案例 = 一個輸入 + 一組「可以用程式檢查的期望」。
+ * Each case = one input plus a set of expectations a program can check.
  *
- * 這裡最重要的設計決定是：**不要用「模型輸出跟標準答案一不一樣」來評分。**
- * 自然語言有無限多種正確寫法，字串比對只會讓你得到一堆假的失敗。
+ * The most important design decision here: **do not score by "is the model's output identical to a reference answer".**
+ * Natural language has infinitely many correct phrasings, and string comparison only produces false failures.
  *
- * 改成檢查「可驗證的事實」：
- *   - 分類對不對（enum，可以直接比）
- *   - 時間窗有沒有涵蓋真正的事件（數值範圍，可以算）
- *   - 有沒有引用真實存在的數字（可以去 telemetry 對）
- *   - 有沒有在該說不知道的時候說不知道
+ * Check verifiable facts instead:
+ *   - is the classification right (an enum, directly comparable)
+ *   - does the time window cover the real event (a numeric range, computable)
+ *   - does it cite numbers that really exist (checkable against the telemetry)
+ *   - does it say "I do not know" when it should
  *
- * 這些都是確定性的檢查，跑一百次結果一樣。
+ * All deterministic checks, giving the same result a hundred runs in a row.
  */
 
-/** 報告的形狀，跟 create_incident_report 寫出來的 JSON 一致。 */
+/** The report's shape, matching the JSON create_incident_report writes. */
 export interface IncidentReport {
 	session_id: string;
 	classification: string;
@@ -31,63 +31,63 @@ export interface IncidentReport {
 export interface EvalCase {
 	id: string;
 	sessionId: string;
-	/** 給 agent 的指令。所有案例都用同一句，避免暗示答案。 */
+	/** The instruction given to the agent. Every case uses the same one, so nothing hints at the answer. */
 	prompt: string;
-	/** 人類可讀的真相說明。只給你看，不會送進 prompt。 */
+	/** A human-readable statement of the truth. For you only; it never enters the prompt. */
 	groundTruth: string;
 
-	/** 可接受的分類。允許多個，因為有些情況本來就有模糊空間。 */
+	/** Acceptable classifications. Several are allowed, because some situations are genuinely ambiguous. */
 	acceptableClassifications: string[];
-	/** 最理想的分類。用來區分「完全正確」跟「可接受」。 */
+	/** The ideal classification. Distinguishes "entirely right" from "acceptable". */
 	idealClassification: string;
 
 	/**
-	 * 事件真正發生的時間窗。
-	 * 報告的時間窗要跟它有重疊才算找對地方。
+	 * The window in which the event really happened.
+	 * The report's window must overlap it to count as having found the right place.
 	 */
 	trueWindow?: { start_ms: number; end_ms: number };
 
 	/**
-	 * 報告的 caveats 或 summary 裡「必須」提到的關鍵字（任一即可）。
+	 * Keywords the report's caveats or summary **must** mention (any one will do).
 	 *
-	 * ⚠️ 這個欄位只管「有沒有講到」，**不代表這個案例有資料問題**。
-	 * 兩者原本是綁在一起的（rubric 直接拿 `mustMention` 的存在當成
-	 * 「資料有問題」的代理），加了 two-events 之後就爆了：
-	 * 那一題用 mustMention 檢查「有沒有提到前一次踉蹌」，
-	 * 結果 agent 因為「資料很乾淨卻回報 high confidence」被扣分。
+	 * ⚠️ This field only covers "was it mentioned"; it **does not mean this case has a data problem**.
+	 * The two used to be tied together (the rubric took the presence of `mustMention` as a proxy
+	 * for "the data has a problem"), and adding two-events blew that up:
+	 * that case uses mustMention to check "did it mention the earlier stumble",
+	 * and the agent lost points for "reporting high confidence when the data is clean".
 	 *
-	 * **用一個欄位的存在與否當成另一件事的代理，遲早會爆。**
+	 * **Using one field's presence as a proxy for another thing blows up eventually.**
 	 */
 	mustMention?: string[];
 
 	/**
-	 * 這個 session 真的有資料品質問題（取樣缺口、時鐘偏移…）。
+	 * This session really has a data quality problem (a sampling gap, a clock offset…).
 	 *
-	 * 有問題卻回報 high confidence，是校準失敗。
-	 * 這件事跟 `mustMention` 是兩回事，所以分開成兩個欄位。
+	 * Reporting high confidence when there is a problem is a calibration failure.
+	 * That is a different matter from `mustMention`, so they are separate fields.
 	 */
 	dataQualityIssue?: boolean;
 
 	/**
-	 * 「絕對不該」出現的分類。
-	 * 這是最重要的檢查：抓危險的錯誤，而不只是不完美的答案。
+	 * Classifications that must **never** appear.
+	 * The most important check: catching dangerous errors rather than merely imperfect answers.
 	 */
 	forbiddenClassifications?: string[];
 }
 
 /**
- * 七個案例。
+ * Seven cases.
  *
- *   1-3  判斷準不準
- *   4-5  知不知道自己不知道
- *   6-7  工具的形狀有沒有預設「一個 session 一個突發事件」
+ *   1-3  is the judgement accurate
+ *   4-5  does it know what it does not know
+ *   6-7  does the tools' shape assume "one sudden event per session"
  *
- * 4-5 比 1-3 重要：一個會在資料不足時老實說「無法判斷」的 agent，
- * 比一個總是給出自信答案的 agent 有用得多。
+ * 4-5 matter more than 1-3: an agent that honestly says "cannot determine" when data is thin
+ * is far more useful than one that always produces a confident answer.
  *
- * 6-7 是後來補的，因為前五題有一個共同的盲點——它們全部都是
- * 「單一、突發」的事件，於是「照抄 find_anomalies 的候選視窗」
- * 這種偷懶做法在前五題**永遠不會被扣分**。
+ * 6-7 were added later, because the first five shared a blind spot — all of them were
+ * "single, sudden" events, so the lazy approach of "copy find_anomalies's candidate window"
+ * **never lost points** on the first five.
  */
 export const CASES: EvalCase[] = [
 	{
@@ -98,7 +98,7 @@ export const CASES: EvalCase[] = [
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
 		trueWindow: { start_ms: 8200, end_ms: 9000 },
-		// 把真跌倒說成沒事，是最危險的錯誤
+		// Calling a real fall nothing is the most dangerous error
 		forbiddenClassifications: ["nominal", "near_miss"],
 	},
 	{
@@ -107,10 +107,10 @@ export const CASES: EvalCase[] = [
 		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
 		groundTruth: "t=5000ms 快速蹲下。pitch 衝到 36 度看起來像跌倒，但四腳全程著地，1.2 秒後恢復",
 		idealClassification: "near_miss",
-		// nominal 也可以接受：它確實沒有出事
+		// nominal is acceptable too: nothing did in fact go wrong
 		acceptableClassifications: ["near_miss", "nominal"],
 		trueWindow: { start_ms: 5000, end_ms: 6200 },
-		// 這是 false positive 測試：把蹲下說成跌倒會產生大量假警報
+		// A false positive test: calling a crouch a fall would generate a flood of false alarms
 		forbiddenClassifications: ["fall"],
 	},
 	{
@@ -130,10 +130,10 @@ export const CASES: EvalCase[] = [
 		groundTruth: "t=4000-7000ms 完全沒有取樣。那段時間發生什麼事無法從 telemetry 判斷",
 		idealClassification: "inconclusive",
 		acceptableClassifications: ["inconclusive", "nominal"],
-		// 一定要察覺並說出資料有洞
+		// It must notice and state that the data has a hole
 		mustMention: ["gap", "missing", "缺", "洞", "無資料", "no data", "sampling"],
 		dataQualityIssue: true,
-		// 對一段沒有資料的時間下確定的結論，是最糟的行為
+		// Drawing a confident conclusion over a period with no data is the worst behaviour
 		forbiddenClassifications: ["fall", "external_collision"],
 	},
 	{
@@ -148,10 +148,10 @@ export const CASES: EvalCase[] = [
 		dataQualityIssue: true,
 	},
 
-	// ── 後來補的兩題 ───────────────────────────────────────────
+	// ── the two cases added later ──────────────────────────────
 	//
-	// 原本五題有一個共同的形狀：**一個 session 一個突發事件**。
-	// 那個形狀讓工具和 prompt 都可以偷懶，而真實 telemetry 不長那樣。
+	// The original five shared a shape: **one sudden event per session**.
+	// That shape lets both the tools and the prompt be lazy, and real telemetry does not look like it.
 	{
 		id: "two-events",
 		sessionId: "sess_006",
@@ -162,9 +162,9 @@ export const CASES: EvalCase[] = [
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
 		trueWindow: { start_ms: 9200, end_ms: 10000 },
-		// 分類要照最嚴重的事件，但**前一次踉蹌也必須被提到**。
-		// 只報最嚴重的那個，是這一題真正要抓的失敗：
-		// 維修人員需要知道「它今天已經不穩過一次了」。
+		// The classification follows the most severe event, and **the earlier stumble must be mentioned too**.
+		// Reporting only the most severe one is the failure this case exists to catch:
+		// maintenance needs to know "it has already been unstable once today".
 		mustMention: ["3460", "3500", "3.4", "3.5", "兩次", "第一次", "earlier", "another"],
 		forbiddenClassifications: ["nominal", "near_miss"],
 	},
@@ -178,11 +178,11 @@ export const CASES: EvalCase[] = [
 			"比事件真正的起點晚了三秒",
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
-		// ⚠️ 這個時間窗刻意設在**候選視窗之前**。
+		// ⚠️ This window is deliberately set **before** the candidate window.
 		//
-		// 直接照抄 find_anomalies 給的 7060.. 會在這裡失敗，
-		// 而那正是要測的：**候選不是答案**（Lesson 6 Step 3 講過，
-		// 但那時候沒有任何案例會因此失敗，所以那條原則沒有被驗證過）。
+		// Copying find_anomalies's 7060.. straight through fails here,
+		// which is exactly what is being tested: **candidates are not the answer** (Lesson 6 Step 3
+		// says so, and at the time no case would fail for it, so that principle was never verified).
 		trueWindow: { start_ms: 4000, end_ms: 7000 },
 		forbiddenClassifications: ["nominal"],
 	},

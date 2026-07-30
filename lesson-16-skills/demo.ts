@@ -1,9 +1,9 @@
 /**
- * Lesson 16 示範：skill 的 progressive disclosure 與審核閘門。
+ * Lesson 16's demonstration: skills' progressive disclosure and the review gate.
  *
- * 不需要 API key。
+ * No API key needed.
  *
- * 執行：bun run lesson-16-skills/demo.ts
+ * Run: bun run lesson-16-skills/demo.ts
  */
 
 import { rm } from "node:fs/promises";
@@ -110,7 +110,7 @@ async function scenario3(): Promise<void> {
 
 	const queue = new SkillReviewQueue({ proposedDir: PROPOSED, activeDir: ACTIVE });
 
-	// agent 從一次成功的任務裡萃取出 skill
+		// The agent extracts a skill from one successful task
 	const proposal = await queue.propose(parseSkill(GOOD_SKILL), {
 		sessionId: "sess_042",
 		summary: "使用者請我分析 sess_001 的跌倒，我用了 get_session → find_anomalies → query_telemetry",
@@ -120,14 +120,14 @@ async function scenario3(): Promise<void> {
 	console.log(dim(`  來源：${proposal.skill.proposedFrom?.summary}`));
 	console.log(dim(`  自動檢查：${proposal.blocked ? red("有 blocking 問題") : green("通過")}`));
 
-	// 關鍵：這時候模型看不到它
+		// The key: the model cannot see it at this point
 	const store = new SkillStore({ dir: ACTIVE, proposedDir: PROPOSED });
 	await store.load();
 	console.log(dim(`\n  目前索引裡有 ${store.list().length} 個 skill`));
 	console.log(dim(`  等待審核的有 ${store.list("proposed").length} 個`));
 	console.log(yellow("  → 提議中的 skill 對模型「不存在」，這就是閘門的實際位置"));
 
-	// 人審核
+		// A human reviews
 	console.log(dim("\n  [人類] 看過內容，核准"));
 	console.log(dim(`  ${await queue.decide("replay-fall-window", { action: "approve", reviewer: "sam" })}`));
 

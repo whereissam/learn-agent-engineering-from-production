@@ -1,14 +1,14 @@
 /**
- * 產生合成的機器人 telemetry 資料。
+ * Generate synthetic robot telemetry.
  *
- * 為什麼要自己產？因為教學需要「你知道正確答案」的資料。
- * 真實資料你永遠不確定那個 spike 到底是不是真的跌倒，
- * 但合成資料是你自己埋的，所以可以拿來當評估基準（Lesson 7 會用）。
+ * Why generate it? Because teaching needs data whose right answer you know.
+ * With real data you are never sure whether a spike really was a fall,
+ * and synthetic data is something you planted, so it can serve as an evaluation baseline (used in Lesson 7).
  *
- * 用固定 seed，所以每次產出來的結果一模一樣。
- * 這很重要：agent 的行為已經夠不確定了，資料不該再是另一個變因。
+ * A fixed seed is used, so every generation produces exactly the same result.
+ * That matters: agent behaviour is uncertain enough already, and the data should not be another variable.
  *
- * 執行：bun run lesson-06-domain-tools/data/generate.ts
+ * Run: bun run lesson-06-domain-tools/data/generate.ts
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -16,15 +16,15 @@ import { resolve } from "node:path";
 
 const OUT = resolve(import.meta.dirname, "sessions");
 
-/** 取樣頻率 50Hz，也就是每 20ms 一筆。 */
+/** A 50Hz sample rate, that is one sample every 20ms. */
 const HZ = 50;
 const DT_MS = 1000 / HZ;
 
 /**
- * 可重現的亂數（mulberry32）。
+ * A reproducible random source (mulberry32).
  *
- * 不用 Math.random()，因為那樣每次產出的資料都不同，
- * Lesson 7 的評估案例就會失去意義。
+ * Not Math.random(), because that would make every generation different
+ * and Lesson 7's evaluation cases meaningless.
  */
 function rng(seed: number): () => number {
 	return () => {
@@ -37,26 +37,26 @@ function rng(seed: number): () => number {
 }
 
 export interface Sample {
-	/** 從 session 開始算的毫秒數。 */
+	/** Milliseconds since the session started. */
 	t_ms: number;
-	/** 俯仰角，度。正值 = 前傾。 */
+	/** Pitch, in degrees. Positive = leaning forwards. */
 	imu_pitch_deg: number;
-	/** 翻滾角，度。 */
+	/** Roll, in degrees. */
 	imu_roll_deg: number;
-	/** 垂直加速度，m/s^2。靜止時約 9.8。 */
+	/** Vertical acceleration, m/s^2. About 9.8 at rest. */
 	imu_accel_z: number;
-	/** 四隻腳的觸地狀態。 */
+	/** Ground contact state of the four feet. */
 	foot_contact: [boolean, boolean, boolean, boolean];
-	/** 各關節扭矩的最大絕對值，Nm。 */
+	/** The largest absolute joint torque, Nm. */
 	joint_torque_max: number;
-	/** 指令速度，m/s。 */
+	/** Commanded velocity, m/s. */
 	cmd_vel_x: number;
 }
 
 interface SessionSpec {
 	id: string;
 	robot: string;
-	/** 給人看的描述。注意：這個「不會」給 agent 看，不然就等於送答案。 */
+	/** A human-readable description. Note: this is **not** shown to the agent, which would be handing over the answer. */
 	groundTruth: string;
 	durationMs: number;
 	seed: number;
@@ -73,7 +73,7 @@ const nominal = (t: number, r: () => number): Sample => ({
 	cmd_vel_x: 0.6,
 });
 
-/** 走路步態：對角線的腳交替著地。 */
+/** A walking gait: diagonal feet alternate on the ground. */
 function gait(t: number): [boolean, boolean, boolean, boolean] {
 	const phase = Math.floor(t / 250) % 2 === 0;
 	return [phase, !phase, !phase, phase];
@@ -88,17 +88,17 @@ function round(n: number): number {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 七個案例。每一個都是 Lesson 7 的一個評估案例。
+// Seven cases. Each is one of Lesson 7's evaluation cases.
 //
-// 前五個是原始的五題。後兩個（006、007）是後來補的，
-// 因為原本五題有一個共同的形狀：**每個 session 只有一個事件，
-// 而且事件是突然發生的**。真實的 telemetry 不是這樣。
+// The first five are the originals. The last two (006, 007) were added later,
+// because the original five shared a shape: **one event per session,
+// and the event happens suddenly**. Real telemetry does not look like that.
 //
-//   006  同一段紀錄裡有兩次事件  → 只報最嚴重那個算不算對？
-//   007  非常緩慢的傾倒          → 單點門檻要很晚才會觸發
+//   006  two events in one recording  → does reporting only the worst count as right?
+//   007  a very slow tip-over         → a single-point threshold fires very late
 //
-// 這兩題測的都不是「模型聰不聰明」，是**工具的形狀有沒有預設
-// 「一個 session 一個突發事件」**。
+// Neither tests "is the model clever" but **whether the tools' shape assumes
+// "one sudden event per session"**.
 // ─────────────────────────────────────────────────────────────
 
 const SESSIONS: SessionSpec[] = [
@@ -111,18 +111,18 @@ const SESSIONS: SessionSpec[] = [
 		build(t, r) {
 			const s = nominal(t, r);
 			if (t >= 8200 && t < 8600) {
-				// 開始傾倒
+					// The tip-over begins
 				const p = (t - 8200) / 400;
 				s.imu_pitch_deg = round(2 + 55 * p + noise(r, 2));
 				s.joint_torque_max = round(18 + 45 * p + noise(r, 5));
 			} else if (t >= 8600 && t < 9000) {
-				// 撞地
+					// Ground impact
 				s.imu_pitch_deg = round(62 + noise(r, 4));
 				s.imu_accel_z = round(24 + noise(r, 3)); // 撞擊
 				s.foot_contact = [false, false, false, false];
 				s.joint_torque_max = round(88 + noise(r, 8));
 			} else if (t >= 9000) {
-				// 躺平，沒有恢復
+					// Flat on the ground, with no recovery
 				s.imu_pitch_deg = round(71 + noise(r, 1));
 				s.foot_contact = [false, false, false, false];
 				s.joint_torque_max = round(3 + noise(r, 1));
@@ -140,7 +140,7 @@ const SESSIONS: SessionSpec[] = [
 		build(t, r) {
 			const s = nominal(t, r);
 			if (t >= 5000 && t < 6200) {
-				// 蹲下：pitch 動了，但腳沒離地，扭矩上升但不誇張
+					// Crouching: pitch moves, no foot leaves the ground, torque rises but not dramatically
 				const p = Math.sin(((t - 5000) / 1200) * Math.PI);
 				s.imu_pitch_deg = round(2 + 34 * p + noise(r, 2));
 				s.joint_torque_max = round(18 + 30 * p + noise(r, 4));
@@ -159,13 +159,13 @@ const SESSIONS: SessionSpec[] = [
 		build(t, r) {
 			const s = nominal(t, r);
 			if (t >= 6400 && t < 6600) {
-				// 撞擊瞬間
+					// The moment of impact
 				s.imu_roll_deg = round(38 + noise(r, 5));
 				s.imu_accel_z = round(19 + noise(r, 3));
 				s.joint_torque_max = round(72 + noise(r, 9));
 				s.foot_contact = [false, true, true, false];
 			} else if (t >= 6600 && t < 7800) {
-				// 踉蹌恢復中
+					// Recovering from the stumble
 				const p = 1 - (t - 6600) / 1200;
 				s.imu_roll_deg = round(38 * p + noise(r, 3));
 				s.joint_torque_max = round(18 + 34 * p + noise(r, 5));
@@ -208,7 +208,7 @@ const SESSIONS: SessionSpec[] = [
 		build(t, r) {
 			const s = nominal(t, r);
 
-			// 第一次：踉蹌，腳沒有全部離地，1 秒後恢復
+				// First: a stumble; not every foot leaves the ground, and it recovers after a second
 			if (t >= 3000 && t < 4000) {
 				const p = Math.sin(((t - 3000) / 1000) * Math.PI);
 				s.imu_roll_deg = round(28 * p + noise(r, 3));
@@ -217,7 +217,7 @@ const SESSIONS: SessionSpec[] = [
 				return s;
 			}
 
-			// 第二次：真的跌倒
+				// Second: a real fall
 			if (t >= 9200 && t < 9600) {
 				const p = (t - 9200) / 400;
 				s.imu_pitch_deg = round(2 + 58 * p + noise(r, 2));
@@ -249,12 +249,12 @@ const SESSIONS: SessionSpec[] = [
 			const s = nominal(t, r);
 
 			if (t >= 4000 && t < 10000) {
-				// 線性、非常慢的傾倒。單看任何一個瞬間都不像事故。
+					// A linear, very slow tip-over. No single instant looks like an accident.
 				const p = (t - 4000) / 6000;
 				s.imu_pitch_deg = round(2 + 53 * p + noise(r, 1.5));
 				s.joint_torque_max = round(18 + 26 * p + noise(r, 3));
 				s.cmd_vel_x = round(0.6 * (1 - p) * 100) / 100;
-				// 腳是逐一離地的，不是一次全離
+					// The feet leave the ground one at a time, not all at once
 				if (t >= 8000) s.foot_contact = [false, true, true, false];
 				if (t >= 9000) s.foot_contact = [false, false, true, false];
 				if (t >= 9500) s.foot_contact = [false, false, false, false];
@@ -281,7 +281,7 @@ async function main(): Promise<void> {
 		const samples: Sample[] = [];
 
 		for (let t = 0; t < spec.durationMs; t += DT_MS) {
-			// sess_004 刻意在中間留一個資料洞
+			// sess_004 deliberately leaves a hole in the data
 			if (spec.id === "sess_004" && t >= 4000 && t < 7000) continue;
 			samples.push(spec.build(t, r));
 		}
@@ -289,7 +289,7 @@ async function main(): Promise<void> {
 		const lines = samples.map((s) => JSON.stringify(s)).join("\n");
 		await writeFile(resolve(OUT, `${spec.id}.jsonl`), `${lines}\n`, "utf8");
 
-		// 影片時間戳。sess_005 刻意偏移。
+		// Video timestamps. sess_005 is deliberately offset.
 		const videoOffsetMs = spec.id === "sess_005" ? -2300 : 0;
 
 		index.push({
@@ -300,8 +300,8 @@ async function main(): Promise<void> {
 			sample_count: samples.length,
 			sample_rate_hz: HZ,
 			video_offset_ms: videoOffsetMs,
-			// groundTruth 「不」寫進 index，agent 不該看到答案。
-			// 它只存在於 Lesson 7 的評估案例裡。
+				// groundTruth is **not** written into the index; the agent must not see the answer.
+				// It exists only in Lesson 7's evaluation cases.
 		});
 	}
 

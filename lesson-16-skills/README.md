@@ -1,53 +1,59 @@
-# Lesson 16: Skills 與自我改進
+# Lesson 16: Skills and Self-Improvement
 
-> 前置：[Lesson 15](../lesson-15-memory/)（長期記憶）。
+> [繁體中文](README.zh-TW.md)
 >
-> 記憶記的是「事實」，skill 記的是「**做法**」。
-> 做法會被執行，所以污染的後果嚴重一個量級。
+> Prerequisites: [Lesson 15](../lesson-15-memory/) (long-term memory).
 >
-> 對照原始碼：`hermes-agent/agent/learn_prompt.py`、`agent/background_review.py`、
-> `agent/skill_utils.py`、`agent/learning_mutations.py`
+> Memory records facts; a skill records how. A procedure gets executed, so the
+> consequences of poisoning are an order of magnitude worse.
+>
+> Source: `hermes-agent/agent/learn_prompt.py`, `agent/background_review.py`,
+> `agent/skill_utils.py`, `agent/learning_mutations.py`
 
-## 這課要回答的問題
+## Questions this lesson answers
 
-1. skill 跟「一段很長的 system prompt」差在哪？
-2. 為什麼 Hermes 規定描述只能 60 個字元？
-3. **agent 可以自己建立 skill 嗎？該不該？**
-4. 如果要，怎麼做才不會失控？
+1. How does a skill differ from a very long system prompt?
+2. Why does Hermes limit a description to 60 characters?
+3. Can an agent create its own skills? Should it?
+4. If it should, how do you keep that from getting out of hand?
 
 ---
 
-## Step 0：先跑起來
+## Step 0: run it first
 
-五個情境示範 progressive disclosure、審核閘門、工具白名單，不需要 API key：
+Five scenarios covering progressive disclosure, the review gate and the tool
+allowlist. No API key needed:
 
 ```bash
 bun run lesson-16
 ```
 
-這一課有一個斷言是字串比對驗證不了的，它需要真的模型：
+This lesson has a claim string comparison cannot verify, and it needs a real
+model:
 
 ```bash
 PROVIDER=gemini bun run lesson-16:route
 ```
 
-那支程式量測「description 被切掉之後，模型還找不找得到這個 skill」。
-結果在 Step 2.5，**跟 Hermes 原文講的不完全一樣**。
+That program measures whether the model can still find a skill once its
+description is truncated. The result is in Step 2.5, and it does not entirely
+match what Hermes's own text says.
 
 ---
 
-## Step 1：progressive disclosure
+## Step 1: progressive disclosure
 
-skill 不是「全部塞進 system prompt」。20 個 skill 就把 context 吃光了。
+A skill is not "paste everything into the system prompt". 20 skills eat the
+context.
 
-做法是拆兩層：
+The approach is two layers:
 
 ```
 索引（index）  每個 skill 一行 name + description   ← 每次請求都載入
 本文（body）   完整的操作步驟                        ← 模型要求時才載入
 ```
 
-實測：
+Measured:
 
 ```
 每次請求都會載入的「索引」：
@@ -59,31 +65,32 @@ skill 不是「全部塞進 system prompt」。20 個 skill 就把 context 吃�
   16 行、540 字元（沒被呼叫就不佔 context）
 ```
 
-所以：
+Therefore:
 
-> **description 是「路由用的」，不是「說明用的」。**
+> A description is for routing, not for explaining.
 
-模型只憑那一行決定要不要展開這個 skill。
+The model decides whether to expand a skill on the strength of that one line.
 
-### 索引成本要盯著
+### Keep an eye on the index cost
 
-`indexCost()` 那個數字是**每一次請求**都要付的固定成本。
-100 個 skill × 每個 70 字元 = 7000 字元，每一輪都在燒。
+The number from `indexCost()` is a fixed cost paid on every request. 100 skills at 70
+characters each is 7000 characters burning on every turn.
 
-這跟 Lesson 5 的 context 壓縮是同一類帳：**固定成本乘以輪數**。
+Same arithmetic as Lesson 5's context compaction: a fixed cost multiplied by
+the number of turns.
 
 ---
 
-## Step 2：60 字元的規定不是美觀問題
+## Step 2: the 60-character rule is not about aesthetics
 
-Hermes 的 authoring standard 對這條特別兇，原文：
+Hermes's authoring standard is unusually fierce about this one:
 
 > This is the most-violated rule and it is **NOT cosmetic**: the system-prompt
 > skill index truncates the description to 60 chars and loads it every
-> session, so anything past char 60 is **silently cut and never routes**.
+> session, so anything past char 60 is silently cut and never routes.
 > After you write the description, COUNT the characters.
 
-實測一個超長描述：
+Measured with an overlong description:
 
 ```
 原始描述（129 字元）：
@@ -95,10 +102,10 @@ Hermes 的 authoring standard 對這條特別兇，原文：
   ↑ 第 60 字之後被切掉了，而且沒有任何錯誤訊息
 ```
 
-後果：模型看到的是一句沒講完的行銷詞，**它永遠不會知道這個 skill
-能做什麼**，於是永遠不會叫用它。而你不會收到任何錯誤。
+The consequence: the model sees an unfinished piece of marketing copy, never
+learns what the skill does, and therefore never calls it. And you get no error.
 
-所以要有自動檢查：
+So there is an automatic check:
 
 ```
 ✗ description: 129 字元，超過 60。超出的部分會被靜靜切掉，
@@ -107,131 +114,139 @@ Hermes 的 authoring standard 對這條特別兇，原文：
                描述要講能力，不是講品質。
 ```
 
-> Hermes 還有一條有趣的規定：`author` **永遠是固定值 `Hermes`**，
-> 不准從環境變數、git config 或登入帳號填。
-> 理由是 skill 會被分享出去，從環境推導出來的名字是
-> 「使用者沒同意過的隱私外洩」。
+> Hermes has another interesting rule: `author` is always the fixed value
+> `Hermes`, never filled from an environment variable, git config or login
+> name. The reason is that skills get shared, and a name derived from the
+> environment is a privacy leak the user never agreed to.
 
 ---
 
-## Step 2.5：那個「never routes」是真的嗎（實測）
+## Step 2.5: is "never routes" true? (measured)
 
-Step 2 引的那句話是一個關於**模型行為**的斷言：
+The sentence quoted in Step 2 is a claim about model behaviour:
 
 > anything past char 60 is silently cut and **never routes**
 
-`demo.ts` 只能證明字串被 `truncate()` 切掉了，證明不了「模型因此找不到它」。
-所以有第二支程式，它需要真的模型：
+`demo.ts` can only prove `truncate()` cut the string, not that the model
+therefore cannot find it. So there is a second program, and it needs a real
+model:
 
 ```bash
 PROVIDER=gemini bun run lesson-16:route
 ```
 
-判定是確定性的：模型有沒有呼叫 `load_skill("replay-fall-window")`。
-問題刻意不含 skill 名字裡的字：
+The verdict is deterministic: did the model call
+`load_skill("replay-fall-window")`. The question deliberately avoids words from
+the skill's name:
 
 > 機器人 R-204 昨天在倉庫跌倒了，我想看看牠倒下去前後那段時間的感測器數值。
 
-### 第一輪：斷言沒有重現
+### Round one: the claim did not reproduce
 
-真 Gemini 3.6 Flash，三種描述各跑三次：
+Real Gemini 3.6 Flash, three descriptions, three runs each:
 
-| 描述 | 字數 | 結果 |
+| Description | Characters | Result |
 |---|---|---|
-| 合格 | 46 | ✓✓✓ |
-| 行銷詞（切到 60 字剩半句廢話） | 129 | ✓✓✓ |
-| 切到 60 字連主題都看不出來 | 201 | ✓✓✓ |
+| compliant | 46 | ✓✓✓ |
+| marketing copy (60 chars leaves half a platitude) | 129 | ✓✓✓ |
+| 60 chars leaves no clue about the topic | 201 | ✓✓✓ |
 
-**9/9 全中。** 描述被切爛了照樣路由成功。
+Nine out of nine. Routing succeeded with the description mangled.
 
-原因不難猜：`replay-fall-window` 這個**名字自己就把話講完了**。
-模型根本不需要讀描述。
+The reason is not hard to guess: the name `replay-fall-window` says everything
+by itself. The model never needed the description.
 
-### 但第一輪的實驗設計是錯的
+### But round one's experimental design was wrong
 
-我原本的四個干擾項是「比對 session」「輸出 PDF」「調步態」「查電池」，
-跟問題**明顯無關**。所以模型可以用**排除法**選出唯一不明顯錯誤的那個，
-一樣不需要讀描述。
+The four distractors were "compare sessions", "export PDF", "tune gait" and
+"check battery", all obviously irrelevant. So the model could pick the only
+not-obviously-wrong option by elimination, again without reading any
+description.
 
-> 這是一個混淆變因：**通過測試不代表機制有效，可能只是題目太簡單。**
+> That is a confound: passing a test does not mean the mechanism works, it may
+> mean the test was too easy.
 
-所以要改兩件事：
+So two things had to change:
 
-1. 把名字換成沒有語意的 `sk-0472`（`NAME=opaque`）
-2. 干擾項全部換成「也跟跌倒感測器沾邊」的（`DISTRACTORS=hard`）：
-   `session-timeline` / `sensor-dump` / `fall-detector` / `incident-summary`
+1. replace the name with the semantically empty `sk-0472` (`NAME=opaque`)
+2. replace every distractor with something also adjacent to falls and sensors
+   (`DISTRACTORS=hard`): `session-timeline` / `sensor-dump` / `fall-detector` /
+   `incident-summary`
 
-### 第二輪：斷言是真的，但有條件
+### Round two: the claim is true, with conditions
 
 ```bash
 NAME=opaque DISTRACTORS=hard DESC=bloated PROVIDER=gemini bun run lesson-16:route
 ```
 
-完整矩陣，每格三次，共 30 次真模型執行：
+The full matrix, three runs per cell, 30 live model runs:
 
-| 名字 | 干擾項 | 描述合格 | 描述 129 字 | 描述 201 字 |
+| Name | Distractors | Compliant description | 129-char description | 201-char description |
 |---|---|---|---|---|
-| `replay-fall-window` | 好認 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
-| `replay-fall-window` | 都很像 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
-| `sk-0472` | 好認 | ✓✓✓ | ✓✓✓ | ✓✓✓ |
-| **`sk-0472`** | **都很像** | ✓✓✓ | **✗✗✗** | **✗✗✗** |
+| `replay-fall-window` | easy | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| `replay-fall-window` | similar | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| `sk-0472` | easy | ✓✓✓ | ✓✓✓ | ✓✓✓ |
+| **`sk-0472`** | **similar** | ✓✓✓ | **✗✗✗** | **✗✗✗** |
 
-只有最後一格會壞，而且是穩定地壞：三次都去載了 `fall-detector` 和
-`sensor-dump`，一次都沒碰對的那個。
+Only the last cell breaks, and it breaks stably: all three runs loaded
+`fall-detector` and `sensor-dump`, and never touched the right one.
 
-### 所以正確的規則是
+### So the correct rule is
 
-Hermes 的擔憂是對的，但那句話講得太滿。精確版本是：
+Hermes's worry is right and the sentence overstates it. The precise version:
 
-> **路由訊號 = skill 名字 + description 的前 60 字。
-> 兩者只要有一個把話講清楚就夠。**
+> The routing signal is the skill's name plus the first 60 characters of the
+> description. Either one being clear is enough.
 
-描述超過 60 字會不會出事，取決於名字有沒有補上，
-以及**其他 skill 像不像**。三個條件同時成立才會壞：
+Whether exceeding 60 characters hurts depends on whether the name covers for
+it, and on how similar the other skills are. Three conditions have to hold at
+once:
 
 ```
 名字沒有語意  +  描述前 60 字沒有資訊  +  有長得像的替代品
 ```
 
-實務上的建議因此比原文更好操作：
+Which makes the practical advice more actionable than the original:
 
-- 名字取好一點，它是免費的路由訊號，而且**不受 60 字截斷影響**
-- 但**不要依賴名字**，因為你不知道未來會不會加進一個很像的 skill。
-  最後一格就是「加了四個相似 skill」之後才炸的
-- 60 字檢查照做，它是成本最低的保險
+- name it well; the name is a free routing signal and is not subject to the
+  60-character truncation
+- do not rely on the name, because you do not know whether a similar skill will
+  be added later. That last cell only broke after four similar skills arrived
+- keep the 60-character check; it is the cheapest insurance available
 
-### 失敗的樣子跟 Hermes 說的一模一樣
+### The failure looks exactly as Hermes describes
 
-那三次失敗**沒有任何錯誤訊息**。模型載入了兩個看起來合理的
-skill，然後產出一份看起來合理的計畫。你不會知道有一個
-專門為這件事寫的 skill 從頭到尾沒被用到。
+Those three failures produced no error message. The model loaded two
+plausible-looking skills and produced a plausible-looking plan. You would never
+learn that a skill written specifically for this was never used.
 
-> 又是設計原則 7：**安靜的失敗。**
-> 而且這次連 log 都不會有,因為從系統的角度看，什麼都沒出錯。
+> Design principle 7 again: a silent failure. And this time there is not even a
+> log entry, because from the system's point of view nothing went wrong.
 
 ---
 
-## Step 3：Hermes 真的會自動建立 skill
+## Step 3: Hermes really does create skills automatically
 
-先講事實，不要美化。`agent/background_review.py` 的 docstring：
+The facts first, unvarnished. From `agent/background_review.py`'s docstring:
 
 > After every turn, `AIAgent.run_conversation` may call
 > `spawn_background_review` to fire off a daemon thread that replays the
 > conversation snapshot in a forked `AIAgent` and asks itself
 > "should any skill/memory be saved or updated?".
-> **Writes go straight to the memory + skill stores.**
+> Writes go straight to the memory + skill stores.
 
-「Writes go straight」就是風險所在：**沒有人在中間看過。**
+"Writes go straight" is where the risk lives: nobody looked in between.
 
-但它不是裸奔，有兩個控制：
+It is not unguarded, though. There are two controls.
 
-### 控制一：工具白名單
+### Control one: a tool allowlist
 
 > It runs with a **tool whitelist limited to memory and skill management
 > tools**; everything else is denied at runtime.
 
-那個 fork 跑在背景、沒人看著。如果它有完整權限，就是一個無人監督的
-完整 agent。白名單讓它只能寫 skill，不能順便跑 shell：
+That fork runs in the background with nobody watching. Given full permissions it
+would be an unsupervised complete agent. The allowlist means it can write
+skills and cannot also run a shell:
 
 ```
 允許  propose_skill
@@ -242,45 +257,47 @@ skill，然後產出一份看起來合理的計畫。你不會知道有一個
 拒絕  send_email
 ```
 
-**這跟 Lesson 8 的風險分級是同一個想法，只是套用在「背景的自己」身上。**
+Same idea as Lesson 8's risk classes, applied to a background copy of itself.
 
-### 控制二：隔離
+### Control two: isolation
 
 > Main conversation and prompt cache are never touched.
 
-fork 不污染主對話，也不弄壞 prompt cache。
+The fork neither pollutes the main conversation nor breaks the prompt cache.
 
-### 事後還有人可以修
+### And a human can still fix it afterwards
 
-`agent/learning_mutations.py` 讓人編輯／刪除學到的東西，
-而且**刪除是封存不是真刪**（`hermes curator restore` 救得回來）。
+`agent/learning_mutations.py` lets a person edit or delete what was learned, and
+deletion is archival rather than real (`hermes curator restore` brings it back).
 
 ---
 
-## Step 4：這一課為什麼還是加了一道閘門
+## Step 4: why this lesson still adds a gate
 
-Hermes 的控制是「限制範圍 + 事後可修」。這一課示範的是更保守的版本：
+Hermes's controls are "limit the scope, allow repair afterwards". This lesson
+demonstrates a more conservative version:
 
 ```
 agent 提議 → 人類審核 → 版本化保存 → 測試通過才啟用
 ```
 
-為什麼？因為自動寫入 skill 的風險比記憶更嚴重：
+Why? Because writing skills automatically is riskier than writing memory:
 
-| 風險 | 說明 |
+| Risk | What it means |
 |---|---|
-| **錯誤經驗永久保存** | 一次趕時間的捷徑，變成未來的標準流程 |
-| **skill 污染** | 一次失敗的嘗試被當成「正確做法」重複使用 |
-| **注入持久化** | 網頁說「處理 X 要先停用檢查」→ 變成 skill |
-| **行為漂移** | 每次微調一點，三個月後你不認得這個 agent |
-| **難以重現** | 出問題時你不知道它當時載了哪個版本 |
+| **bad experience made permanent** | one time-pressured shortcut becomes the standard procedure |
+| **skill poisoning** | one failed attempt gets reused as the correct approach |
+| **injection persisted** | a web page says "disable the check before handling X" and it becomes a skill |
+| **behavioural drift** | small adjustments each time, and in three months you do not recognise the agent |
+| **hard to reproduce** | when something breaks you do not know which version was loaded |
 
-Lesson 15 講記憶是「持續性的注入面」。skill 更糟，因為
-**記憶是被讀的，skill 是被執行的**。
+Lesson 15 called memory a persistent injection surface. Skills are worse,
+because memory is read and a skill is executed.
 
-### 閘門的實際位置
+### Where the gate actually sits
 
-關鍵不是「禁止 agent 寫」，是「**讓它寫進一個不會生效的地方**」：
+The key is not forbidding the agent to write, it is letting it write somewhere
+that does not take effect:
 
 ```ts
 async propose(skill, from): Promise<Proposal> {
@@ -289,7 +306,7 @@ async propose(skill, from): Promise<Proposal> {
 }
 ```
 
-而 `buildIndex()` 只讀 active 目錄：
+And `buildIndex()` reads only the active directory:
 
 ```
 目前索引裡有 0 個 skill
@@ -297,18 +314,20 @@ async propose(skill, from): Promise<Proposal> {
 → 提議中的 skill 對模型「不存在」，這就是閘門的實際位置
 ```
 
-**跟 Lesson 8-9 是同一個形狀**：agent 提出，人類把關，而且把關可以
-非同步，proposed 的 skill 就躺在那裡等，跟 inbox 裡的批准一樣。
+Same shape as Lessons 8 and 9: the agent proposes, a human gates, and the
+gating can be asynchronous. A proposed skill sits there waiting, exactly like
+an approval in an inbox.
 
-### 拒絕要封存，不要刪掉
+### Rejections are archived, not deleted
 
 ```ts
 await rename(src, join(this.archiveDir, `rejected-${Date.now()}-${name}.md`));
 ```
 
-被拒絕的提議**本身就是資料**：它告訴你 agent 想學什麼、以及你為什麼不要。
+A rejected proposal is itself data: it tells you what the agent wanted to learn
+and why you said no.
 
-實測情境 5 的例子：
+The example from measured scenario 5:
 
 ```
 agent 提議了 "fast-deploy"
@@ -319,12 +338,13 @@ agent 提議了 "fast-deploy"
 [人類] 拒絕：跳過測試不是可重用的做法，是一次性的權宜
 ```
 
-如果這個提議被直接刪掉，你就失去了一個訊號。累積幾個月的拒絕紀錄，
-是**偵測行為漂移最直接的資料**。
+Delete that proposal outright and you lose a signal. A few months of
+accumulated rejections is the most direct data you have for detecting
+behavioural drift.
 
 ---
 
-## Step 5：提議要帶來源
+## Step 5: a proposal has to carry its provenance
 
 ```ts
 proposedFrom: {
@@ -334,135 +354,142 @@ proposedFrom: {
 }
 ```
 
-審核的人需要知道**這個 skill 是從什麼樣的對話萃取出來的**。
+The reviewer needs to know what kind of conversation this skill was extracted
+from.
 
-沒有來源的話，你在審一段沒有上下文的操作步驟，很難判斷它是
-「一個好的通用做法」還是「一次特殊情況的僥倖」。
+Without provenance you are reviewing a procedure with no context, and it is
+very hard to judge whether it is a good general approach or one lucky special
+case.
 
-這也是為什麼 Hermes 的 `/learn` 是**使用者主動觸發**的：
+That is also why Hermes's `/learn` is user-triggered:
 
 > `/learn` is open-ended. The user can point it at anything they can describe:
 > a directory of code, an API doc URL, a workflow they just walked the agent
 > through in this conversation, or pasted notes.
 
-使用者指定來源 = 使用者已經對「這值得學」做了第一層判斷。
+A user naming the source means the user already made the first judgement that
+this is worth learning.
 
 ---
 
-## 跑不起來？
+## Troubleshooting
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| skill 從來沒被叫用 | description 超過 60 字被截斷 | 跑 `validateSkill()` 檢查 |
-| 索引很長，每輪都貴 | skill 太多 | 看 `indexCost()`；考慮分類載入 |
-| 提議一直沒生效 | 它在 proposed 目錄，這是設計 | 用 `decide(name, { action: "approve" })` |
-| agent 學到奇怪的東西 | 提議沒有來源，或沒人審 | 見 Step 4、Step 5 |
+| A skill is never called | the description exceeded 60 characters and was truncated | run `validateSkill()` |
+| The index is long and every turn is expensive | too many skills | check `indexCost()`; consider loading by category |
+| A proposal never takes effect | it is in the proposed directory, which is the design | use `decide(name, { action: "approve" })` |
+| The agent learns strange things | proposals have no provenance, or nobody reviews them | see Steps 4 and 5 |
 
 ---
 
-## 練習
+## Exercises
 
-### 練習 1：算你自己的索引成本 ⭐
+### Exercise 1: compute your own index cost ⭐
 
-假設你有 50 個 skill，每個描述 55 字元。算算看：
+Assume 50 skills with 55-character descriptions. Work out:
 
-- 索引佔多少 token？
-- 一個 20 輪的對話總共為索引付了多少？
-- 如果換成 100 個 skill 呢？
+- how many tokens does the index take?
+- across a 20-turn conversation, how much did the index cost in total?
+- what about 100 skills?
 
-**這題會讓你理解為什麼 progressive disclosure 是必要的，不是優化。**
+This makes clear that progressive disclosure is necessary rather than an
+optimisation.
 
-### 練習 1.5：把 Step 2.5 的矩陣跑完 ⭐⭐
+### Exercise 1.5: finish Step 2.5's matrix ⭐⭐
 
-Step 2.5 只測了 Gemini 3.6 Flash。換一個模型跑同一個矩陣：
+Step 2.5 only tested Gemini 3.6 Flash. Run the same matrix on another model:
 
 ```bash
 NAME=opaque DISTRACTORS=hard DESC=bloated PROVIDER=anthropic bun run lesson-16:route
 ```
 
-會不會有模型在「名字好認 + 干擾項都很像」那格就開始失手？
-如果有，那條建議就要再收緊。
+Does any model start failing in the "recognisable name plus similar
+distractors" cell? If so, the advice above needs tightening.
 
-做這題的時候注意兩個陷阱，兩個我都踩過：
+Two traps to watch for, both of which caught this lesson out:
 
-1. **題目太簡單會讓爛機制看起來沒問題。** 第一輪的干擾項明顯無關，
-   模型用排除法就過關了，什麼也沒測到
-2. **「沒發生」不能直接當結論。** 先確認 `stopReason` 是正常結束
-   （Lesson 15 Step 4.5 的教訓）
+1. an easy test makes a bad mechanism look fine. Round one's distractors were
+   obviously irrelevant, the model passed by elimination, and nothing was
+   measured
+2. "it did not happen" is not a conclusion by itself. Confirm `stopReason` was
+   a normal finish first (Lesson 15 Step 4.5's lesson)
 
-### 練習 2：把閘門拿掉 ⭐
+### Exercise 2: remove the gate ⭐
 
-讓 `propose()` 直接寫進 active 目錄，然後跑情境 5。
+Make `propose()` write straight into the active directory, then run scenario 5.
 
-看 `fast-deploy` 那個 skill 直接生效是什麼感覺。
+See how it feels to have that `fast-deploy` skill take effect immediately.
 
-### 練習 3：加一個「測試通過才啟用」 ⭐⭐
+### Exercise 3: add "active only after tests pass" ⭐⭐
 
-現在核准之後就直接啟用了。加一個中間狀態：
+Approval currently activates immediately. Add an intermediate state:
 
 ```
 proposed → approved → (跑測試) → active
 ```
 
-測試可以是：讓 agent 用這個 skill 跑一次 Lesson 7 的評估案例，
-分數沒有退步才啟用。
+The test can be: have the agent run one of Lesson 7's evaluation cases using
+this skill, and activate only if the score did not regress.
 
-**這是把 Lesson 7 接上來的地方。**
+This is where Lesson 7 connects.
 
-### 練習 4：skill 版本與回溯 ⭐⭐
+### Exercise 4: skill versions and rollback ⭐⭐
 
-`version: 0.1.0` 目前沒人用。實作：
+`version: 0.1.0` is currently unused. Implement:
 
-- 修改既有 skill 時 bump 版本
-- 保留舊版本
-- 出問題時可以 rollback
+- bump the version when an existing skill is edited
+- keep the old version
+- roll back when something breaks
 
-想一想：session 記錄要不要記「當時載了哪個版本的 skill」？
-（提示：Lesson 4 的 `appendMeta` 就是為這種事準備的。）
+Then think: should the session record which skill version was loaded at the
+time? (Hint: Lesson 4's `appendMeta` exists for exactly this.)
 
-### 練習 5：偵測行為漂移 ⭐⭐⭐
+### Exercise 5: detect behavioural drift ⭐⭐⭐
 
-寫一個工具，分析 archive 目錄裡累積的提議：
+Write a tool that analyses the proposals accumulated in the archive directory:
 
-- agent 最常想學什麼類型的東西？
-- 被拒絕的提議有沒有共同模式？
-- 有沒有同一個想法被反覆提出？（那可能代表你的 system prompt 有問題）
+- what kinds of thing does the agent most often want to learn?
+- do the rejected proposals share a pattern?
+- is the same idea being proposed repeatedly? (That may mean your system prompt
+  has a problem.)
 
-### 練習 6：白名單的邊界 ⭐⭐⭐
+### Exercise 6: the boundary of the allowlist ⭐⭐⭐
 
-`PROPOSAL_TOOL_ALLOWLIST` 包含 `read_file`。想一想：
+`PROPOSAL_TOOL_ALLOWLIST` includes `read_file`. Think about it:
 
-背景 fork 能讀任意檔案，這安全嗎？它可能讀到 `.env` 然後寫進 skill 裡嗎？
+A background fork can read arbitrary files. Is that safe? Could it read `.env`
+and write it into a skill?
 
-如果要限制，該怎麼限制？（提示：Lesson 8 的 roots + writable 旗標）
+If you want to restrict it, how? (Hint: Lesson 8's roots plus the writable
+flag.)
 
 ---
 
-## 對照 Hermes 原始碼
+## Compared with Hermes's source
 
-| 這一課的概念 | Hermes 的位置 |
+| Concept in this lesson | Where it lives in Hermes |
 |---|---|
-| `/learn` 提示詞與 authoring standard | `agent/learn_prompt.py`（150 行，**建議整份讀**） |
-| 60 字元規則的理由 | `learn_prompt.py:40` 附近 |
-| 背景自動建立 skill | `agent/background_review.py`（docstring 講清楚了設計） |
-| 工具白名單 | 同上，`background_review.py` docstring |
-| skill 檔案解析與條件載入 | `agent/skill_utils.py`（854 行） |
-| 人工編輯／刪除（封存） | `agent/learning_mutations.py`（206 行） |
-| 學習視覺化 | `agent/learning_graph.py`（328 行） |
+| the `/learn` prompt and authoring standard | `agent/learn_prompt.py` (150 lines, worth reading whole) |
+| the reasoning behind the 60-character rule | around `learn_prompt.py:40` |
+| creating skills automatically in the background | `agent/background_review.py` (the docstring lays out the design) |
+| the tool allowlist | same file, `background_review.py`'s docstring |
+| parsing skill files and conditional loading | `agent/skill_utils.py` (854 lines) |
+| manual editing and deletion (archival) | `agent/learning_mutations.py` (206 lines) |
+| visualising what was learned | `agent/learning_graph.py` (328 lines) |
 
-`learn_prompt.py` 的 `_AUTHORING_STANDARDS` 那段值得整份讀：
-它是一份**寫給模型看的 code review 標準**，示範了怎麼用 prompt
-強制產出的格式一致。這本身就是一種 harness engineering。
+`learn_prompt.py`'s `_AUTHORING_STANDARDS` section is worth reading whole: it is
+a code review standard written for a model, and it demonstrates using a prompt
+to force consistent output format. That is itself harness engineering.
 
 ---
 
-## 下一課
+## Next lesson
 
-**[Lesson 17: 跨 session 搜尋](../lesson-17-search/)**
+[Lesson 17: cross-session search](../lesson-17-search/)
 
-現在 agent 有記憶（事實）跟 skill（做法）。還缺一個：
-**「上次我是怎麼做的？」**，從過去的對話裡找答案。
+The agent now has memory (facts) and skills (procedures). One thing is missing:
+"how did I do this last time?", answered from past conversations.
 
-Hermes 用 SQLite FTS5 + LLM 摘要的兩段式設計，
-跟 Lesson 6 的 `find_anomalies`（規則負責 recall，模型負責 precision）
-是同一個模式。
+Hermes uses SQLite FTS5, and the same pattern as Lesson 6's `find_anomalies`
+where rules handle recall and the model handles precision.

@@ -1,40 +1,40 @@
 /**
- * 一個**可以在指定位置被中斷**的串流。
+ * A stream that **can be interrupted at a named point**.
  *
- * 這一課最先要解決的不是收尾邏輯，是**怎麼可靠地中斷一次串流**。
- * 這個問題比它看起來難，而且解錯了整課就沒有價值：
+ * The first thing this lesson has to solve is not the cleanup logic but **how to interrupt a stream reliably**.
+ * That is harder than it looks, and getting it wrong makes the whole lesson worthless:
  *
- *   ❌ 用 setTimeout 在 30ms 之後 abort
- *      → 那 30ms 落在哪個事件之間是**運氣**。同一支測試今天中斷在
- *        reasoning，明天中斷在 tool，而你不會知道它換過。
+ *   ❌ abort after 30ms with setTimeout
+ *      → which two events those 30ms land between is **luck**. The same test interrupts during
+ *        reasoning today and during a tool tomorrow, and you will not know it changed.
  *
- *   ❌ 真的按 Ctrl-C
- *      → 位置更不可控，而且沒辦法寫成測試。
+ *   ❌ actually press Ctrl-C
+ *      → even less controllable, and impossible to write as a test.
  *
- *   ✅ **讓串流自己在指定的位置 abort。**
- *      「中斷發生在哪裡」變成一個參數，矩陣的每一格都是可重現的。
+ *   ✅ **Have the stream abort itself at a named point.**
+ *      "Where the interruption happens" becomes a parameter, and every cell of the matrix is reproducible.
  *
- * > 這條原則不只適用中斷：**任何「時序造成的 bug」，
- * > 都要先做出一個能指定時序的裝置，再開始修。**
- * > Lesson 18 的假時鐘、Lesson 29 的 `CAPTURE` 抓取點都是同一件事。
+ * > The principle is not limited to interruption: **for any timing-caused bug,
+ * > build an apparatus that can specify the timing before starting to fix it.**
+ * > Lesson 18's fake clock and Lesson 29's `CAPTURE` points are the same thing.
  */
 
 import type { SessionEvent } from "./processor.ts";
 
 export type InterruptPoint =
-	/** 推理輸出到一半。 */
+	/** Mid-reasoning. */
 	| "reasoning"
-	/** 工具參數收到一半（半截 JSON）。 */
+	/** Tool arguments half received (half a JSON document). */
 	| "tool_input"
-	/** 工具正在執行，而且不會在寬限窗口內結束。 */
+	/** A tool is executing and will not finish inside the grace window. */
 	| "tool_running"
-	/** 工具正在執行，但**會在寬限窗口內結束** —— 那它就該被記成 completed。 */
+	/** A tool is executing and **will finish inside the grace window** — so it should be recorded completed. */
 	| "tool_finishing"
-	/** 回答輸出到一半。 */
+	/** Mid-answer. */
 	| "text"
-	/** 檔案改完了，但 step_finish 還沒發出。 */
+	/** The file was changed and step_finish has not been emitted. */
 	| "before_step_finish"
-	/** 不中斷，正常跑完（對照組）。 */
+	/** No interruption; a normal finish (the control). */
 	| "none";
 
 export const INTERRUPT_POINTS: InterruptPoint[] = [
@@ -47,7 +47,7 @@ export const INTERRUPT_POINTS: InterruptPoint[] = [
 	"none",
 ];
 
-/** 這一格的工具要跑多久（毫秒）。寬限窗口是 250ms。 */
+/** How long this cell's tool takes (milliseconds). The grace window is 250ms. */
 export function toolDuration(point: InterruptPoint): number {
 	if (point === "tool_finishing") return 20; // 趕得上
 	if (point === "tool_running") return 5_000; // 趕不上
@@ -55,11 +55,11 @@ export function toolDuration(point: InterruptPoint): number {
 }
 
 /**
- * 照劇本吐事件，走到 `point` 的時候自己 abort。
+ * Emit events from the script, aborting at `point`.
  *
- * abort 之後**立刻停止 yield**，因為真實的 provider 就是這樣：
- * `text_end`、`step_finish` 這些「結束事件」永遠不會來了。
- * 這件事是整課的前提 —— 收尾之所以必須存在，就是因為沒有人會替你發結束事件。
+ * After aborting it **stops yielding immediately**, because that is what a real provider does:
+ * `text_end` and `step_finish` are never coming.
+ * That fact is the lesson's premise — cleanup has to exist precisely because nobody emits the finishing events for you.
  */
 export async function* interruptibleStream(
 	point: InterruptPoint,
@@ -77,8 +77,8 @@ export async function* interruptibleStream(
 	if (stop("reasoning")) return;
 	yield { type: "reasoning_end", id: "r1" };
 
-	// 工具參數逐塊送來。第二塊送完之後那個字串是 `{"path":"src/a.ts","content` ——
-	// **parse 不了**，這是 `pending.input` 為什麼是 string 的實證。
+		// Tool arguments arrive in fragments. After the second, the string is `{"path":"src/a.ts","content` —
+		// **unparseable**, which is the demonstration of why `pending.input` is a string.
 	yield { type: "tool_input_delta", id: "t1", name: "write_file", chunk: '{"path":"src/a.ts"' };
 	yield { type: "tool_input_delta", id: "t1", name: "write_file", chunk: ',"content' };
 	if (stop("tool_input")) return;
@@ -90,11 +90,11 @@ export async function* interruptibleStream(
 		args: { path: "src/a.ts", content: "export const a = 2;\n" },
 	};
 
-	// 工具現在在背景跑（processor 刻意不 await 它）。
+		// The tool is now running in the background (the processor deliberately does not await it).
 	if (stop("tool_running")) return;
 	if (stop("tool_finishing")) return;
 
-	// 讓快的工具跑完，模擬真實的時間流動。
+		// Let the fast tool finish, simulating real time passing.
 	await new Promise((resolve) => setTimeout(resolve, 30));
 
 	yield { type: "text_start", id: "x1" };

@@ -1,17 +1,17 @@
 /**
- * run_command ， 讓 agent 執行 shell 指令。
+ * run_command — letting the agent run shell commands.
  *
- * 這是威力最大、也最危險的工具。加上它之後，你的 agent 突然什麼都能做了：
- * 跑測試、裝套件、git commit……以及 rm -rf。
+ * The most powerful and most dangerous tool. With it, your agent can suddenly do anything:
+ * run tests, install packages, git commit… and rm -rf.
  *
- * 所以這個工具有三層防護：
- *   1. mutating: true      → registry 一定會先問使用者
- *   2. cwd 鎖在 root       → 指令的工作目錄跑不出沙箱
- *   3. timeout             → 卡住的指令不會讓 agent 永遠掛著
+ * So this tool has three layers of protection:
+ *   1. mutating: true      → the registry always asks the user first
+ *   2. cwd locked to root  → the command's working directory cannot leave the sandbox
+ *   3. a timeout           → a stuck command cannot hang the agent forever
  *
- * 這三層都不夠強。真正要跑不受信任的指令，要用 Docker 或 micro-VM。
- * Pi 的做法是把整個執行環境抽象成 ExecutionEnv 介面，
- * 見 packages/agent/src/harness/types.ts:373。
+ * None of the three is strong enough. Running genuinely untrusted commands needs Docker or a micro-VM.
+ * Pi abstracts the whole execution environment into an ExecutionEnv interface;
+ * see packages/agent/src/harness/types.ts:373.
  */
 
 import { spawn } from "node:child_process";
@@ -52,15 +52,15 @@ export const runCommandTool: Tool = {
 
 		const { stdout, code, timedOut } = await run(command, ctx.root, timeout, (line) => ctx.log(line));
 
-		// shell 輸出保留「結尾」，錯誤訊息和最終結果都在後面。
+			// Shell output keeps the **end**; error messages and final results are at the bottom.
 		const { text } = truncateTail(stdout);
 
 		if (timedOut) {
 			return `[timed out after ${timeout}ms - the command was killed]\n\n${text}`;
 		}
 
-		// 非 0 的 exit code 不是 throw，是一個「正常的失敗結果」。
-		// 測試沒過本來就是有用的資訊，模型需要看到完整輸出才能修。
+			// A non-zero exit code is not a throw but a **normal failure result**.
+			// Failing tests are useful information, and the model needs the full output to fix them.
 		const status = code === 0 ? "exit 0" : `exit ${code}`;
 		return `[${status}]\n\n${text || "(no output)"}`;
 	},
@@ -82,8 +82,8 @@ function run(
 		const child = spawn(command, {
 			cwd, // ← 工作目錄鎖在沙箱裡
 			shell: true,
-			// 不要繼承整個 process.env。API key 就在裡面，
-			// 不需要讓每一個 agent 跑的指令都看得到。
+				// Do not inherit the whole process.env. API keys are in there,
+				// and every command the agent runs does not need to see them.
 			env: {
 				PATH: process.env.PATH ?? "",
 				HOME: process.env.HOME ?? "",
@@ -99,7 +99,7 @@ function run(
 			child.kill("SIGKILL");
 		}, timeoutMs);
 
-		// stdout 跟 stderr 合併，順序才會跟你在終端機看到的一樣
+			// stdout and stderr are merged, so the order matches what you see in a terminal
 		const collect = (chunk: Buffer) => {
 			const text = chunk.toString();
 			output += text;

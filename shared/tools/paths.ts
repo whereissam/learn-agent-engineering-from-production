@@ -1,21 +1,21 @@
 /**
- * 路徑安全。
+ * Path safety.
  *
- * 每一個碰檔案的工具都必須先過這裡。放在共用檔案而不是每個工具各寫一次，
- * 是因為「某個工具忘記檢查」就是一個完整的沙箱逃逸。
+ * Every tool that touches files must pass through here. It lives in a shared file rather than being
+ * rewritten per tool, because "one tool forgot to check" is a complete sandbox escape.
  */
 
 import { resolve } from "node:path";
 
 /**
- * 把模型給的相對路徑解析成絕對路徑，並確保它沒有跑出 root。
+ * Resolve the model's relative path to an absolute one and ensure it did not leave root.
  *
- * 擋掉的包括：
- *   ../../../etc/passwd     一般的向上逃逸
- *   /etc/passwd             絕對路徑
- *   src/../../secrets.txt   繞一圈再逃
+ * What it blocks includes:
+ *   ../../../etc/passwd     ordinary upward escape
+ *   /etc/passwd             an absolute path
+ *   src/../../secrets.txt   escaping the long way round
  *
- * resolve() 會先把 ".." 正規化掉，所以我們只要比對結果的前綴就夠了。
+ * resolve() normalises ".." away first, so comparing the result's prefix is enough.
  */
 export function resolveInRoot(root: string, path: unknown, label = "path"): string {
 	if (typeof path !== "string" || path.length === 0) {
@@ -31,7 +31,7 @@ export function resolveInRoot(root: string, path: unknown, label = "path"): stri
 	return target;
 }
 
-/** 把絕對路徑轉回相對，用來顯示給人看（不要在訊息裡洩漏完整的機器路徑）。 */
+/** Turn an absolute path back into a relative one for display (never leak full machine paths in messages). */
 export function relativeToRoot(root: string, absolute: string): string {
 	if (absolute === root) return ".";
 	return absolute.startsWith(`${root}/`) ? absolute.slice(root.length + 1) : absolute;

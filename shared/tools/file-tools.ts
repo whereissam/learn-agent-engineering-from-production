@@ -1,9 +1,9 @@
 /**
- * 檔案工具：read / write / edit / list
+ * File tools: read / write / edit / list
  *
- * 每個工具都是一個 Tool 物件：spec（給模型看）+ execute（真正做事）。
+ * Each tool is a Tool object: spec (for the model) plus execute (which does the work).
  *
- * 對照 Pi：packages/agent/src/harness/tools/{read,write,edit}.ts
+ * Against Pi: packages/agent/src/harness/tools/{read,write,edit}.ts
  */
 
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -49,7 +49,7 @@ export const readFileTool: Tool = {
 		const selected = lines.slice(offset - 1).join("\n");
 		const { text, info } = truncateHead(selected);
 
-		// 加上行號。模型要靠這個決定 edit 的位置，也方便它跟你溝通「第幾行有問題」。
+			// Add line numbers. The model uses them to decide where to edit, and to tell you "line N has a problem".
 		const numbered = text
 			.split("\n")
 			.map((line, i) => `${String(offset + i).padStart(5)}\t${line}`)
@@ -134,12 +134,12 @@ export const editFileTool: Tool = {
 
 		const original = await readFile(target, "utf8");
 
-		// 這個檢查是 edit 工具的靈魂。
+			// This check is the soul of the edit tool.
 		//
-		// 0 次 → 模型記錯了或猜的，讓它重讀檔案
-		// 2 次以上 → 有歧義，改了會動到不該動的地方
+			// 0 matches → the model misremembered or guessed; make it re-read the file
+			// 2 or more → it is ambiguous, and editing would touch something it should not
 		//
-		// 兩種情況都要「拒絕執行 + 講清楚為什麼」，而不是硬改。
+			// Both cases must **refuse and explain why** rather than editing anyway.
 		const count = countOccurrences(original, oldString);
 
 		if (count === 0) {
@@ -172,7 +172,7 @@ function countOccurrences(haystack: string, needle: string): number {
 	return count;
 }
 
-/** 給模型看的極簡 diff，讓它確認改動符合預期。 */
+/** A minimal diff for the model, so it can confirm the change matches its intent. */
 function renderDiff(before: string, after: string): string {
 	const minus = before.split("\n").map((l) => `- ${l}`);
 	const plus = after.split("\n").map((l) => `+ ${l}`);
@@ -218,13 +218,13 @@ export const listFilesTool: Tool = {
 };
 
 async function walk(dir: string, root: string, depth: number): Promise<string[]> {
-	// 深度上限：沒有這個的話，一個 symlink 迴圈就能讓 agent 掛掉。
+		// A depth limit: without it, one symlink loop can hang the agent.
 	if (depth > 6) return [];
 
 	const out: string[] = [];
 	const entries = await readdir(dir, { withFileTypes: true });
 
-	// 排序讓輸出穩定，同樣的專案每次跑結果一樣，才方便你比對。
+		// Sorting makes the output stable, so the same project produces the same result every run and can be compared.
 	entries.sort((a, b) => a.name.localeCompare(b.name));
 
 	for (const entry of entries) {

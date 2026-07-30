@@ -1,15 +1,15 @@
 /**
- * Lesson 28 - 中斷之後，session 不能說謊
+ * Lesson 28 - after an interruption, the session must not lie
  *
- * 一張矩陣：在六個不同的位置中斷 × 有沒有收尾，每一格都存檔、
- * 重新載入、然後跑五條稽核規則。
+ * One matrix: interrupting at six different points × with and without cleanup, with every cell persisted,
+ * reloaded, and run through five audit rules.
  *
- * 執行：
- *   bun run lesson-28                       # 整張矩陣（不用金鑰）
- *   bun run lesson-28 tool_running          # 只看一格的細節
+ * Run:
+ *   bun run lesson-28                       # the whole matrix (no key)
+ *   bun run lesson-28 tool_running          # one cell's details
  *   CLEANUP=off bun run lesson-28 tool_running
  *
- * 判定是那五條規則（`audit.ts`），沒有 LLM 裁判。
+ * The verdict is those five rules (`audit.ts`), with no LLM judge.
  */
 
 import { rm } from "node:fs/promises";
@@ -33,7 +33,7 @@ const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
-/** 假時鐘：每次讀取往前 1ms，時間戳才穩定又遞增。 */
+/** A fake clock: each read advances 1ms, so timestamps are stable and increasing. */
 function tickingClock() {
 	let t = 1_000_000;
 	return () => (t += 1);
@@ -49,9 +49,9 @@ interface CellResult {
 
 async function runCell(point: InterruptPoint, cleanup: boolean): Promise<CellResult> {
 	const controller = new AbortController();
-	// 工具會「改到檔案」：一旦它開始跑，diff 就會回報那個檔案。
-	// 刻意在**回傳之前**就改，因為那個窗口正是這一課要示範的東西
-	// （Lesson 34 會再回到同一個窗口，那邊問的是要不要重跑）。
+	// The tool **changes a file**: once it starts, the diff reports that file.
+	// It changes it deliberately **before returning**, because that window is what this lesson demonstrates
+	// (Lesson 34 returns to the same window, asking whether to re-run).
 	let touched = false;
 
 	const processor = new SessionProcessor("msg_1", {
@@ -76,7 +76,7 @@ async function runCell(point: InterruptPoint, cleanup: boolean): Promise<CellRes
 		await processor.cleanup("end");
 	}
 
-	// 存檔 → 重新載入。**稽核的對象是存檔，不是記憶體裡的物件。**
+	// Persist → reload. **The audit targets the saved file, not the object in memory.**
 	const path = resolve(STATE, `${point}-${cleanup ? "on" : "off"}.json`);
 	await processor.persist(path);
 	const loaded = await SessionProcessor.load(path);
@@ -131,7 +131,7 @@ async function showMatrix(): Promise<void> {
 		),
 	);
 
-	// 一格特別值得單獨講：趕得上寬限窗口的工具。
+	// One cell deserves stating separately: the tool that makes the grace window.
 	const finishing = await runCell("tool_finishing", true);
 	console.log(`\n${bold("為什麼要有寬限窗口")}`);
 	console.log(

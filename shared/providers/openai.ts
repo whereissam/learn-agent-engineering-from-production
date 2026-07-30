@@ -1,14 +1,14 @@
 /**
- * OpenAI 實作 ， 同時也是 Gemini 實作。
+ * The OpenAI implementation — which is also the Gemini implementation.
  *
- * Gemini 提供 OpenAI 相容端點，所以同一份 code 換個 baseURL 就能用：
+ * Gemini offers an OpenAI-compatible endpoint, so the same code works with a different baseURL:
  *   https://generativelanguage.googleapis.com/v1beta/openai/
  *
- * 把這個檔案跟 anthropic.ts 並排看，就能看到 provider 抽象在解決什麼問題。
- * 三個地方形狀完全不同：
- *   1. tool 定義多包了一層 { type: "function", function: {...} }
- *   2. 工具參數是「JSON 字串」，要自己 parse（Anthropic 是解析好的物件）
- *   3. 工具結果要「一個結果一則訊息」（Anthropic 是全部塞同一則）
+ * Put this file beside anthropic.ts and you can see what the provider abstraction solves.
+ * Three places differ entirely in shape:
+ *   1. tool definitions carry an extra { type: "function", function: {...} } wrapper
+ *   2. tool arguments are a **JSON string** you have to parse (Anthropic's are parsed objects)
+ *   3. tool results need **one message per result** (Anthropic puts them all in one)
  */
 
 import OpenAI from "openai";
@@ -25,11 +25,11 @@ import type {
 export interface OpenAiProviderOptions {
 	model: string;
 	apiKey?: string;
-	/** 設了就打相容端點（例如 Gemini）。 */
+	/** Set this to hit a compatible endpoint (Gemini, say). */
 	baseURL?: string;
 	/**
-	 * 新版 OpenAI 模型用 max_completion_tokens，舊版跟部分相容端點用 max_tokens。
-	 * 如果收到 "Unrecognized request argument" 之類的錯誤，就把這個換掉。
+		 * Newer OpenAI models use max_completion_tokens; older ones and some compatible endpoints use max_tokens.
+		 * On an error like "Unrecognized request argument", swap this.
 	 */
 	tokenParam?: "max_completion_tokens" | "max_tokens";
 	label?: string;
@@ -44,7 +44,7 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 		model: options.model,
 
 		async call(request: ModelRequest): Promise<ModelResponse> {
-			// 新舊 API 的欄位名不同，這裡挑一個展開進去。
+				// The old and new APIs name the field differently; pick one and spread it in.
 			const tokenLimit =
 				tokenParam === "max_tokens"
 					? { max_tokens: request.maxTokens }
@@ -53,7 +53,7 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 			const completion = await client.chat.completions.create({
 				model: options.model,
 				...tokenLimit,
-				// OpenAI 沒有獨立的 system 欄位 ， system prompt 是 messages[0]
+					// OpenAI has no separate system field — the system prompt is messages[0]
 				messages: [
 					{ role: "system", content: request.system },
 					...request.messages.flatMap(toOpenAiMessages),
@@ -68,15 +68,15 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 
 			const stopReason = toStopReason(choice.finish_reason);
 
-			// 非串流版的 usage 直接在回應 body 裡，不需要 stream_options。
+				// The non-streaming usage is in the response body directly, with no need for stream_options.
 			//
-			// ⚠️ 這一段是後來補的：Lesson 26 把 `usage` 加進共用的
-			// `ModelResponse`，但**只在串流那一支填**。型別答應了一件事，
-			// 一半的實作沒做到——Lesson 1-2 的讀者拿到的永遠是 undefined，
-			// 而且沒有任何訊息說為什麼。
+				// ⚠️ This section was added later: Lesson 26 added `usage` to the shared
+				// `ModelResponse` and **filled it only in the streaming implementation**. The type promised
+				// something half the implementations did not deliver — Lessons 1-2's readers always got
+				// undefined, with no message saying why.
 			//
-			// **共用型別是一種承諾。加欄位的時候要檢查所有實作，
-			// 不是只改你正在看的那一支。**
+				// **A shared type is a promise. When adding a field, check every implementation,
+				// not just the one you are looking at.**
 			const usage = completion.usage
 				? {
 						input: completion.usage.prompt_tokens ?? 0,
@@ -85,11 +85,11 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 					}
 				: undefined;
 
-			// 被截斷時，tool_calls 的 arguments 可能是半截的 JSON。
-			// 這種參數解析得出來也不能用 ， 直接放棄這一輪，別執行。
-			// 對照 Pi：agent-loop.ts:211 failToolCallsFromTruncatedMessage
-			// 被截斷的呼叫一樣要付錢，所以這條路徑也要帶 usage。
-			// （串流那一支漏了這件事三課，見 Lesson 26 Step 3。）
+				// On truncation, tool_calls' arguments may be half a JSON document.
+				// Such arguments must not be used even if they parse — abandon this turn rather than executing.
+				// Against Pi: agent-loop.ts:211 failToolCallsFromTruncatedMessage
+				// A truncated call is billed too, so this path must carry usage as well.
+				// (The streaming implementation missed this for three lessons; see Lesson 26 Step 3.)
 			if (stopReason === "max_tokens") {
 				return { blocks: [], raw: choice.message, stopReason, usage };
 			}
@@ -105,7 +105,7 @@ export function openaiProvider(options: OpenAiProviderOptions): Provider {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 中立 → OpenAI
+// Neutral → OpenAI
 // ─────────────────────────────────────────────────────────────
 
 function toOpenAiTool(tool: ToolSpec): OpenAI.Chat.Completions.ChatCompletionTool {
@@ -120,11 +120,11 @@ function toOpenAiTool(tool: ToolSpec): OpenAI.Chat.Completions.ChatCompletionToo
 }
 
 /**
- * 注意回傳型別是「陣列」，不是單一訊息。
+ * Note the return type is an **array**, not a single message.
  *
- * 這就是 seam 存在的理由：Anthropic 是 1 則中立訊息 → 1 則原生訊息，
- * OpenAI 的工具結果卻是 1 則中立訊息 → N 則原生訊息。
- * 上層 loop 完全不需要知道這件事。
+ * That is why the seam exists: Anthropic is 1 neutral message → 1 native message,
+ * while OpenAI's tool results are 1 neutral message → N native messages.
+ * The loop above never needs to know.
  */
 function toOpenAiMessages(message: Message): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
 	switch (message.role) {
@@ -138,16 +138,16 @@ function toOpenAiMessages(message: Message): OpenAI.Chat.Completions.ChatComplet
 			return message.results.map((result) => ({
 				role: "tool" as const,
 				tool_call_id: result.toolCallId,
-				// OpenAI 沒有 is_error 這個欄位，只能把錯誤寫進文字裡。
-				// 這是「有損轉換」的典型例子 ， 中立表示比某些 provider 表達力強時，
-				// 資訊就會在這裡掉一點。
+					// OpenAI has no is_error field, so an error can only go into the text.
+					// A classic lossy conversion — when the neutral representation is more expressive than
+					// some provider, information is lost right here.
 				content: result.isError ? `Error: ${result.content}` : result.content,
 			}));
 	}
 }
 
 // ─────────────────────────────────────────────────────────────
-// OpenAI → 中立
+// OpenAI → neutral
 // ─────────────────────────────────────────────────────────────
 
 function fromOpenAiMessage(
@@ -164,11 +164,11 @@ function fromOpenAiMessage(
 
 		let args: Record<string, unknown>;
 		try {
-			// arguments 是「字串」，不是物件。這是最常見的踩雷點。
+				// arguments is a **string**, not an object. The most common trap.
 			args = JSON.parse(call.function.arguments || "{}");
 		} catch {
-			// 模型偶爾會吐出壞掉的 JSON。當成空參數丟給工具，
-			// 讓工具自己 throw，錯誤訊息就會回到模型手上讓它重試。
+				// Models occasionally emit broken JSON. Passing empty arguments to the tool
+				// lets the tool throw, and the error message reaches the model so it can retry.
 			args = {};
 		}
 

@@ -1,14 +1,14 @@
 /**
- * 中斷之後的一致性（Lesson 28）。
+ * Consistency after an interruption (Lesson 28).
  *
- * 兩組：
+ * Two groups:
  *
- *   audit      五條規則各自都會在該響的時候響（**鑑別度**）
- *   processor  收尾真的把 part 推進到終局狀態
+ *   audit      each of the five rules fires when it should (**discrimination**)
+ *   processor  cleanup really pushes parts into terminal states
  *
- * 第一組不能省。`bun run lesson-28` 的 CLEANUP=on 那一欄全部是「乾淨」，
- * 而一個永遠說乾淨的稽核器跟一個有效的稽核器在畫面上長得一樣
- * （Lesson 16 第一輪、Lesson 30 第一層都栽在這件事上）。
+ * The first group cannot be skipped. `bun run lesson-28`'s CLEANUP=on column is all "clean",
+ * and an auditor that always says clean looks identical on screen to one that works
+ * (Lesson 16's first round and Lesson 30's first tier both fell for exactly this).
  */
 
 import assert from "node:assert/strict";
@@ -109,13 +109,13 @@ describe("稽核規則的鑑別度（Lesson 28）", () => {
 		const kinds = audit({ message: message([goodTool]), changedFiles: ["a.ts"] }).map((v) => v.kind);
 		assert.deepEqual(kinds, ["unrecorded-patch"]);
 
-		// 記了就不該報。
+			// Recorded means it must not be reported.
 		const recorded = message([goodTool], { snapshot: { files: ["a.ts"] } });
 		assert.deepEqual(audit({ message: recorded, changedFiles: ["a.ts"] }), []);
 	});
 
 	test("被中斷的工具是合法的終局狀態，不該被報", () => {
-		// interrupted 是 error 的一種，它有內容、有結束時間，紀錄是誠實的。
+			// interrupted is a kind of error with content and an end time; the record is honest.
 		const part: Part = {
 			type: "tool",
 			id: "t1",
@@ -146,7 +146,7 @@ describe("收尾（Lesson 28）", () => {
 		assert.equal(part.state.status, "pending");
 		if (part.state.status !== "pending") return;
 		assert.equal(part.state.input, '{"path":"a.ts"');
-		// 半截 JSON parse 不了 —— 這正是它是字串的理由。
+			// Half a JSON document does not parse — which is precisely why it is a string.
 		assert.throws(() => JSON.parse(part.state.status === "pending" ? part.state.input : "{}"));
 	});
 
@@ -161,8 +161,8 @@ describe("收尾（Lesson 28）", () => {
 			return;
 		}
 		assert.equal(part.state.interrupted, true);
-		// 半截的參數是被 JSON.stringify 過才放進訊息的，所以比對的是轉義後的形式。
-		// 這件事本身就是重點：**它是一段資料，不是一段可以直接 parse 的 JSON。**
+			// Half-formed arguments were JSON.stringify'd before going into the message, so the comparison uses the escaped form.
+			// That fact is itself the point: **it is data, not JSON you can parse directly.**
 		assert.ok(part.state.error.includes(JSON.stringify('{"path')));
 		assert.ok(part.time.completed !== undefined);
 	});
@@ -203,9 +203,9 @@ describe("收尾（Lesson 28）", () => {
 	});
 
 	test("⚠ 正常結束時要等工具真的跑完，不能套用寬限窗口", async () => {
-		// 這一條是真模型跑出來的 bug：模型沒有先輸出文字就直接呼叫工具，
-		// 串流正常結束、工具還在跑 → 250ms 到了 → 一個成功的工具被標成
-		// interrupted，而 finish 是 "end"。一份自相矛盾的紀錄。
+			// This one is a bug a real model produced: the model called a tool without emitting text first,
+			// the stream finished normally with the tool still running → the 250ms elapsed → a successful tool was marked
+			// interrupted while finish was "end". A self-contradictory record.
 		const processor = new SessionProcessor("m1", {
 			clock: clock(),
 			graceMs: 10,

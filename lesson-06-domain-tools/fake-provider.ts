@@ -1,31 +1,31 @@
 /**
- * Lesson 6 專用的假 provider。
+ * The fake provider specific to Lesson 6.
  *
- * ## 為什麼需要這一支
+ * ## Why this exists
  *
- * `shared/streaming/fake.ts` 的腳本是寫給 Lesson 1-5 的 coding agent 的，
- * 它會呼叫 `list_files` / `read_file`。Lesson 6 換了一整組領域工具，
- * 所以那支假 provider 在這裡只會換來兩次 `Unknown tool`，
- * 然後吐一段跟機器人完全無關的罐頭文字。
+ * `shared/streaming/fake.ts`'s script was written for the Lesson 1-5 coding agent
+ * and calls `list_files` / `read_file`. Lesson 6 swaps in a whole set of domain tools,
+ * so that fake provider earns two `Unknown tool` results here
+ * and then emits a canned paragraph with nothing to do with robots.
  *
- * 也就是說**設計原則 1（每一課都要能用 `PROVIDER=fake` 跑）在 Lesson 6-7
- * 一直是不成立的**，只是沒有人去跑所以沒發現。這是 Lesson 20 寫自己的
- * 假 provider 時才回頭注意到的。
+ * That is, **design principle 1 (every lesson must run with `PROVIDER=fake`) was false for Lessons 6-7
+ * all along**, and nobody ran it so nobody noticed. It came to light while writing Lesson 20's
+ * own fake provider.
  *
- * ## 它演的軌跡
+ * ## The trajectory it acts out
  *
- * 照 Lesson 6 README 的教學順序走一次：
+ * It follows Lesson 6's README order once through:
  *
- *   get_session      先檢查資料品質（規則 1）
- *   find_anomalies   用確定性規則找候選區間
- *   query_telemetry  放大可疑區間
- *   get_video_frame  交叉驗證
+ *   get_session      check data quality first (rule 1)
+ *   find_anomalies   find candidate intervals with deterministic rules
+ *   query_telemetry  zoom into the suspicious interval
+ *   get_video_frame  cross-validate
  *   create_incident_report
  *
- * 分類刻意選 `near_miss`：`sess_002` 的 pitch 衝到 37 度看起來像跌倒，
- * 但腳一直在地上。**那個「一個訊號區分兩個很像的情況」才是整課的重點。**
+ * The classification is deliberately `near_miss`: `sess_002`'s pitch spikes to 37 degrees and looks like a fall,
+ * while the feet stay on the ground. **That "one signal separating two very similar situations" is the whole lesson's point.**
  *
- * 用法：PROVIDER=fake bun run lesson-06
+ * Usage: PROVIDER=fake bun run lesson-06
  */
 
 import type {
@@ -38,7 +38,7 @@ import { drain } from "../shared/streaming/types.ts";
 
 const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 8);
 
-/** 從使用者的問題裡認出 session id，認不出來就用 sess_002。 */
+/** Recognise a session id in the user's question, falling back to sess_002. */
 function sessionFrom(request: ModelRequest): string {
 	const text = request.messages.map((m) => (m.role === "user" ? m.text : "")).join(" ");
 	return /sess_\d{3}/.exec(text)?.[0] ?? "sess_002";

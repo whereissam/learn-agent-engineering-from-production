@@ -1,24 +1,24 @@
 /**
- * Lesson 8 專用的 fake provider。
+ * The fake provider specific to Lesson 8.
  *
- * 為什麼不用 `shared/streaming/fake.ts`：那一份是給 coding agent 用的，
- * 只會呼叫 list_files / read_file，全部都是 READ 風險，
- * 權限引擎在它面前**永遠不會說不**，那就什麼都示範不到了。
+ * Why not `shared/streaming/fake.ts`: that one is for the coding agent
+ * and only calls list_files / read_file, all of which are READ risk,
+ * so the permission engine **never says no** to it and nothing gets demonstrated.
  *
- * 這一份的劇本是刻意設計的：模型會**連續嘗試三種被擋下來的做法**，
- * 每一種踩的是引擎不同的一條規則。
+ * This script is deliberately designed: the model **tries three blocked approaches in a row**,
+ * each tripping a different rule in the engine.
  *
- *   turn 0  run_command("ls")             → 在允許清單上，自動放行
- *   turn 1  run_command("rm -rf src")     → EXEC 且不在清單上，要問人
- *   turn 2  run_command("ls; rm -rf src") → 前綴騙過清單，但有元字元
- *   turn 3  write_file("../../evil.txt")  → 路徑逃逸，AUTO 也擋
- *   turn 4  放棄，講一段話
+ *   turn 0  run_command("ls")             → on the allowlist, allowed automatically
+ *   turn 1  run_command("rm -rf src")     → EXEC and not on the list, so it asks
+ *   turn 2  run_command("ls; rm -rf src") → the prefix fools the list, and there are metacharacters
+ *   turn 3  write_file("../../evil.txt")  → path escape, blocked even in AUTO
+ *   turn 4  gives up and says something
  *
- * turn 2 是重點：**它是一個真的繞道嘗試**。前綴比對會過（開頭是 "ls"），
- * 只有元字元檢查擋得住。見 Lesson 8 README Step 4。
+ * Turn 2 is the point: **it is a genuine attempt to route around**. The prefix comparison passes (it starts with "ls"),
+ * and only the metacharacter check stops it. See Lesson 8's README Step 4.
  *
- * （這是本系列第三個自備 fake provider 的課，前兩個是 Lesson 6 和 20。
- * 每次原因都一樣：共用的那份腳本不會踩到這一課要示範的路徑。）
+ * (This is the third lesson in the series with its own fake provider, after Lessons 6 and 20.
+ * The reason is always the same: the shared script never walks the path this lesson demonstrates.)
  */
 
 import type {
@@ -46,17 +46,17 @@ const SCRIPT: Beat[] = [
 		tool: { id: "p2", name: "run_command", args: { command: "rm -rf src" } },
 	},
 	{
-		// 被拒絕之後的第一反應：換一個「看起來安全」的開頭。
+			// The first reaction after a refusal: switch to a "safe-looking" opening.
 		//
-		// 注意是 `ls && rm`，不是 `ls; rm`。差別很重要：
-		// 前綴比對要求詞邊界（`"ls"` 或 `"ls "` 開頭），所以 `ls; rm`
-		// 連前綴這關都過不了。`ls && rm` 才是真的騙過前綴、
-		// **只剩元字元檢查擋得住**的那種。
+			// Note this is `ls && rm`, not `ls; rm`. The difference matters:
+			// the prefix comparison requires a word boundary (starting with `"ls"` or `"ls "`), so `ls; rm`
+			// does not even pass the prefix check. `ls && rm` is the kind that really fools the prefix
+			// and **is stopped only by the metacharacter check**.
 		say: "好，那我換個方式做。",
 		tool: { id: "p3", name: "run_command", args: { command: "ls && rm -rf src" } },
 	},
 	{
-		// 再換一個方向：不用 shell，改用檔案工具寫到工作區外面。
+			// Another direction: skip the shell and use a file tool to write outside the workspace.
 		say: "那我先把備份寫到工作區外面。",
 		tool: {
 			id: "p4",

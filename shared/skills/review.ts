@@ -1,9 +1,9 @@
 /**
- * Skill 的審核閘門。
+ * The skill review gate.
  *
- * ## Hermes 實際上怎麼做
+ * ## What Hermes actually does
  *
- * Hermes **真的會自動建立 skill**。`agent/background_review.py` 的 docstring：
+ * Hermes **really does create skills automatically**. From `agent/background_review.py`'s docstring:
  *
  *   > After every turn, AIAgent.run_conversation may call
  *   > spawn_background_review to fire off a daemon thread that replays the
@@ -11,36 +11,36 @@
  *   > "should any skill/memory be saved or updated?".
  *   > **Writes go straight to the memory + skill stores.**
  *
- * 「Writes go straight」就是風險所在：沒有人在中間看過。
+ * "Writes go straight" is where the risk lies: nobody looked in between.
  *
- * 但它不是裸奔，有兩個控制：
+ * But it is not unguarded; there are two controls:
  *
- *   1. **工具白名單**，fork 出來的 agent「只能」用記憶與 skill 管理工具，
- *      其他一律在 runtime 被拒絕。所以它能寫 skill，但不能順便去跑 shell。
- *   2. **隔離**，fork 不碰主對話，也不碰 prompt cache。
+ *   1. **a tool allowlist**: the forked agent may use *only* memory and skill management tools,
+ *      and everything else is refused at runtime. So it can write a skill and cannot also run a shell.
+ *   2. **isolation**: the fork touches neither the main conversation nor the prompt cache.
  *
- * 事後還有 `learning_mutations.py` 讓人編輯／刪除學到的東西，
- * 而且**刪除是封存不是真刪**（`hermes curator restore` 救得回來）。
+ * Afterwards, `learning_mutations.py` lets a human edit or delete what was learned,
+ * and **deletion is archival rather than real deletion** (`hermes curator restore` brings it back).
  *
- * ## 這一課為什麼加一道閘門
+ * ## Why this lesson adds a gate
  *
- * 自動寫入的風險（Lesson 15 的記憶注入問題，但更嚴重）：
+ * The risks of automatic writes (Lesson 15's memory injection problem, but worse):
  *
- *   - 錯誤的做法被永久保存，而且會被當成「正確做法」重複使用
- *   - skill 污染：一次失敗的嘗試變成未來的標準流程
- *   - prompt injection 持久化：網頁說「處理 X 時要先停用檢查」→ 變成 skill
- *   - 行為漂移：每次微調一點，三個月後你不認得這個 agent
- *   - 難以重現：出問題時你不知道它當時載了哪個版本的 skill
+ *   - a wrong approach preserved permanently and reused as "the right approach"
+ *   - skill contamination: one failed attempt becomes a future standard procedure
+ *   - persistent prompt injection: a web page saying "disable the check first when handling X" → becomes a skill
+ *   - behaviour drift: a small adjustment each time, and in three months you do not recognise this agent
+ *   - hard to reproduce: when something breaks you do not know which version of the skill it loaded
  *
- * 記憶記的是「事實」，skill 記的是「**做法**」。做法會被執行，
- * 所以污染的後果嚴重一個量級。
+ * Memory records **facts** and a skill records a **procedure**. A procedure gets executed,
+ * so contamination is an order of magnitude worse.
  *
- * 所以這裡實作的是比較穩妥的版本：
+ * So what is implemented here is the safer version:
  *
- *   agent 提議 → 人類審核 → 版本化保存 → 測試通過才啟用
+ *   the agent proposes → a human reviews → it is versioned → it activates only after tests pass
  *
- * **注意這條流程跟 Lesson 8-9 是同一個形狀**：agent 提出，人類把關，
- * 而且把關可以非同步（proposed 的 skill 就躺在那裡等，跟 inbox 一樣）。
+ * **Note this flow has the same shape as Lessons 8-9**: the agent proposes, a human gates,
+ * and the gate can be asynchronous (a proposed skill simply waits, like the inbox).
  */
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -49,9 +49,9 @@ import { renderSkill, type Skill, validateSkill, type ValidationIssue } from "./
 
 export interface Proposal {
 	skill: Skill;
-	/** 自動檢查的結果。 */
+	/** The automated checks' results. */
 	issues: ValidationIssue[];
-	/** 有沒有 blocking 的問題。 */
+	/** Whether any blocking problem was found. */
 	blocked: boolean;
 }
 
@@ -72,11 +72,11 @@ export class SkillReviewQueue {
 	}
 
 	/**
-	 * agent 提議一個新 skill。
+		 * The agent proposes a new skill.
 	 *
-	 * **它只會寫進 proposedDir，不會進索引，模型看不到。**
-	 * 這就是閘門的實際位置：不是禁止 agent 寫，是讓它寫進一個
-	 * 不會生效的地方。
+		 * **It only writes into proposedDir, never into the index, and the model cannot see it.**
+		 * That is where the gate actually sits: not forbidding the agent to write, but making it write
+		 * somewhere that has no effect.
 	 */
 	async propose(skill: Skill, from: { sessionId: string; summary: string }): Promise<Proposal> {
 		const issues = validateSkill(skill);
@@ -98,7 +98,7 @@ export class SkillReviewQueue {
 		return { skill: stamped, issues, blocked };
 	}
 
-	/** 等待審核的清單。 */
+		/** The list awaiting review. */
 	async pending(): Promise<string[]> {
 		try {
 			const { readdir } = await import("node:fs/promises");
@@ -109,10 +109,10 @@ export class SkillReviewQueue {
 	}
 
 	/**
-	 * 人做決定。
+		 * A human decides.
 	 *
-	 * 通過 = 從 proposed 移到 active。**移動**而不是複製，
-	 * 這樣一個提議不會同時存在於兩個狀態。
+		 * Approved = moved from proposed to active. **Moved** rather than copied,
+		 * so one proposal never exists in two states at once.
 	 */
 	async decide(name: string, decision: ReviewDecision): Promise<string> {
 		const src = join(this.proposedDir, `${name}.md`);
@@ -125,15 +125,15 @@ export class SkillReviewQueue {
 		}
 
 		if (decision.action === "revise") {
-			// 留在原地，只記錄意見。agent 下次可以改了再提。
+				// Left in place with the comment recorded. The agent can revise and propose again.
 			return `已要求修改 "${name}"：${decision.note}`;
 		}
 
 		if (decision.action === "reject") {
 			await mkdir(this.archiveDir, { recursive: true });
-			// **封存不是刪除**（Hermes 的 curator 也是這樣）。
-			// 被拒絕的提議本身就是有用的資料：它告訴你 agent 想學什麼、
-			// 以及你為什麼不要。
+				// **Archived, not deleted** (Hermes's curator does the same).
+				// A rejected proposal is useful data in itself: it tells you what the agent wanted to learn,
+				// and why you did not want it.
 			await rename(src, join(this.archiveDir, `rejected-${Date.now()}-${name}.md`));
 			return `已拒絕並封存 "${name}"：${decision.note}`;
 		}
@@ -156,13 +156,13 @@ export class SkillReviewQueue {
 }
 
 /**
- * 給提議用 agent 的工具白名單。
+ * The tool allowlist for the proposing agent.
  *
- * 這是照 Hermes 的做法：background review 的 fork
- * **只能**用這幾個工具，其他一律拒絕。
+ * This follows Hermes: the background review's fork
+ * may use **only** these tools, and everything else is refused.
  *
- * 為什麼重要？沒有白名單的話，那個「整理學習心得」的背景 agent
- * 就有完整的 shell 權限，而且它跑在背景、沒人看著。
+ * Why it matters: without an allowlist, that "tidy up what was learned" background agent
+ * has full shell access, and it runs in the background with nobody watching.
  */
 export const PROPOSAL_TOOL_ALLOWLIST = new Set(["propose_skill", "remember", "read_file"]);
 

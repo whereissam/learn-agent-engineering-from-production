@@ -1,21 +1,21 @@
 /**
- * Lesson 27 - 相關性門檻的下游傷害
+ * Lesson 27 - the downstream damage of the relevance floor
  *
- * Step 3 已經用確定性的方式證明門檻在擋東西：查「chunk 大小要怎麼選」時，
- * 沒有門檻的話一篇 **sous vide 烹飪指南會排到第 4 名**。
+ * Step 3 already proved deterministically that the floor blocks things: querying "how do you choose chunk size"
+ * with no floor puts **a sous vide cooking guide in 4th place**.
  *
- * 但排序是中間產物。真正該問的是下一步：
+ * But ranking is an intermediate product. The real question is the next step:
  *
- *     模型拿到那 8 筆（其中 3 筆是機器人、1 筆是舒肥）之後，
- *     **會不會真的引用它們？**
+ *     once the model has those 8 results (3 about robots, 1 about sous vide),
+ *     **does it actually cite them?**
  *
- * 這一課的本地語料是這個 repo 自己的文件，網頁語料是機器人主題。
- * 所以對「chunk 大小要怎麼選」這個問題，**任何一筆網頁引用都是錯的**。
- * 判定因此是確定性的：答案裡有沒有出現 http 網址。
+ * This lesson's local corpus is this repo's own documents and the web corpus is about robotics.
+ * So for "how do you choose chunk size", **any web citation is wrong**.
+ * The verdict is therefore deterministic: does an http URL appear in the answer.
  *
- * 執行：
- *   PROVIDER=gemini bun run lesson-27:agent              # 有門檻
- *   FLOOR=off PROVIDER=gemini bun run lesson-27:agent    # 沒門檻
+ * Run:
+ *   PROVIDER=gemini bun run lesson-27:agent              # with the floor
+ *   FLOOR=off PROVIDER=gemini bun run lesson-27:agent    # without it
  */
 
 import { hybridSearch } from "./hybrid.ts";
@@ -25,8 +25,8 @@ import type { Message, StreamingProvider } from "../shared/streaming/types.ts";
 const FLOOR = (process.env.FLOOR ?? "on").toLowerCase() !== "off";
 
 /**
- * 這個問題只有本地文件答得出來（網頁語料全是機器人）。
- * 所以它是一個乾淨的「一邊完全不相關」情境。
+ * Only the local documents can answer this question (the web corpus is entirely robotics).
+ * So it is a clean "one side is wholly irrelevant" scenario.
  */
 const QUESTION = "chunk 大小要怎麼選？";
 
@@ -91,10 +91,10 @@ async function main(): Promise<void> {
 		}
 	}
 
-	// ── 確定性判定 ──────────────────────────────────────────
+	// ── the deterministic verdict ───────────────────────────────
 	//
-	// 不用 LLM 裁判（Lesson 25 的立場）。網頁語料對這個問題一律不相關，
-	// 所以「答案裡有沒有網頁來源」就是一個字串比對。
+	// No LLM judge (Lesson 25's position). The web corpus is uniformly irrelevant to this question,
+	// so "does the answer contain a web source" is a string comparison.
 	const citedWeb = webHits.map((h) => h.source).filter((url) => answer.includes(url));
 
 	const localCount = result.hits.length - webHits.length;
@@ -117,13 +117,13 @@ async function main(): Promise<void> {
 	}
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
-	// Lesson 15 的教訓：陰性結果要先排除「回覆根本沒跑完」。
+	// Lesson 15's lesson: a negative result must first rule out "the reply never finished".
 	if (citedWeb.length === 0 && stopReason !== "end") {
 		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
 	}
 }
 
-/** 沒有 key 時的腳本 provider：只示範畫面長相，不能當證據。 */
+/** The scripted provider used without a key: it shows what the output looks like and is not evidence. */
 function scriptedProvider(webSources: string[]): StreamingProvider {
 	const text =
 		"chunk 大小要在語意完整和 context 預算之間取捨。" +

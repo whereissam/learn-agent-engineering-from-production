@@ -1,19 +1,19 @@
 /**
- * 量抽取品質。
+ * Measure extraction quality.
  *
- * 「我的抽取器看起來抽得不錯」是一句沒有意義的話。這一課有一個很少見的
- * 好條件：**我們知道正確答案**。Lesson 20 的 `corpus/index.json` 裡
- * 存的就是每一頁的正文（因為 HTML 是我們自己從那份文字產生的）。
+ * "My extractor seems to extract well" is a meaningless sentence. This lesson has a rare
+ * luxury: **the right answer is known**. Lesson 20's `corpus/index.json`
+ * holds each page's body text (because the HTML was generated from that text).
  *
- * 所以可以直接量兩件事：
+ * So two things can be measured directly:
  *
- *   recall（涵蓋率）  正文有多少比例被抽到了？漏字就是漏證據。
- *   noise （雜訊率）  抽出來的東西裡，有多少根本不是正文？
- *                     雜訊會吃掉 context，還會被模型當成內容引用。
+ *   recall  what fraction of the body was extracted? Missing words are missing evidence.
+ *   noise   how much of what was extracted is not body text at all?
+ *           Noise eats context and gets cited by the model as content.
  *
- * 這其實就是 Lesson 7 的做法提前出現：**確定性的評分，不用 LLM 當裁判。**
+ * This is Lesson 7's approach arriving early: **deterministic scoring with no LLM judge.**
  *
- * 執行（不需要金鑰、不需要模型）：
+ * Run (no key and no model needed):
  *   bun run lesson-21-crawl/extract/measure.ts
  *   bun run lesson-21-crawl/extract/measure.ts --show github-com-openmotion-retarget-anything
  */
@@ -26,19 +26,19 @@ import { extractMain, stripTags } from "./html.ts";
 const CORPUS = resolve(import.meta.dirname, "../../lesson-20-search-agent/corpus");
 
 export interface Score {
-	/** 正文有多少比例被抽到（0-1）。 */
+	/** What fraction of the body was extracted (0-1). */
 	recall: number;
-	/** 抽出來的內容裡有多少不是正文（0-1）。 */
+	/** How much of the extraction is not body text (0-1). */
 	noise: number;
 	truthWords: number;
 	gotWords: number;
 }
 
 /**
- * 用「詞的多重集合」比對，不是比字串相等。
+ * Compare as **multisets of words** rather than string equality.
  *
- * 為什麼不比字串？因為換行、空白、標點在抽取過程一定會變，
- * 但那些差異不影響模型讀到的資訊。**要量的是資訊，不是格式。**
+ * Why not compare strings? Because newlines, whitespace and punctuation certainly change during extraction,
+ * and those differences do not affect the information the model reads. **What is measured is information, not formatting.**
  */
 export function score(truth: string, got: string): Score {
 	const truthWords = words(truth);

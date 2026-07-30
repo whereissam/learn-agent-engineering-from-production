@@ -1,22 +1,22 @@
 /**
- * Research loop 本體。
+ * The research loop itself.
  *
- * 整個檔案沒有一個 `while (true)`，也沒有任何一個地方問模型
- * 「你還要繼續嗎」。研究會結束，是因為 `depth` 會歸零。
+ * There is not one `while (true)` in this file, and nowhere does it ask the model
+ * "do you want to continue". Research ends because `depth` reaches zero.
  *
  * ```text
  * research(seed, breadth=3, depth=2)
- *   ├─ query A ─ 搜尋 → 抓 2 頁 → 萃取 → research(followUps, breadth=2, depth=1)
- *   │                                        ├─ query A1 ─ 搜 → 抓 → 萃取 → 停（depth=0）
+ *   ├─ query A ─ search → fetch 2 pages → extract → research(followUps, breadth=2, depth=1)
+ *   │                                        ├─ query A1 ─ search → fetch → extract → stop (depth=0)
  *   │                                        └─ query A2 ─ ...
  *   ├─ query B ─ ...
  *   └─ query C ─ ...
  * ```
  *
- * 對照 Lesson 22 的 agent：那個迴圈的終點是「模型不再呼叫工具」
- * 或「撞到 MAX_STEPS」。前者不可控，後者是熔斷器不是預算。
+ * Against Lesson 22's agent: that loop ends when "the model stops calling tools"
+ * or when it hits MAX_STEPS. The former is uncontrollable and the latter is a circuit breaker, not a budget.
  *
- * 這裡的終點是**你在呼叫前就算得出來的**。
+ * Here the end is **computable before you call it**.
  */
 
 import { fetchPage } from "../lesson-21-crawl/fetcher.ts";
@@ -33,9 +33,9 @@ import { type ResearchState, isLastLayer, nextBreadth, normalizeQuery } from "./
 export interface ResearchOptions {
 	breadth: number;
 	depth: number;
-	/** 每條 query 最多抓幾頁。這是成本影響最大的旋鈕。 */
+	/** How many pages one query may fetch. The knob with the largest cost impact. */
 	pagesPerQuery: number;
-	/** 同時最多幾條 query 在跑。抄 deep-research 的 ConcurrencyLimit（`:30`），預設也是 2。 */
+	/** How many queries run at once. Copied from deep-research's ConcurrencyLimit (`:30`), also 2 by default. */
 	concurrency: number;
 }
 
@@ -47,10 +47,10 @@ export const DEFAULT_OPTIONS: ResearchOptions = {
 };
 
 /**
- * 上界是算得出來的——這正是重點。
+ * The bound is computable — which is exactly the point.
  *
- * 有了這個函式，「要不要多跑一層」就變成一個可以用數字回答的問題，
- * 而不是「試試看跑到撞上限」。
+ * With this function, "should I run another level" becomes a question answerable with numbers
+ * rather than "try it and see whether it hits the ceiling".
  */
 export function estimateCost(options: ResearchOptions): {
 	searches: number;
@@ -72,13 +72,13 @@ export function estimateCost(options: ResearchOptions): {
 	return {
 		searches,
 		fetches: searches * options.pagesPerQuery,
-		// 每層每個分支一次 generateQueries + 每條 query 一次 extractLearnings，
-		// 最後一次 writeReport
+		// One generateQueries per branch per level, one extractLearnings per query,
+		// and one writeReport at the end
 		llmCalls: searches + Math.ceil(searches / options.breadth) + 1,
 	};
 }
 
-/** 最小的並行限制器。不裝 p-limit，因為這個系列刻意不加依賴。 */
+/** A minimal concurrency limiter. No p-limit, because this series deliberately adds no dependencies. */
 function createLimiter(max: number) {
 	let active = 0;
 	const queue: Array<() => void> = [];
@@ -96,13 +96,13 @@ function createLimiter(max: number) {
 }
 
 /**
- * 跑一條 query：搜尋 → 過濾已讀過的 → 抓頁 → 萃取 → 決定要不要再深一層。
+ * Run one query: search → filter what was already read → fetch → extract → decide whether to go deeper.
  *
- * 三個防護是這一課的重點，每一個都對應到前面某一課的傷：
+ * The three guards are this lesson's point, and each matches an injury from an earlier lesson:
  *
- *   1. 已讀過的 URL 直接跳過        ← Lesson 22 Step 8（一直重複搜同樣的東西）
- *   2. 任何一步失敗只影響這條 query  ← deep-research.ts:282
- *   3. 抓不到內容不算「沒有內容」    ← Lesson 21 Step 3（JS 空殼那個坑）
+ *   1. skip URLs already read          ← Lesson 22 Step 8 (searching for the same thing repeatedly)
+ *   2. any failure affects only this query ← deep-research.ts:282
+ *   3. failing to fetch is not "there is no content" ← Lesson 21 Step 3 (the JS shell trap)
  */
 async function runQuery(
 	provider: StreamingProvider,
@@ -116,8 +116,8 @@ async function runQuery(
 	state.queriesRun.push(query);
 	state.budget.searches++;
 
-	// 這條 query 的所有 trace 先收在自己的陣列裡，最後一次寫進去。
-	// 不這樣做的話，並行的分支會把彼此的行交錯在一起，完全沒辦法讀。
+	// This query's trace lines are collected in their own array and written out at the end.
+	// Without that, parallel branches interleave each other's lines and it is unreadable.
 	const lines: string[] = [`${indent}  ? ${query}`];
 
 	const { hits } = await retrieve(query, ALL_STAGES, options.pagesPerQuery + 3);
@@ -126,8 +126,8 @@ async function runQuery(
 	for (const hit of hits) {
 		if (pages.length >= options.pagesPerQuery) break;
 
-		// gpt-researcher 的 _get_new_urls：抓之前先問「讀過了嗎」。
-		// 這個 Set 是整棵研究樹共用的。
+		// gpt-researcher's _get_new_urls: ask "have I read this" before fetching.
+		// This Set is shared across the whole research tree.
 		if (state.visited.has(hit.url)) {
 			state.budget.skippedDuplicates++;
 			continue;
@@ -138,7 +138,7 @@ async function runQuery(
 		state.budget.fetches++;
 
 		if (!result.ok) {
-			// 抓不到就記下來，不要當成「這一頁沒有資訊」。
+				// Record a failed fetch rather than treating it as "this page has no information".
 			lines.push(`${indent}      ✗ ${hit.url} (${result.reason})`);
 			continue;
 		}
@@ -163,8 +163,8 @@ async function runQuery(
 	const { learnings, followUps } = extraction;
 	state.learnings.push(...learnings);
 
-	// 萃取沒有產出的時候，一定要講得出原因。
-	// 「讀了四頁然後 0 條結論」而且沒有任何訊息，是最難查的那種失敗。
+	// When extraction produces nothing, the reason must be stated.
+	// "Read four pages and produced 0 conclusions" with no message is the hardest kind of failure to diagnose.
 	const why =
 		extraction.failure === "parse-failed"
 			? "（模型沒有回出可解析的 JSON）"
@@ -178,8 +178,8 @@ async function runQuery(
 	);
 	state.trace.push(...lines);
 
-	// 下一層的種子：抄 deep-research.ts:252 的形狀。
-	// 注意它不是原始問題，是「上一輪的目標 + 這一輪沒答到的東西」。
+	// The seed for the next level: the shape copied from deep-research.ts:252.
+	// Note it is not the original question but "the previous round's goal plus what it did not answer".
 	if (followUps.length === 0) return [];
 	return [
 		`Previous research goal: ${goal || query}\nFollow-up directions:\n${followUps.map((q) => `- ${q}`).join("\n")}`,
@@ -187,10 +187,10 @@ async function runQuery(
 }
 
 /**
- * 遞迴主體。
+ * The recursive body.
  *
- * `breadth` 每層砍半、`depth` 每層減一，歸零就結束。
- * **模型全程沒有機會說「再讓我搜一次」。**
+ * `breadth` halves per level and `depth` decrements per level, ending at zero.
+ * **The model never gets a chance to say "let me search once more".**
  */
 export async function research(
 	provider: StreamingProvider,
@@ -206,7 +206,7 @@ export async function research(
 	const queries = await generateQueries(provider, state, seed, breadth);
 	state.trace.push(`${indent}[depth=${depth} breadth=${breadth}] ${queries.length} 條 query`);
 
-	// 已經下過的 query 直接擋掉。prompt 裡也寫了，但 prompt 只是拜託。
+		// Queries already run are blocked outright. The prompt says so too, and a prompt is only a plea.
 	const seen = new Set(state.queriesRun.map(normalizeQuery));
 	const fresh = queries.filter((planned) => {
 		const key = normalizeQuery(planned.query);
@@ -241,8 +241,8 @@ export async function research(
 						await research(provider, state, next, options, nextBreadth(breadth), depth - 1);
 					}
 				} catch (error) {
-					// 一條 query 失敗不能弄垮整輪研究。
-					// deep-research.ts:275-285 也是這樣：catch 之後回空結果，其他分支照跑。
+						// One failed query must not take down the whole research run.
+						// deep-research.ts:275-285 does the same: catch, return an empty result, and other branches continue.
 					const message = error instanceof Error ? error.message : String(error);
 					state.trace.push(`${indent}  ✗ query 失敗：${message.slice(0, 80)}`);
 				}

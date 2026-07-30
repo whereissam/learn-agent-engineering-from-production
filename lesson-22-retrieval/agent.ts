@@ -1,21 +1,21 @@
 /**
- * Lesson 22: 檢索與排序
+ * Lesson 22: retrieval and ranking
  *
- * 工具的**數量**跟 Lesson 21 一樣，還是 web_search + fetch_page。
- * 換掉的是 `web_search` 背後那條管線：
+ * The **number** of tools is the same as Lesson 21's: web_search plus fetch_page.
+ * What changed is the pipeline behind `web_search`:
  *
- *   Lesson 20-21   BM25，一路排序到底
- *   Lesson 22      BM25 + dense → RRF → 去重 → 品質訊號 → 多樣性
+ *   Lessons 20-21  BM25, ranked all the way through
+ *   Lesson 22      BM25 plus dense → RRF → dedup → quality signals → diversity
  *
- * 這一課想讓你看到的是：**agent 的行為會被排序改變，
- * 但 agent 的程式碼一行都不用動。**
+ * What this lesson wants you to see: **the agent's behaviour changes with the ranking,
+ * and not one line of the agent's code changes.**
  *
- * 排序品質有多重要？看 `bun run lesson-22:eval` 的數字，
- * 以及 README Step 7 那段「同一個問題，搜尋次數從 11 次變成 2 次」。
+ * How much does ranking quality matter? See the numbers from `bun run lesson-22:eval`,
+ * and README Step 7's "the same question went from 11 searches to 2".
  *
- * 執行：
- *   bun run lesson-22                     用真模型
- *   PROVIDER=fake bun run lesson-22       不需要金鑰
+ * Run:
+ *   bun run lesson-22                     with a real model
+ *   PROVIDER=fake bun run lesson-22       no key needed
  */
 
 import { resolve } from "node:path";
@@ -35,14 +35,14 @@ const MAX_TOKENS = 8000;
 const MAX_STEPS = 16;
 
 /**
- * 跟 Lesson 20 比，規則 4 是這一課真正改動的地方。
+ * Against Lesson 20, rule 4 is what this lesson really changes.
  *
- * Lesson 20 的 CONFIRMED 只能代表「某個 snippet 這樣說」，
- * 因為那時候沒有工具可以再往下確認。現在有了，所以標籤要分三級，
- * 而且「只有 snippet 支持」必須是一個**看得出來的**狀態。
+ * Lesson 20's CONFIRMED could only mean "some snippet said so",
+ * because there was no tool to confirm further. There is now, so the labels have three levels,
+ * and "supported by a snippet only" has to be a **visible** state.
  *
- * 注意規則 6：抓不到的頁面要說出來。這是 Lesson 6「工具要報告資料品質」
- * 的另一面——**agent 也要報告自己的資料品質**。
+ * Note rule 6: pages that could not be fetched must be reported. The other face of Lesson 6's
+ * "tools should report data quality" — **an agent must report its own data quality too**.
  */
 const SYSTEM_PROMPT = `You are a research assistant. You search the web, read pages, and answer
 with citations.
@@ -98,7 +98,7 @@ function handleInterrupt(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop: 跟 Lesson 3 / 6 / 20 / 21 完全相同，一行都沒改
+// The agent loop: identical to Lessons 3 / 6 / 20 / 21, not one line changed
 // ─────────────────────────────────────────────────────────────
 
 export async function runTurn(

@@ -1,38 +1,38 @@
 /**
- * 把一份長文切成塞得進 context 的塊。
+ * Split a long document into chunks that fit in context.
  *
- * 為什麼不直接截斷就好？Lesson 2 教過截斷，那是為了「工具輸出太長」，
- * 截掉的是尾巴，而且明確告訴模型「我截掉了」。
+ * Why not just truncate? Lesson 2 taught truncation, and that was for "the tool output is too long":
+ * it cuts the tail and tells the model explicitly "I truncated this".
  *
- * 但網頁不一樣：**你要的東西常常就在後面。** 一份 SDK 遷移文件，
- * 前 2000 字是前言，你要的那個關節編號在第 18 節。截斷等於永遠拿不到。
+ * Web pages are different: **what you want is often near the end.** In an SDK migration document,
+ * the first 2000 characters are the preamble and the joint index you want is in section 18. Truncation means never reaching it.
  *
- * 所以要切塊，而且要讓模型能自己決定看哪一塊。
+ * So it has to be chunked, and the model has to be able to choose which chunk to read.
  *
- * 三個設計決定：
+ * Three design decisions:
  *
- *   1. **只在段落邊界切。** 切在句子中間會產生半句話，
- *      模型讀到「the velocity limit was lowered from」就沒了，
- *      它會自己補完後半句——這是幻覺最好的溫床。
+ *   1. **Cut only at paragraph boundaries.** Cutting mid-sentence produces half a sentence,
+ *      and the model reads "the velocity limit was lowered from" and then nothing;
+ *      it completes the rest itself — the finest breeding ground for hallucination.
  *
- *   2. **相鄰的塊要重疊一點。** 一段話剛好跨在邊界上的時候，
- *      沒有重疊的話兩邊都讀不到完整意思。
+ *   2. **Adjacent chunks overlap a little.** When a passage lands exactly on a boundary,
+ *      without overlap neither side reads its full meaning.
  *
- *   3. **每一塊都要標「第幾塊、共幾塊」。** 模型必須知道自己看到的是
- *      片段，不是全部，否則它會用第 1 塊的內容回答整份文件的問題。
+ *   3. **Every chunk is labelled which one of how many.** The model must know it is seeing
+ *      a fragment rather than the whole, or it answers questions about the whole document from chunk 1.
  */
 
 export interface Chunk {
-	/** 1-based，給模型看的。 */
+	/** 1-based, for the model. */
 	index: number;
 	total: number;
 	text: string;
 }
 
 export interface ChunkOptions {
-	/** 一塊最多幾個字元。 */
+	/** How many characters a chunk may hold. */
 	maxChars?: number;
-	/** 重疊：前一塊的最後一段如果不超過這個長度，就重複放進下一塊開頭。 */
+	/** Overlap: if the previous chunk's last paragraph is no longer than this, repeat it at the next chunk's start. */
 	overlapMaxChars?: number;
 }
 
@@ -48,9 +48,9 @@ export function chunkText(text: string, options: ChunkOptions = {}): Chunk[] {
 	let size = 0;
 
 	for (const paragraph of paragraphs) {
-		// 單一段落就超過上限：它自己就是一塊。
-		// 不從中間切，寧可讓這一塊比 maxChars 大一點。
-		// （真實產品會在這裡做句子級切分，那是練習 4。）
+			// A single paragraph exceeding the limit is its own chunk.
+			// Rather than cutting mid-paragraph, let this chunk exceed maxChars a little.
+			// (A real product would do sentence-level splitting here; that is Exercise 4.)
 		if (paragraph.length > maxChars) {
 			if (current.length > 0) {
 				chunks.push(current);
@@ -64,7 +64,7 @@ export function chunkText(text: string, options: ChunkOptions = {}): Chunk[] {
 		if (size + paragraph.length > maxChars && current.length > 0) {
 			chunks.push(current);
 
-			// 重疊：把上一塊的最後一段帶過來，前提是它夠短
+				// Overlap: carry the previous chunk's last paragraph across, provided it is short enough
 			const tail = current[current.length - 1] ?? "";
 			current = tail.length <= overlapMaxChars ? [tail] : [];
 			size = current.reduce((n, p) => n + p.length, 0);

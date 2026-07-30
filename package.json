@@ -57,6 +57,7 @@
 		"lesson-37": "bun run lesson-37-trajectory/demo.ts",
 		"lesson-37:agent": "bun run lesson-37-trajectory/agent.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
+		"check:i18n": "bun run scripts/check-translations.ts",
 		"reset": "bun run scripts/reset-playgrounds.ts",
 		"test": "bun test ./tests/",
 		"typecheck": "tsc --noEmit"

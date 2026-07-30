@@ -1,14 +1,14 @@
 /**
- * Streaming 版的 provider 介面。
+ * The streaming provider interface.
  *
- * 跟 shared/providers/types.ts 的差別只有一個：多了 stream()。
- * 訊息、工具、stopReason 的形狀完全一樣，所以 Lesson 1-2 的東西都能直接沿用。
+ * It differs from shared/providers/types.ts in exactly one way: it adds stream().
+ * Messages, tools and stopReason have identical shapes, so everything from Lessons 1-2 carries over.
  *
- * 為什麼要 streaming？
- *   1. 使用者能立刻看到東西在動，而不是盯著游標等 30 秒
- *   2. 你可以在生成到一半的時候喊停（Lesson 3 的另一半）
+ * Why streaming?
+ *   1. the user sees something moving immediately rather than staring at a cursor for 30 seconds
+ *   2. you can stop it mid-generation (the other half of Lesson 3)
  *
- * 對照 Pi：packages/agent/src/types.ts:28 的 StreamFn
+ * Against Pi: StreamFn at packages/agent/src/types.ts:28
  */
 
 export type {
@@ -28,35 +28,35 @@ export type {
 import type { ModelRequest, ModelResponse } from "../providers/types.ts";
 
 /**
- * 串流過程中吐出來的事件。
+ * The events emitted while streaming.
  *
- * 刻意做得很小。真實的 harness（例如 Pi）會有十幾種事件，
- * thinking 開始/結束、工具參數逐字串流、usage 更新……
- * 這裡只留下讓 UI 動起來最必要的幾種。
+ * Deliberately small. A real harness (Pi, say) has a dozen or more event kinds:
+ * thinking start/end, tool arguments streamed character by character, usage updates…
+ * Only the few needed to make a UI move are kept here.
  */
 export type StreamEvent =
-	/** 模型開始輸出一段文字。 */
+	/** The model started emitting a passage of text. */
 	| { type: "text_start" }
-	/** 文字的下一小塊。把這個印出來就會有打字機效果。 */
+	/** The next fragment of text. Printing this gives the typewriter effect. */
 	| { type: "text_delta"; delta: string }
-	/** 這段文字結束了。 */
+	/** That passage ended. */
 	| { type: "text_end" }
 	/**
-	 * 模型決定要呼叫某個工具。
+	 * The model decided to call a tool.
 	 *
-	 * 注意：這是在參數「完整收到之後」才發出。
-	 * 有些 provider 會逐字串流工具參數，但半截的 JSON 對 UI 沒用，
-	 * 所以我們等它完整了再發。
+	 * Note: this is emitted only once the arguments are **complete**.
+	 * Some providers stream tool arguments character by character, but half a JSON document
+	 * is useless to a UI, so we wait for it to be complete.
 	 */
 	| { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
-	/** 串流結束。 */
+	/** The stream ended. */
 	| { type: "done"; response: ModelResponse }
 	/**
-	 * 出錯了，或被中斷了。
+	 * Something failed, or it was interrupted.
 	 *
-	 * 關鍵設計：錯誤是「事件」，不是 throw。
-	 * 因為串流到一半失敗時，前面已經吐出去的文字仍然有效，
-	 * 你需要一個機會把「已經拿到的部分」保存下來。
+	 * The key design: an error is an **event**, not a throw.
+	 * Because when a stream fails midway, the text already emitted is still valid,
+	 * and you need a chance to preserve what you already have.
 	 */
 	| { type: "error"; message: string; aborted: boolean };
 
@@ -65,31 +65,31 @@ export interface StreamingProvider {
 	readonly model: string;
 
 	/**
-	 * 串流一次模型回應。
+		 * Stream one model response.
 	 *
-	 * signal 被 abort 時，實作必須：
-	 *   1. 停止讀取
-	 *   2. 發出 { type: "error", aborted: true }
-	 *   3. 不要 throw
+		 * When signal is aborted, an implementation must:
+		 *   1. stop reading
+		 *   2. emit { type: "error", aborted: true }
+		 *   3. not throw
 	 *
-	 * 為什麼不 throw？因為 loop 需要知道「中斷前已經產生了什麼」，
-	 * 才能把對話歷史修回一個合法狀態。詳見 Lesson 3 README。
+		 * Why not throw? Because the loop needs to know what was produced before the interruption,
+		 * so it can repair the conversation history into a legal state. See Lesson 3's README.
 	 */
 	stream(request: ModelRequest, signal?: AbortSignal): AsyncIterable<StreamEvent>;
 
 	/**
-	 * 不串流的版本，給不需要即時輸出的場合用（例如 Lesson 5 的壓縮）。
-	 * 預設實作就是把 stream() 收乾。
+		 * The non-streaming version, for places that do not need live output (Lesson 5's compaction, say).
+		 * The default implementation simply drains stream().
 	 */
 	call(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse>;
 }
 
 /**
- * 把一個 stream() 收乾成單一結果。
+ * Drain a stream() into a single result.
  *
- * 這裡示範了一個重要觀念：**streaming 才是原始能力，非串流是它的特例。**
- * 反過來做不到，你沒辦法從一個「等全部好了才回傳」的 API 生出 streaming。
- * 所以 provider 只要實作 stream()，call() 可以自動生出來。
+ * This demonstrates an important idea: **streaming is the primitive capability and non-streaming is its special case.**
+ * The reverse is impossible; you cannot make streaming out of an API that only returns when everything is ready.
+ * So a provider need only implement stream(), and call() can be generated from it.
  */
 export async function drain(
 	events: AsyncIterable<StreamEvent>,

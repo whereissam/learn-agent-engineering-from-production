@@ -1,12 +1,12 @@
 /**
- * Lesson 1 - 最小可運行的 agent loop
+ * Lesson 1 - the smallest working agent loop
  *
- * 這個檔案就是一個 AI agent。沒有框架，沒有 provider SDK ，
- * 它只認識 ../shared/providers/types.ts 定義的中立介面。
+ * This file is an AI agent. No framework, no provider SDK —
+ * it knows only the neutral interface defined in ../shared/providers/types.ts.
  *
- * 對照 Pi：packages/agent/src/agent-loop.ts 的 runLoop()（第 155-275 行）
+ * Against Pi: runLoop() in packages/agent/src/agent-loop.ts (lines 155-275)
  *
- * 執行：bun run lesson-01-agent-loop/agent.ts
+ * Run: bun run lesson-01-agent-loop/agent.ts
  */
 
 import { readFile } from "node:fs/promises";
@@ -16,10 +16,10 @@ import { selectProvider } from "../shared/providers/index.ts";
 import type { Message, Provider, ToolResult, ToolSpec } from "../shared/providers/types.ts";
 
 // ─────────────────────────────────────────────────────────────
-// 設定
+// Configuration
 // ─────────────────────────────────────────────────────────────
 
-/** agent 只能讀這個資料夾底下的東西。這就是最原始的 sandbox。 */
+/** The agent may only read things under this directory. The most primitive sandbox there is. */
 const ROOT = resolve(import.meta.dirname, "playground");
 
 const MAX_TOKENS = 16000;
@@ -32,12 +32,12 @@ Always read a file before making claims about it - never guess at its contents.
 Answer in the same language the user writes in.`;
 
 // ─────────────────────────────────────────────────────────────
-// 工具定義
+// Tool definitions
 //
-// description 不是註解，是 prompt 的一部分。模型只靠 name + description
-// + parameters 決定要不要呼叫、以及怎麼填參數。寫得爛，模型就用得爛。
+// A description is not a comment but part of the prompt. The model decides whether to call and how
+// to fill the arguments from name plus description plus parameters alone. Write it badly and it is used badly.
 //
-// 對照 Pi：packages/agent/src/harness/tools/read.ts:50
+// Against Pi: packages/agent/src/harness/tools/read.ts:50
 // ─────────────────────────────────────────────────────────────
 
 const readFileTool: ToolSpec = {
@@ -60,13 +60,13 @@ const readFileTool: ToolSpec = {
 const TOOLS: ToolSpec[] = [readFileTool];
 
 // ─────────────────────────────────────────────────────────────
-// 工具執行
+// Tool execution
 //
-// 契約：成功就 return 字串，失敗就 throw。
-// 不要把錯誤訊息偽裝成正常結果回傳 ， 下面的 loop 會統一把 throw 包成
-// isError 的結果送回模型，模型看到後才知道要換個做法。
+// The contract: return a string on success, throw on failure.
+// Do not disguise an error message as a normal result — the loop below wraps a throw into
+// an isError result and sends it back, and only then does the model know to try another way.
 //
-// 對照 Pi：types.ts:388 「Throw on failure instead of encoding errors in content.」
+// Against Pi: types.ts:388 "Throw on failure instead of encoding errors in content."
 // ─────────────────────────────────────────────────────────────
 
 async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -81,8 +81,8 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
 
 	const target = resolve(ROOT, path);
 
-	// args 是模型產生的，一律當成不可信輸入。
-	// 少了這三行，模型寫 "../../../.ssh/id_rsa" 你就乖乖讀給它了。
+	// args comes from the model, so it is untrusted input like everything else.
+	// Without these three lines, the model writes "../../../.ssh/id_rsa" and you dutifully read it out.
 	if (target !== ROOT && !target.startsWith(`${ROOT}/`)) {
 		throw new Error(`Path escapes the project root: ${path}`);
 	}
@@ -91,12 +91,12 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
 }
 
 // ─────────────────────────────────────────────────────────────
-// Agent loop ， 這 50 行就是「AI agent」的全部
+// The agent loop — these 50 lines are all there is to an "AI agent"
 // ─────────────────────────────────────────────────────────────
 
 async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 	while (true) {
-		// 1. 呼叫模型。整個 agent 只有這一個地方跟 LLM 講話。
+			// 1. Call the model. This is the only place in the whole agent that talks to an LLM.
 		const response = await provider.call({
 			system: SYSTEM_PROMPT,
 			messages,
@@ -104,11 +104,11 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 			maxTokens: MAX_TOKENS,
 		});
 
-		// 2. 把模型的回覆推回歷史。blocks 給我們讀，raw 給 provider 之後傳回去。
+			// 2. Push the model's reply back into history. blocks for us to read, raw to hand back to the provider later.
 		messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
-		// 3. 先看 stopReason，再讀內容。
-		//    被拒絕或被截斷時，blocks 可能是空的或半截的。
+			// 3. Look at stopReason before reading the content.
+			//    On a refusal or a truncation, blocks may be empty or half-formed.
 		if (response.stopReason === "refusal") {
 			console.log("\n[模型拒絕了這個請求]");
 			return;
@@ -118,7 +118,7 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 			return;
 		}
 
-		// 4. 印出模型說了什麼、想呼叫什麼工具。
+			// 4. Print what the model said and which tools it wants to call.
 		for (const block of response.blocks) {
 			if (block.type === "text") {
 				console.log(`\n${block.text}`);
@@ -127,17 +127,17 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 			}
 		}
 
-		// 5. 沒有 tool call 了 → 這一輪結束，把控制權還給使用者。
+			// 5. No tool calls → this turn ends and control returns to the user.
 		//
-		//    注意這裡是看「有沒有 tool call」，不是看 stopReason === "tool_use"。
-		//    stopReason 是 provider 的說法，blocks 是事實。以事實為準。
+			//    Note this checks whether there **are** tool calls, not stopReason === "tool_use".
+			//    stopReason is the provider's account; blocks are the fact. Go with the fact.
 		const toolCalls = response.blocks.filter((b) => b.type === "toolCall");
 		if (toolCalls.length === 0) {
 			return;
 		}
 
-		// 6. 執行所有工具。一則 assistant 訊息裡可能有多個 tool call
-		//    （模型會平行呼叫），全部執行完再一起送回去。
+			// 6. Execute every tool. One assistant message may hold several tool calls
+			//    (models call in parallel); run them all and send the results back together.
 		const results: ToolResult[] = [];
 		for (const call of toolCalls) {
 			try {
@@ -147,8 +147,8 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 					content: await executeTool(call.name, call.args),
 				});
 			} catch (error) {
-				// 失敗的工具也一定要回一則結果，不能靜靜丟掉。
-				// 少了對應的 tool result，下一次請求會直接被 API 打回 400。
+					// A failed tool must still return a result and must not be silently dropped.
+					// Without a matching tool result, the next request is rejected by the API with a 400.
 				const message = error instanceof Error ? error.message : String(error);
 				results.push({
 					toolCallId: call.id,
@@ -162,7 +162,7 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 
 		messages.push({ role: "toolResult", results });
 
-		// 7. 回到步驟 1，讓模型看到工具結果後繼續。
+			// 7. Back to step 1, so the model can continue with the tool results in view.
 	}
 }
 
@@ -177,8 +177,8 @@ function dim(text: string): string {
 async function main(): Promise<void> {
 	const provider = selectProvider();
 
-	// messages 就是「session」。它只活在記憶體裡，程式一關就沒了。
-	// Lesson 4 會把它存到磁碟。
+		// messages is the "session". It lives only in memory and vanishes when the program exits.
+		// Lesson 4 persists it to disk.
 	const messages: Message[] = [];
 
 	const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
 	}
 }
 
-// 設定錯誤（例如沒有 API key）就好好講一句話，不要噴一整串 stack trace。
+// On a configuration error (a missing API key, say), say one clear sentence rather than spraying a stack trace.
 try {
 	await main();
 } catch (error) {

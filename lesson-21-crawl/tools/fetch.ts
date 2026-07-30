@@ -1,16 +1,16 @@
 /**
- * fetch_page：Lesson 20 缺的那個工具。
+ * fetch_page: the tool Lesson 20 was missing.
  *
- * Lesson 20 的 agent 只有 snippet，所以它沒有辦法知道自己漏掉了什麼。
- * 加上這個工具之後，「去把那一頁打開來看」才變成一個可以做的動作，
- * 「我沒辦法確認」也才變成一個模型脫離得了的狀態。
+ * Lesson 20's agent has only snippets, so it has no way to know what it missed.
+ * With this tool, "go open that page and look" becomes an action it can take,
+ * and "I cannot confirm this" becomes a state the model can escape.
  *
- * 這個工具做四件事，每一件都對應到一個真實世界的麻煩：
+ * This tool does four things, each matching a real-world nuisance:
  *
- *   fetchPage()    robots / 403 / 404 / JS 渲染      → 錯誤訊息要說得出差別
- *   extractMain()  把導覽列、廣告、footer 砍掉        → 51% 的雜訊不要進 context
- *   chunkText()    長文件切塊                         → 要的東西常常在後面
- *   組裝輸出        標題、日期、第幾塊                 → 模型要知道自己看到的是片段
+ *   fetchPage()    robots / 403 / 404 / JS rendering  → the error must state the difference
+ *   extractMain()  cut navigation, ads and footers    → 51% noise must not enter context
+ *   chunkText()    split long documents               → what you want is often near the end
+ *   assemble output title, date, which chunk         → the model must know it is seeing a fragment
  */
 
 import type { Tool } from "../../shared/tools/registry.ts";
@@ -18,7 +18,7 @@ import { chunkText } from "../extract/chunk.ts";
 import { extractMain } from "../extract/html.ts";
 import { fetchPage } from "../fetcher.ts";
 
-/** 一次最多給模型多少字元。真實產品會照 token 算，這裡用字元近似。 */
+/** How many characters to give the model at most. A real product counts tokens; this approximates with characters. */
 const MAX_CHARS = 2400;
 
 export const fetchPageTool: Tool = {
@@ -52,21 +52,21 @@ export const fetchPageTool: Tool = {
 
 		const result = fetchPage(url);
 
-		// 抓不到。四種原因要分開講，因為每一種的「下一步」都不一樣：
-		// robots 要放棄這一頁，403 要換來源，404 要回去搜尋。
-		// 一律回 "fetch failed" 的話，模型只會一直重試同一個網址。
+			// Could not fetch. The four causes must be stated separately, because each has a different next step:
+			// robots means give up on this page, 403 means find another source, 404 means go back and search.
+			// Return "fetch failed" for all of them and the model just keeps retrying the same URL.
 		if (!result.ok) throw new Error(result.detail);
 
-		// includeStructures: true → 表格和清單也抽。
-		// 這個 flag 是實測之後才加的，過程寫在 README Step 5。
+			// includeStructures: true → extract tables and lists too.
+			// This flag was added after a measurement; the account is in README Step 5.
 		const { title, published, text, dropped } = extractMain(result.html, {
 			includeStructures: true,
 		});
 
-		// 抓到了 HTML，卻抽不到任何文字。這幾乎一定是 JS 渲染的頁面。
+			// HTML arrived and no text could be extracted. That is almost certainly a JS-rendered page.
 		//
-		// 這個錯誤要特別小心地寫：模型很容易把「抽不到」理解成「這一頁沒有資訊」，
-		// 然後在答案裡寫「該頁沒有提到 X」——那是一個假的否定結論。
+			// This error needs writing especially carefully: a model easily reads "nothing extracted" as
+			// "this page has no information", and then writes "the page does not mention X" — a false negative conclusion.
 		if (text.trim().length === 0) {
 			throw new Error(
 				`Fetched ${url} but found no readable text. The page renders its content with ` +
@@ -98,11 +98,11 @@ export const fetchPageTool: Tool = {
 			`chunk ${chunk.index} of ${chunk.total}  (${text.length} characters extracted in total)`,
 		].join("\n");
 
-		// 這個抽取器只保留段落，表格和清單會被丟掉。**一定要講出來。**
+			// This extractor keeps paragraphs only; tables and lists are dropped. **It must say so.**
 		//
-		// 不講的話，模型會把「抽取器沒抽到」誤判成「這一頁沒有這個資訊」，
-		// 然後要嘛編一個數字，要嘛一直換 query 重找。實測是後者：
-		// 它讀完全部 7 個 chunk、又搜了 6 次，最後撞上步數上限（README Step 5）。
+			// Without saying it, the model misreads "the extractor missed it" as "the page does not have it",
+			// and either invents a number or keeps changing the query. Measured: the latter —
+			// it read all 7 chunks, searched 6 more times, and hit the step ceiling (README Step 5).
 		const warning =
 			dropped.tables > 0 || dropped.lists > 0
 				? `\n\nNOTE: this extractor keeps paragraphs only. This page also contains ` +
@@ -112,8 +112,8 @@ export const fetchPageTool: Tool = {
 					"Do NOT conclude that the page does not contain it, and do not guess the value."
 				: "";
 
-		// 只有一塊的時候不要囉嗦；有多塊的時候一定要提醒，
-		// 否則模型會拿第 1 塊的內容去回答整份文件的問題。
+			// Say nothing when there is one chunk; always warn when there are several,
+			// or the model answers questions about the whole document from chunk 1.
 		const footer =
 			chunk.total > 1
 				? `\n\n---\nThis is chunk ${chunk.index}/${chunk.total}. You have NOT seen the rest of ` +

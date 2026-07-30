@@ -1,53 +1,53 @@
 /**
- * Approver：把「決策」接到「人」的那一段。
+ * Approver: the piece connecting a decision to a human.
  *
- * Lesson 8 把權限引擎做成純粹的決策器：它只回傳一個 Decision,
- * 不知道要怎麼問人。這個檔案補上另一半。
+ * Lesson 8 made the permission engine a pure decision-maker: it returns a Decision
+ * and knows nothing about how to ask a human. This file supplies the other half.
  *
- * **關鍵是這兩個 approver 有完全相同的簽名。**
+ * **The key is that these two approvers have exactly the same signature.**
  *
- *   inlineApprover(reader)        → 問終端機
- *   inboxApprover(store, session) → 丟進 inbox,然後暫停
+ *   inlineApprover(reader)        → ask the terminal
+ *   inboxApprover(store, session) → put it in the inbox, then pause
  *
- * agent loop 完全看不出差別。它只是 await 一個 Promise,
- * 那個 Promise 可能 0.5 秒後被回答（你按 y）,
- * 也可能 8 小時後才被回答（你早上起床看手機）。
+ * The agent loop cannot tell the difference. It merely awaits a Promise,
+ * which may be answered half a second later (you pressed y)
+ * or eight hours later (you looked at your phone in the morning).
  *
- * 這就是 Lesson 8 堅持「引擎只決定不詢問」的回報。
+ * That is the payoff for Lesson 8 insisting the engine decides without asking.
  *
- * 對照：openworker/coworker/inbox.py 的 inbox_approver
+ * Source: inbox_approver in openworker/coworker/inbox.py
  */
 
 import type { LineReader } from "../repl.ts";
 import { argsPreview, type InboxStore } from "./store.ts";
 
 /**
- * 使用者的回答。比 boolean 多了「以後都允許」。
+ * The user's answer. Richer than a boolean: it adds "always allow from now on".
  *
- * 對照 OpenWorker 的 ApprovalOutcome（engine.py:29）。
+ * Against OpenWorker's ApprovalOutcome (engine.py:29).
  */
 export type ApprovalOutcome =
-	/** 這次允許。 */
+	/** Allow this time. */
 	| "once"
-	/** 這個工具以後都允許（受 Lesson 8 的 connector 限制）。 */
+	/** Always allow this tool from now on (subject to Lesson 8's connector limits). */
 	| "always"
-	/** 拒絕。 */
+	/** Deny. */
 	| "deny";
 
 export interface ApprovalRequest {
 	sessionId: string;
 	toolName: string;
 	args: Record<string, unknown>;
-	/** 來自 Decision.reason,告訴使用者「為什麼會問你」。 */
+	/** From Decision.reason; tells the user **why they are being asked**. */
 	reason: string;
 	toolCallId?: string;
 }
 
-/** 所有 approver 的共同形狀。 */
+/** The shape every approver shares. */
 export type Approver = (request: ApprovalRequest) => Promise<ApprovalOutcome>;
 
 // ─────────────────────────────────────────────────────────────
-// 1. 有人在場：問終端機
+// 1. Somebody is present: ask the terminal
 // ─────────────────────────────────────────────────────────────
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
@@ -73,15 +73,15 @@ export function inlineApprover(reader: LineReader): Approver {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 2. 沒人在場：丟進 inbox,然後暫停
+// 2. Nobody is present: put it in the inbox, then pause
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 注意這個函式有多短。
+ * Note how short this function is.
  *
- * 「無人值守」聽起來像一個大功能，但因為前面的架構拆對了,
- * 它只是「換一個 approver」。整個 agent loop、權限引擎、工具,
- * 一行都不用改。
+ * "Unattended" sounds like a big feature, and because the earlier architecture was split correctly
+ * it is merely "a different approver". The whole agent loop, the permission engine and the tools
+ * need not change by one line.
  */
 export function inboxApprover(store: InboxStore, sessionId: string): Approver {
 	return async (request) => {
@@ -94,10 +94,10 @@ export function inboxApprover(store: InboxStore, sessionId: string): Approver {
 			toolCallId: request.toolCallId,
 		});
 
-		// ← agent 就停在這裡。可能 8 小時。
+		// ← the agent stops right here. Possibly for eight hours.
 		//
-		// 沒有 timeout 是刻意的：逾時之後要放行（危險）還是拒絕（任務失敗）？
-		// 都不好，所以就等。真正該設 timeout 的是整個任務，不是單一個批准。
+		// The absence of a timeout is deliberate: after one, allow (dangerous) or deny (the task fails)?
+		// Neither is good, so it waits. What should have a timeout is the whole task, not a single approval.
 		const resolution = await store.wait(item.id);
 
 		if (resolution === "always") return "always";
@@ -107,7 +107,7 @@ export function inboxApprover(store: InboxStore, sessionId: string): Approver {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 3. 自動：測試與評估用
+// 3. Automatic: for tests and evaluation
 // ─────────────────────────────────────────────────────────────
 
 export function autoApprover(outcome: ApprovalOutcome = "once"): Approver {
@@ -115,19 +115,19 @@ export function autoApprover(outcome: ApprovalOutcome = "once"): Approver {
 }
 
 /**
- * 依照 session 是不是無人值守，選一個 approver。
+ * Choose an approver based on whether the session is unattended.
  *
- * 這就是 OpenWorker 的 UnattendedRegistry 在做的事。它的 docstring
- * 有一句話值得抄下來：
+ * This is what OpenWorker's UnattendedRegistry does. A sentence from its docstring
+ * is worth copying:
  *
  *   > It does **not** change the autonomy ceiling (the permission mode does).
  *   > When a session is unattended, anything that would prompt inline is
  *   > routed to the Inbox and the agent suspends until answered.
  *
- * 也就是：**無人值守只改「去哪裡問」，不改「能做多少」。**
+ * That is: **unattended changes only where the question goes, not how much may be done.**
  *
- * 這個區分非常重要。如果無人值守順便放寬了權限，那它就變成
- * 「趁沒人看的時候多做一點」，那才是真正危險的設計。
+ * That distinction matters enormously. If unattended also relaxed permissions, it would become
+ * "do a bit more while nobody is watching", which is the genuinely dangerous design.
  */
 export function routeApprover(options: {
 	unattended: boolean;

@@ -1,40 +1,40 @@
 /**
- * 一輪 assistant 訊息的內部結構：**part，而不是一段字串。**
+ * The internal structure of one assistant message: **parts, not a string.**
  *
- * Lesson 1-27 的 history 長這樣：
+ * Lessons 1-27's history looks like this:
  *
- *   { role: "assistant", blocks: [...] }   ← 一輪結束之後才寫進去
+ *   { role: "assistant", blocks: [...] }   ← written only after the turn ends
  *
- * 這在正常結束時完全夠用，因為「一輪結束」和「寫進 history」是同一件事。
- * **被中斷的時候它們不是同一件事**，於是你需要一個能表達「還沒結束」的形狀。
+ * That is entirely adequate on a normal finish, because "the turn ended" and "it was written to history" are one event.
+ * **On an interruption they are not**, so you need a shape that can express "not finished yet".
  *
- * 對照 opencode：`packages/schema/src/session-message.ts`
+ * Against opencode: `packages/schema/src/session-message.ts`
  *
- * ⚠️ 這個檔案最值得抄的一個決定在 `ToolState`：
+ * ⚠️ The most worth copying decision in that file is in `ToolState`:
  *
- *   pending    input 是 **string**       ← 參數還在串流，可能不是合法 JSON
- *   running    input 是 Record           ← 參數收完了、也 parse 過了
+ *   pending    input is a **string**     ← the arguments are still streaming and may not be legal JSON
+ *   running    input is a Record         ← the arguments arrived and were parsed
  *   completed  input + output
  *   error      input + error
  *
- * `pending.input` 是字串不是物件，這件事在型別上就講清楚了一個事實：
- * **工具參數是逐字送來的，中途中斷會留下半截 JSON。**
- * 用同一個 `input?: Record` 表示四種狀態的話，這個事實就不見了，
- * 而它不見的那天你會拿到一個 `JSON.parse` 例外，或者更糟 —— 一個空物件。
+ * `pending.input` being a string rather than an object states a fact at the type level:
+ * **tool arguments arrive character by character, and interrupting midway leaves half a JSON document.**
+ * Represent all four states with one `input?: Record` and that fact disappears,
+ * and on the day it disappears you get a `JSON.parse` exception, or worse — an empty object.
  *
- * 對照 `session-message.ts:81-119`（四個 state 各有自己的欄位）。
+ * Against `session-message.ts:81-119` (four states each with their own fields).
  */
 
 export interface TimeSpan {
 	created: number;
-	/** 沒有 completed = **還沒結束**。這個 undefined 是資訊，不是缺資料。 */
+	/** No completed = **not finished**. That undefined is information, not missing data. */
 	completed?: number;
 }
 
 export type ToolState =
-	/** 參數還在串流。`input` 是原始字串，可能是半截 JSON。 */
+		/** The arguments are still streaming. `input` is the raw string and may be half a JSON document. */
 	| { status: "pending"; input: string }
-	/** 參數收完了，工具正在跑。 */
+		/** The arguments arrived and the tool is running. */
 	| { status: "running"; input: Record<string, unknown> }
 	| { status: "completed"; input: Record<string, unknown>; output: string }
 	| {
@@ -42,12 +42,12 @@ export type ToolState =
 			input: Record<string, unknown>;
 			error: string;
 			/**
-			 * ⚠️ **「被中斷」跟「工具自己壞了」不是同一件事。**
+				 * ⚠️ **"Interrupted" and "the tool broke" are not the same thing.**
 			 *
-			 * opencode 把中斷的工具標成 `{ ...metadata, interrupted: true }`
-			 * （`session/processor.ts:589`），而不是讓它永遠停在 running。
-			 * 兩者都是 error status，但下游要分得出來：
-			 * 工具壞了值得重試，被使用者中斷不值得。
+				 * opencode marks an interrupted tool `{ ...metadata, interrupted: true }`
+				 * (`session/processor.ts:589`) rather than leaving it in running forever.
+				 * Both are an error status, and downstream needs to tell them apart:
+				 * a broken tool is worth retrying, a user interruption is not.
 			 */
 			interrupted?: boolean;
 	  };
@@ -61,13 +61,13 @@ export type Part =
 			name: string;
 			state: ToolState;
 			/**
-			 * 三個時間點，不是兩個（`session-message.ts:132-137`）：
-			 *   created  看到這個工具呼叫
-			 *   ran      開始執行
-			 *   completed 執行結束
+				 * Three timestamps, not two (`session-message.ts:132-137`):
+				 *   created   the tool call was seen
+				 *   ran       execution started
+				 *   completed execution finished
 			 *
-			 * 中間那個容易被省略，但少了它就分不出
-			 * 「參數還沒收完」和「跑很久」——而那是兩種完全不同的卡住。
+				 * The middle one is easy to omit, and without it you cannot distinguish
+				 * "the arguments have not finished arriving" from "it is taking a long time" — two completely different kinds of stuck.
 			 */
 			time: TimeSpan & { ran?: number };
 	  };
@@ -76,20 +76,20 @@ export interface AssistantMessage {
 	id: string;
 	parts: Part[];
 	/**
-	 * 這一輪對 workspace 做了什麼（Lesson 29 的 patch）。
+		 * What this turn did to the workspace (Lesson 29's patch).
 	 *
-	 * 這裡刻意只存檔名，而且**允許 undefined 跟空陣列是不同的意思**：
-	 *   undefined  還沒算過
-	 *   []         算過了，沒有變更
+		 * Only filenames are stored, deliberately, and **undefined and an empty array mean different things**:
+		 *   undefined  not computed yet
+		 *   []         computed, and nothing changed
 	 */
 	snapshot?: { files: string[] };
-	/** 為什麼結束：正常、被中斷、出錯。 */
+	/** Why it ended: normally, interrupted, or with an error. */
 	finish?: "end" | "interrupted" | "error";
 	time: TimeSpan;
 }
 
 // ─────────────────────────────────────────────────────────────
-// 建構子。把「現在幾點」集中在一處，測試才控制得住時間。
+// Constructors. "What time is it" is centralised in one place so tests can control time.
 // ─────────────────────────────────────────────────────────────
 
 export type Clock = () => number;
@@ -105,11 +105,11 @@ export function isInFlight(part: Part): boolean {
 	return part.time.completed === undefined;
 }
 
-/** 給人看的一行摘要。 */
+/** A one-line summary for humans. */
 export function describePart(part: Part): string {
 	if (part.type === "tool") {
-		// error 的時候顯示錯誤訊息而不是 input：被中斷的 pending 工具的
-		// input 是 `{}`（半截 JSON parse 不了），真正的資訊在訊息裡。
+			// On error, show the error message rather than the input: an interrupted pending tool's
+			// input is `{}` (half a JSON document does not parse), and the real information is in the message.
 		if (part.state.status === "error") {
 			const flag = part.state.interrupted ? " (interrupted)" : "";
 			return `tool ${part.name} [error${flag}] ${part.state.error.slice(0, 72)}`;
