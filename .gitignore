@@ -25,3 +25,6 @@ lesson-09-unattended/outbox/
 
 # Lesson 29 的影子 git（不該進版控）
 lesson-29-evidence/.snapshots/
+
+# Lesson 18 的執行紀錄
+lesson-18-scheduling/.state/
