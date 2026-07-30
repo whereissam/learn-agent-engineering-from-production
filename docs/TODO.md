@@ -2073,11 +2073,24 @@ bash("cat f") / read_file("f") / bash("sed …")   換工具做同一件事
 agent runtime。**現在不是了。** 實際 clone 下來數過：
 
 ```
-All-Hands-AI/OpenHands  →  OpenHands/agent-canvas（2965aca）
-                           833 個 .tsx + 774 個 .ts，Python 只剩 4 個檔
-                           README 標題是「Agent Canvas」
-                           自我描述：coding agent 的 self-hosted 控制台
+All-Hands-AI/OpenHands（2965aca，2026-07-28）
+  833 個 .tsx + 774 個 .ts，Python 只剩 4 個檔
+  README 的 <h1> 是「Agent Canvas」
+  自我描述：coding agent 的 self-hosted 控制台
 ```
+
+⚠️ **這一段原本寫成 `All-Hands-AI/OpenHands → OpenHands/agent-canvas`，
+那是錯的**（2026-07-30 修）。remote 仍然是 `All-Hands-AI/OpenHands.git`，
+**改名的是 repo 裡的產品，不是 repo 的路徑**。而 `OpenHands/agent-canvas`
+這個路徑是我自己拼出來的，沒有查證過。
+
+> 而這個錯誤出現在**這一節**特別難看，因為它就是在講設計原則 4。
+> 「clone 下來數過」數對了行數（833 / 774 / 4 全部正確），
+> **但 repo 的身分是我從產品名反推的。**
+> 數得出來的東西要去數，**推得出來的東西要去查**，這是兩件事。
+>
+> 而且它已經擴散了一次：Lesson 37 的 README 第一版照抄了這句話。
+> **錯誤的來源如果是自己的筆記，它會比抄別人更難發現。**
 
 真正的 runtime 搬到另一個 repo 了（`README.md:126` 和
 `.env.sample:35` 都指過去）：
@@ -2095,7 +2108,7 @@ OpenHands/software-agent-sdk
 
 | 要學的東西 | 去哪 | 語言 |
 |---|---|---|
-| **事件模型**（action / observation / trajectory） | `agent-canvas/src/types/agent-server/core/events/`，**707 行純型別定義** | TypeScript ✅ |
+| **事件模型**（action / observation / trajectory） | `All-Hands-AI/OpenHands` 的 `src/types/agent-server/core/events/`，**707 行純型別定義** | TypeScript ✅ |
 | **runtime / sandbox / workspace** | `OpenHands/software-agent-sdk` 的 `agent_server` | Python，還沒 clone |
 
 第一份小到可以整份讀完，而且跟本系列同語言。**Lesson 37 先做這個。**

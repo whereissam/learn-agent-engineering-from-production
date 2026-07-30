@@ -296,15 +296,23 @@ Lesson 1-5 幾乎是照著它走的。
 | 專案 | 從它學到什麼 | 課 |
 |---|---|---|
 | [OpenWorker](https://github.com/andrewyng/openworker) | 風險分級、無人值守批准、agent-server 協定、MCP | 8-10、12 |
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | 長期記憶、skills、跨 session 檢索、排程、委派 | 15-17；18-19 規劃中 |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | 長期記憶、skills、跨 session 檢索、排程、委派 | 15-19 |
 | [deep-research](https://github.com/dzhng/deep-research) | research loop、結構性預算 | 20、24 |
 | [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | context 壓縮、成本會計、本地文件 | 23-27 |
 | [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | 正文抽取，以及它的靜默失敗 | 21、23 |
-| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、processor、tool search、durable workflow | 30-33 |
-| [OpenCode](https://github.com/anomalyco/opencode) | 串流 session state、tool lifecycle、中斷、檔案系統證據 | 28-29（規劃中） |
-| [OpenHands](https://github.com/OpenHands/software-agent-sdk) | 沙箱執行、action–observation 歷史 | 36-37（規劃中） |
+| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、邊界 processor | 30-31；32-33 規劃中 |
+| [OpenCode](https://github.com/anomalyco/opencode) | 檔案系統證據、tool lifecycle、中斷後的收尾 | 28-29 |
+| [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | action–observation 事件模型（707 行型別） | 37 |
 | [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35（規劃中） |
+
+規劃中的來源裡有一個**還沒 clone**，所以上面那張表刻意沒有列它：
+OpenHands 的 agent runtime 在
+[OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)，
+Lesson 36 會需要它，而這裡沒有人讀過。Lesson 37 讀的是
+`All-Hands-AI/OpenHands` —— 同一個組織、不同的 repo，而且 runtime 不在裡面
+（只有 4 個 Python 檔，README 標題是「Agent Canvas」）。
+**把這兩個搞混正是這一節存在要防的事，而 Lesson 37 的第一版就搞混了。**
 
 ### 只在概念層引用的
 

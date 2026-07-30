@@ -4,13 +4,15 @@
 > [Lesson 29](../lesson-29-evidence/)（完成的證據）、
 > [Lesson 28](../lesson-28-consistency/)（中斷之後的一致性）。
 >
-> 對照原始碼：`openhands/src/types/agent-server/core/events/`
-> （**707 行純型別定義**，跟本系列同語言，可以整份讀完）
+> 對照原始碼：`All-Hands-AI/OpenHands` 的
+> `src/types/agent-server/core/events/`（commit `2965aca`，2026-07-28）。
+> **707 行純型別定義**，跟本系列同語言，可以整份讀完。
 >
-> ⚠️ **這個 repo 已經不是網路文章講的那個 OpenHands 了。**
-> `All-Hands-AI/OpenHands` 現在是 `OpenHands/agent-canvas`，
-> 833 個 `.tsx` + 774 個 `.ts`，Python 只剩 4 個檔；runtime 搬到
-> `OpenHands/software-agent-sdk` 了。詳見 `docs/TODO.md`。
+> ⚠️ **在這個 repo 裡找不到 agent runtime，別白費工。** clone 下來數過：
+> 833 個 `.tsx`、774 個 `.ts`、**4 個 `.py`**，而它的 README 標題是
+> 「Agent Canvas」。runtime 在另一個 repo（`README.md:126` 指過去
+> `OpenHands/software-agent-sdk` 的 `openhands-agent-server`）。
+> 這一課要的東西剛好在前者：**事件模型**。
 
 ```bash
 bun run lesson-37                    # 四個情境，不用金鑰

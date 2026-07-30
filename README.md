@@ -315,15 +315,24 @@ Each of these was cloned, inventoried, and cited down to file and line number:
 | Project | What it taught | Lessons |
 |---|---|---|
 | [OpenWorker](https://github.com/andrewyng/openworker) | Risk classes, unattended approval, the agent-server protocol, MCP | 8-10, 12 |
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Long-term memory, skills, cross-session retrieval, scheduling, delegation | 15-17; 18-19 planned |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Long-term memory, skills, cross-session retrieval, scheduling, delegation | 15-19 |
 | [deep-research](https://github.com/dzhng/deep-research) | The research loop, structural budgets | 20, 24 |
 | [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | Context compression, cost accounting, local documents | 23-27 |
 | [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | Content extraction and its silent failures | 21, 23 |
-| [Mastra](https://github.com/mastra-ai/mastra) | Provider schema compatibility, processors, tool search, durable workflows | 30-33 |
-| [OpenCode](https://github.com/anomalyco/opencode) | Streaming session state, tool lifecycle, interruption, filesystem evidence | 28-29 (planned) |
-| [OpenHands](https://github.com/OpenHands/software-agent-sdk) | Sandboxed execution, action–observation histories | 36-37 (planned) |
+| [Mastra](https://github.com/mastra-ai/mastra) | Provider schema compatibility, boundary processors | 30-31; 32-33 planned |
+| [OpenCode](https://github.com/anomalyco/opencode) | Filesystem evidence, tool lifecycle, interruption cleanup | 28-29 |
+| [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | The action–observation event model (707 lines of types) | 37 |
 | [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 (planned) |
+
+One repo in the planned set has **not** been cloned yet, and the table above
+deliberately doesn't list it: the OpenHands agent runtime lives in
+[OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk),
+which Lesson 36 will need and nobody here has read. Lesson 37 read
+`All-Hands-AI/OpenHands` instead — same organisation, different repo, and the
+runtime is not in it (4 Python files; its README is titled "Agent Canvas").
+Getting that pair mixed up is exactly the mistake this section exists to
+prevent, and the first draft of Lesson 37 made it.
 
 ### Referenced at the concept level only
 
