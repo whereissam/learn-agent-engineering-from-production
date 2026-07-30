@@ -54,17 +54,17 @@ the full measure → find → fix → confirm loop.
 
 **If you already understand the agent loop, start at Lesson 6.**
 
-## The completed path: 27 runnable steps
+## The completed path: 28 runnable steps
 
 The thesis of the series in one sentence:
 
 > **Learn how AI agents work by reading real open-source projects, one at a
 > time, and rebuilding the smallest version of each mechanism yourself.**
 
-**The 27 steps below are written and runnable.** Steps 1-17 are the core;
+**The 28 steps below are written and runnable.** Steps 1-17 are the core;
 steps 18-25 form an optional domain branch that can be skipped *as a whole*,
-and steps 26-27 return to the harness around the loop. The planned lessons
-continue after step 27. Every step names the source you are
+and steps 26-28 return to the harness around the loop. The planned lessons
+continue after step 28. Every step names the source you are
 reading at that point.
 
 ```mermaid
@@ -73,7 +73,7 @@ flowchart LR
     P2 --> P3["Steps 8-12<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
     P3 --> P4["Steps 13-17<br/><b>Running for months</b><br/>Hermes"]
     P4 --> P5["Steps 18-25<br/><b>A whole domain</b><br/>4 search projects"]
-    P5 --> P6["Steps 26-27<br/><b>Around the loop</b><br/>Mastra, OpenCode"]
+    P5 --> P6["Steps 26-28<br/><b>Around the loop</b><br/>Mastra, OpenCode"]
 ```
 
 > **Lesson numbers have gaps; step numbers don't.** 11, 13 and 14 were merged
@@ -116,20 +116,21 @@ flowchart LR
 | | | **⑥ Around the loop · Mastra, OpenCode** | |
 | 26 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
 | 27 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
+| 28 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
+| | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, and 28 is the harder version of the same one.* | |
 
 Steps 18-25 can be skipped — they are a full-scale demonstration of the method
 from step 6. Each lesson README states its own prerequisites at the top.
 
-### The planned continuation · Lessons 28 and 32-37 — not written yet
+### The planned continuation · Lessons 32-37 — not written yet
 
-These extend the same path after step 27, and **none of the lessons in this table are runnable
+These extend the same path after step 28, and **none of the lessons in this table are runnable
 today**. Primary sources have been cloned and scoped; which paths and line
 counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
 still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| **28** | **Interrupted mid-stream — can the session still be trusted?** | OpenCode |
 | 32 | 200 tools don't fit in the context window | Mastra |
 | 33 | The process died — how do you resume elsewhere? | Mastra, LangGraph |
 | 34 | The process crashed after the email was sent — should resume send it again? | Restate |
@@ -144,14 +145,13 @@ permission / session, and has a mechanism you can **switch off** and watch
 fail. A filter that only rejects bad projects is useless — this one says no to
 good ones.
 
-**Lesson 28 is now the one to want most.** Step 25 answered step 8's open
-question — the permission engine blocked every attempt, the file was never
-touched, and the model still told the user *"I have refactored and simplified
-src/app.ts for you."* Snapshots make that provable without a human running
-`md5`. Lesson 28 is the harder version of the same question: after an
-interruption, can the record itself be trusted?
+**Lesson 37 is now the one to want most.** Evidence has two of its three
+lessons: 29 measures what actually changed, 28 keeps the record honest when a
+turn is killed halfway. 37 is the third angle — putting *who said it* into the
+type system, so a claim by the model and a fact from the environment can never
+occupy the same field.
 
-### Prod part · Lessons 50-59 — *not* part of the 27 steps
+### Prod part · Lessons 50-59 — *not* part of the 28 steps
 
 Different entry rule, different stage:
 
@@ -184,7 +184,7 @@ Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # no API key needed
-bun run test                        # 162 pass, 1 skipped; no API key needed
+bun run test                        # 179 pass, 1 skipped; no API key needed
 ```
 
 `fake` is a scripted model. It doesn't think, but **the loop is entirely
@@ -216,7 +216,7 @@ work — what they teach doesn't live in the model.
 > **The model is the one part of this series you don't have to build.**
 
 - **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
-  covered by **163 deterministic checks: 162 passing, 1 intentionally skipped**
+  covered by **180 deterministic checks: 179 passing, 1 intentionally skipped**
   (a live-provider contract test that only runs when `PROVIDER` is set, because
   it spends money).
 - **Model behaviour** is measured separately against live Gemini 3.6 Flash,
@@ -256,6 +256,11 @@ The parts worth reading even if you never run the code:
   identical correctness, **3.9x the tokens**. The cost isn't coordination
   overhead, it's that every sub-agent re-explores from scratch — the parent's
   `list_files` doesn't cross the isolation boundary.
+- **Lesson 28** — a cleanup bug found by a live model, not by the six-cell
+  matrix I designed: the model called a tool without emitting text first, the
+  stream ended normally while the tool was still running, and a *successful*
+  tool got recorded as interrupted under a `finish: "end"` message. Scripted
+  runs only cover paths you thought of.
 - **Lesson 29** — the tool reported two successful edits and the working tree
   ended up byte-identical. Tool results describe calls; only the filesystem
   describes outcomes. The same lesson caught a sandbox escape 27 lessons after

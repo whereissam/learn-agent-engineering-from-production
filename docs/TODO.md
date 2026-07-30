@@ -58,8 +58,8 @@ Lesson 08-12   變成產品 · OpenWorker 篇  權限 / 無人值守 / server / 
                （11 併入 12、13 併入 18、14 刪除）
 Lesson 15-19   跑好幾個月 · Hermes 篇    記憶 / skills / 搜尋 / 排程 / 委派     ✅ 全部
 Lesson 20-27   一整個領域 · AI Search 篇 搜尋 / 抓取 / 檢索 / research loop    ✅
-Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 29-31
-               28-29 OpenCode（執行的證據）29 ✅ / 28 待寫
+Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-31
+               28-29 OpenCode（執行的證據）✅ 兩課都寫完了
                30-31 Mastra ✅ / 32-33 Mastra（schema 之後的抽象）
                34 Restate（crash）/ 35 Anthropic SRT（沙箱）
                36-37 OpenHands（執行世界 / action-observation）
@@ -87,7 +87,7 @@ Lesson 58-59   （保留）                  打包、自動更新、監控…  
 或「要讓它講話」。**在那之前讀它們，學到的東西沒有地方掛。**
 
 ⚠️ **Prod 篇不進閱讀順序**，因為它不是「下一步」，是「另一個階段」。
-主線 27 步走完之前，這一篇一課都不用看。
+主線 28 步走完之前，這一篇一課都不用看。
 
 **AI Search 篇回到主線**（它本來就在 20-27），因為它教的是
 「怎麼替一個領域做工具、資料和評估」——那是 Lesson 6 的大型實例，
@@ -1924,7 +1924,73 @@ opencode 的做法是 `--git-dir` 指到別的地方、`--work-tree` 才指向�
 - **可以寫可跑的 code**：✅ playground 已經有 git，`git stash create`
   之類的低階指令就夠，不需要抄那 807 行
 
-### Lesson 28：中斷之後，session 不能說謊
+### ~~Lesson 28：中斷之後，session 不能說謊~~ ✅ 已完成
+
+`lesson-28-consistency/`：`parts.ts`（part 與工具生命週期）、
+`processor.ts`（事件 → part + `cleanup()`）、`audit.ts`（五條稽核規則）、
+`fake-provider.ts`（**可以在指定位置中斷的串流**）、`demo.ts`（六格矩陣）、
+`agent.ts`（真模型）、`tests/consistency.test.ts`（17 個測試）。
+
+**那個「怎麼在測試裡可靠地中斷一個串流」的設計問題，答案是讓串流自己
+在指定位置 abort**，中斷位置變成一個參數。`setTimeout` 版本的中斷點落在
+哪兩個事件之間是運氣，而且它會**安靜地換位置**。
+
+> 這條是第三次出現：Lesson 18 的假時鐘、Lesson 29 的 `CAPTURE` 抓取點、
+> 現在是中斷位置。**任何時序造成的 bug，都要先做出能指定時序的裝置。**
+
+**矩陣跑出來了**（`CLEANUP=on` 全部乾淨，`off` 依位置出現 2-4 條違規）：
+
+```
+中斷位置            CLEANUP=off 的違規
+reasoning           unfinished-span, message-never-completed
+tool_input          in-flight-in-storage, message-never-completed
+tool_running        上面兩條 + unfinished-span + unrecorded-patch
+tool_finishing      同上
+text                unfinished-span, message-never-completed, unrecorded-patch
+before_step_finish  message-never-completed, unrecorded-patch
+none（不中斷）      message-never-completed   ← 收尾不是中斷的補救措施
+```
+
+最後一列是寫的時候才想清楚的：**正常跑完也需要收尾**，
+中斷只是讓它變得看得見。
+
+**從原始碼抄回來、而且都是「少了就分不出兩種情況」的三個決定**：
+
+| 決定 | 位置 | 少了它會怎樣 |
+|---|---|---|
+| `pending.input` 是 **string** | `schema/src/session-message.ts:81-119` | 半截 JSON 被當成物件 → parse 例外或空物件 |
+| 工具有三個時間點（created / ran / completed） | `session-message.ts:132-137` | 「參數還沒收完」和「跑很久」分不出來 |
+| `interrupted: true` 而不是留在 running | `session/processor.ts:589` | 「工具壞了」和「被使用者中斷」分不出來，而前者值得重試後者不值得 |
+
+**250ms 寬限窗口**（`processor.ts:573`）不是效能考量，是正確性：
+20ms 後就會回來的工具如果被標成 interrupted，**紀錄會說一件沒發生的事**。
+
+⚠️ **一個真模型抓出來的 bug，而我自己設計的六格矩陣沒抓到**：
+第一版對所有情況都套用寬限窗口。某次真模型跑的時候，模型沒有先輸出文字
+就直接呼叫工具 → 串流正常結束 → `cleanup("end")` → 工具還在跑 →
+250ms 到了 → **一個成功的工具被標成 interrupted，而 finish 是 "end"**。
+
+> **寬限窗口只屬於中斷路徑。**
+> 而更值得記的是抓到它的方式：**那條路徑不是我設計的，是模型走出來的。**
+> 腳本化的矩陣每一格都是我想像得到的情況。
+
+⚠️ **真模型只重現得了六格裡的兩格，而原因在我們自己的抽象**：
+`shared/streaming` 沒有 reasoning 串流事件，`tool_call` 也是參數收完才發
+（`types.ts:44-51` 那段刻意的簡化）。所以 `reasoning` 和 `tool_input`
+兩格量不到。
+
+> **一個好的抽象會藏起你不需要的東西；你只會在需要它的那一天，
+> 才發現它藏了什麼。** 你的事件模型決定了你能觀察到哪些失敗。
+
+另外 `AFTER_DELTAS` 第一版設 4，Gemini 把那句話切成兩三塊就講完，
+**中斷從來沒發生** —— delta 顆粒度不是你能控制的，又一個假陰性。
+
+**還沒抄的一段**：`message-v2.ts:349-357` 把 `pending`/`running` 的工具在
+**送回 provider 之前**轉成 `output-error`，理由是每個 `tool_use` 都必須有
+對應的 `tool_result`（Lesson 3 的硬規則）。所以同一個問題有三個位置：
+存檔、畫面、**送回模型的歷史**。第三個漏掉的症狀不是紀錄不一致，是下一輪 400。
+
+#### 原始規劃
 
 - **來源**：`packages/opencode/src/session/processor.ts`（718 行）、
   `session/message-v2.ts`（734 行）
@@ -2443,15 +2509,22 @@ confidence + 出處       tombstone 刪除
 | **18-19** | 學習完整性。Hermes 篇補完，「跑好幾個月」才名副其實 |
 | **29** | 課程價值。它回答 Lesson 8 那個「模型謊報完成」的實測，是目前最有洞察力的一課 |
 
-~~**建議：先 29，再回頭補 18-19。**~~ **29、18、19 都寫完了**（2026-07-30）。
+~~**建議：先 29，再回頭補 18-19。**~~
+**29、18、19、28 都寫完了**（2026-07-30）。那個「怎麼可靠地中斷串流」的
+設計問題也解掉了（讓串流自己在指定位置 abort，見 Lesson 28）。
 
-**現在的下一個是 28**（29 更難的版本）。它跟前面幾課不同的地方是
-**素材不是問題、設計才是**：要先決定「怎麼在測試裡可靠地中斷一個串流」
-（在 reasoning 中、tool input 收到一半、tool 正在執行、text 輸出到一半、
-改完檔案但 step-finish 之前），那張 fault injection 矩陣就是那一課的判準。
+**現在的下一個是 37**（action / observation），理由有三個：
+
+1. 它把 28、29 的結論收斂成一個**資料結構**（`source: "environment"` 是
+   型別上的硬性規定），三課合起來才是完整的「證據」那條支線
+2. 成本低：`openhands/src/types/agent-server/core/events/` 是 707 行純型別，
+   而且跟本系列同語言
+3. 它有一個現成的反面教材（`action-event.ts:63` 的 `security_risk` 是
+   **LLM 預測的**風險等級，跟 Lesson 8 的立場正面衝突），
+   那個對照實驗不用另外設計
 
 ⚠️ 另外，Hermes 篇補完之後，**第 3 層（長期運行）不再有洞**，
-所以接下來的選擇只剩「證據」（28、37）和「邊界」（32-35）兩條支線。
+所以剩下的選擇只有「證據」（37）和「邊界」（32-35）兩條支線。
 
 ### 缺口 4：OAuth 與 credential 生命週期 → Prod 55
 
