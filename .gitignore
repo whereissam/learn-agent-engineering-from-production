@@ -8,6 +8,10 @@ node_modules/
 
 # 執行時產生的東西
 *.log
+# 例外：Lesson 19 的語料就是 .log，而且它是課程內容不是執行產物
+# （跟 lesson-20 的 corpus/、lesson-06 的 data/sessions/ 同一個理由：
+#  由 fixture 產生，但要看得到、要能在 GitHub 上讀）
+!lesson-19-delegation/workspace/logs/*.log
 .sessions/
 lesson-*/.sessions/
 lesson-06-domain-tools/reports/

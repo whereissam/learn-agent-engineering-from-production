@@ -1,0 +1,13 @@
+# checkout service - error log (rotated daily)
+2026-07-28T03:00:00Z ERROR E-402 request_id=req_1000 retries=0
+2026-07-28T03:07:00Z ERROR E-402 request_id=req_1007 retries=1
+2026-07-28T03:14:00Z ERROR E-402 request_id=req_1014 retries=2
+2026-07-28T03:21:00Z ERROR E-402 request_id=req_1021 retries=0
+2026-07-28T03:28:00Z ERROR E-402 request_id=req_1028 retries=1
+2026-07-28T03:35:00Z ERROR E-402 request_id=req_1035 retries=2
+2026-07-28T03:42:00Z ERROR E-402 request_id=req_1042 retries=0
+2026-07-28T03:49:00Z ERROR E-500 request_id=req_1049 retries=0
+2026-07-28T03:56:00Z ERROR E-500 request_id=req_1056 retries=1
+2026-07-28T04:03:00Z ERROR E-500 request_id=req_1063 retries=2
+2026-07-28T04:10:00Z ERROR E-301 request_id=req_1070 retries=0
+2026-07-28T04:17:00Z ERROR E-301 request_id=req_1077 retries=1

@@ -1,0 +1,6 @@
+{
+	"name": "delegation-workspace",
+	"private": true,
+	"type": "module",
+	"scripts": { "test": "echo 'no tests here' && exit 0" }
+}

@@ -1,0 +1,17 @@
+# inventory service - error log (rotated daily)
+# NOTE: entries before 2026-07-14 use the OLD error-code scheme (E-1xx).
+# Codes were renumbered after the July migration; E-118 is now reported as E-204.
+2026-07-11T03:00:00Z ERROR E-118 request_id=req_1000 retries=0
+2026-07-11T03:07:00Z ERROR E-118 request_id=req_1007 retries=1
+2026-07-11T03:14:00Z ERROR E-118 request_id=req_1014 retries=2
+2026-07-11T03:21:00Z ERROR E-118 request_id=req_1021 retries=0
+2026-07-11T03:28:00Z ERROR E-118 request_id=req_1028 retries=1
+2026-07-11T03:35:00Z ERROR E-118 request_id=req_1035 retries=2
+2026-07-11T03:42:00Z ERROR E-118 request_id=req_1042 retries=0
+2026-07-11T03:49:00Z ERROR E-118 request_id=req_1049 retries=1
+2026-07-11T03:56:00Z ERROR E-118 request_id=req_1056 retries=2
+2026-07-11T04:03:00Z ERROR E-204 request_id=req_1063 retries=0
+2026-07-11T04:10:00Z ERROR E-204 request_id=req_1070 retries=1
+2026-07-11T04:17:00Z ERROR E-204 request_id=req_1077 retries=2
+2026-07-11T04:24:00Z ERROR E-118 request_id=req_1084 retries=0
+2026-07-11T04:31:00Z ERROR E-118 request_id=req_1091 retries=1
