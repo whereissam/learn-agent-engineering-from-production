@@ -54,6 +54,8 @@
 		"lesson-29:agent": "bun run lesson-29-evidence/agent.ts",
 		"lesson-30:probe": "bun run lesson-30-schema-compat/probe.ts",
 		"lesson-31": "bun run lesson-31-processors/demo.ts",
+		"lesson-37": "bun run lesson-37-trajectory/demo.ts",
+		"lesson-37:agent": "bun run lesson-37-trajectory/agent.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
 		"reset": "bun run scripts/reset-playgrounds.ts",
 		"test": "bun test ./tests/",
