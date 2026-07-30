@@ -1,93 +1,94 @@
 /**
- * 風險分級。
+ * Risk classes.
  *
- * Lesson 2 用一個 boolean 決定要不要問使用者：
+ * Lesson 2 decided whether to ask the user with one boolean:
  *
  *   readonly mutating: boolean;
  *
- * 這太粗糙了。「寫一個檔案到工作目錄」跟「寄一封信給客戶」都是 mutating，
- * 但危險程度差很多：前者可以還原，後者收不回來。
+ * Too coarse. Writing a file into the working directory and emailing a
+ * customer are both mutating, but one is reversible and the other is not.
  *
- * OpenWorker 用四個等級取代那個 boolean。而且它的 risk.py 開頭那句
- * docstring 講出了關鍵設計轉變：
+ * OpenWorker replaces that boolean with four levels, and the first line of
+ * its risk.py docstring names the design shift:
  *
  *   > This replaces the hardcoded WRITE_TOOLS / SHELL_TOOL name sets the
  *   > permission engine used to carry inline: risk is now a declared property
  *   > a single classify reads.
  *
- * 也就是：風險從「權限引擎裡寫死的名單」變成「工具自己宣告的屬性」。
- * 這樣新增工具的人不用去改權限引擎，權限引擎也不用認得每一個工具。
+ * Risk moves from "a list hardcoded inside the permission engine" to "a
+ * property the tool declares". Adding a tool no longer means editing the
+ * engine, and the engine no longer has to recognise every tool.
  *
- * 對照：openworker/coworker/risk.py
+ * Source: openworker/coworker/risk.py
  */
 
-/**
- * 四個等級。順序有意義：越後面越危險。
- */
+/** Four levels. The order matters: later is more dangerous. */
 export enum RiskClass {
-	/** 沒有副作用。永遠允許，不用問。 */
+	/** No side effects. Always allowed, never asks. */
 	READ = "read",
 
-	/** 改動工作目錄裡的東西。可以還原，但要限制在允許的路徑內。 */
+	/** Changes something in the working directory. Reversible, but must stay inside the allowed paths. */
 	WRITE_LOCAL = "write_local",
 
-	/** 執行指令。你不知道它會做什麼，所以要問。 */
+	/** Runs a command. You do not know what it will do, so ask. */
 	EXEC = "exec",
 
 	/**
-	 * 副作用跑到機器外面：寄信、發訊息、呼叫別人的 API、改別人的資料。
+	 * Side effects that leave the machine: email, messages, someone else's
+	 * API, someone else's data.
 	 *
-	 * 這是最危險的一級，因為**收不回來**。你可以還原一個檔案，
-	 * 但你收不回一封已經寄出的信。
+	 * The most dangerous level, because it cannot be taken back. You can
+	 * restore a file; you cannot unsend a mail.
 	 *
-	 * Lesson 9 會看到，這一級還有一個特別的性質：
-	 * 它是「無人值守時要不要停下來」的判斷依據。
+	 * Lesson 9 uses one more property of this level: it decides whether an
+	 * unattended run must stop and wait for a human.
 	 */
 	EXTERNAL = "external",
 }
 
-/** 工具可以自己宣告風險等級。沒宣告的話下面的規則會推斷。 */
+/** A tool may declare its own risk. Without it, the rules below infer one. */
 export interface ToolRiskMetadata {
-	/** 工具自己宣告的等級。優先於推斷。 */
+	/** Declared by the tool. Wins over inference. */
 	risk?: RiskClass;
-	/** 通用旗標（例如 MCP 工具會有）。true 就當成 EXTERNAL。 */
+	/** Generic flag, e.g. carried by MCP tools. True means treat as EXTERNAL. */
 	requiresApproval?: boolean;
-	/** 工具的分類，例如 "connector"。影響 Lesson 9 的 standing rule。 */
+	/** Tool category, e.g. "connector". Feeds Lesson 9's standing rules. */
 	category?: string;
 }
 
 /**
- * 使用者的本地覆寫。
+ * Local overrides by the user.
  *
- * 為什麼需要？因為預設值必須保守，但保守的預設值會很煩。
- * 例如 MCP 工具預設全部當 EXTERNAL（因為你不知道它會做什麼），
- * 但使用者可能有一個只讀的 MCP 工具，每次都要批准很痛苦。
+ * Needed because a default has to be conservative, and a conservative
+ * default is annoying. MCP tools all default to EXTERNAL (you cannot know
+ * what they do), but a user with one read-only MCP tool should not have to
+ * approve it every single time.
  *
- * 覆寫讓使用者可以說「這個我信任」，而不用改預設值。
+ * Overrides let the user say "I trust this one" without changing defaults.
  */
 export type RiskOverrides = (toolName: string) => RiskClass | undefined;
 
 /**
- * 內建工具的固定分級。
+ * Fixed classes for the built-in tools.
  *
- * 注意這是**資料**，不是散在程式碼裡的 if。
- * 想知道哪些工具會寫檔，看這張表就好。
+ * This is data, not ifs scattered through the codebase. To find out which
+ * tools write files, read the table.
  */
 const BASE: Record<string, RiskClass> = {
-	// 唯讀
+	// Read-only
 	read_file: RiskClass.READ,
 	list_files: RiskClass.READ,
 	grep: RiskClass.READ,
 
-	// 動到本機檔案
+	// Touches local files
 	write_file: RiskClass.WRITE_LOCAL,
 	edit_file: RiskClass.WRITE_LOCAL,
 	delete_file: RiskClass.WRITE_LOCAL,
 
-	// 執行指令
+	// Runs commands
 	run_command: RiskClass.EXEC,
 
-	// 副作用跑到機器外
+	// Side effects leave the machine
 	send_email: RiskClass.EXTERNAL,
 	post_slack_message: RiskClass.EXTERNAL,
 	create_calendar_event: RiskClass.EXTERNAL,
@@ -95,23 +96,25 @@ const BASE: Record<string, RiskClass> = {
 };
 
 /**
- * 算出一個工具呼叫的「實際」風險。
+ * The effective risk of one tool call.
  *
- * 優先序（OpenWorker 的 classify 也是這個順序）：
- *   1. 使用者的本地覆寫
- *   2. 內建的名稱對照表
- *   3. 工具 metadata 自己宣告的
+ * Precedence, matching OpenWorker's classify:
+ *   1. the user's local override
+ *   2. the built-in name table
+ *   3. what the tool's metadata declares
  *   4. metadata.requiresApproval → EXTERNAL
- *   5. 都沒有 → READ
+ *   5. nothing → READ
  *
- * 最後一項值得討論：預設是 READ，也就是「預設允許」。
- * 這看起來跟 Lesson 2 的「預設拒絕」矛盾，但兩者管的是不同的事：
- *   - 這裡的預設是「這個工具有多危險」，不知道就當作不危險
- *   - Lesson 2 的預設是「使用者沒回答時怎麼辦」，不知道就當作拒絕
+ * That last line is worth arguing about. Defaulting to READ means
+ * defaulting to allowed, which looks like it contradicts Lesson 2's
+ * default-deny. The two defaults answer different questions:
  *
- * 如果你的工具集包含不受信任的來源（例如任意 MCP server），
- * 應該把最後一項改成 EXTERNAL。OpenWorker 就是這樣做的
- * （靠 metadata.requiresApproval）。
+ *   here      how dangerous is this tool? unknown → assume harmless
+ *   Lesson 2  what if the user never answers? unknown → assume denied
+ *
+ * If your tool set includes untrusted sources (arbitrary MCP servers, say),
+ * change the last line to EXTERNAL. OpenWorker does exactly that, via
+ * metadata.requiresApproval.
  */
 export function classify(
 	toolName: string,
@@ -131,15 +134,16 @@ export function classify(
 }
 
 /**
- * 除了純讀取之外，都需要權限引擎過目。
+ * Anything but a pure read needs the permission engine to look at it.
  *
- * 這個小函式讓呼叫端不用記得「READ 以外都要檢查」這條規則。
+ * A small function so callers do not have to remember "everything except
+ * READ gets checked".
  */
 export function isConsequential(risk: RiskClass): boolean {
 	return risk !== RiskClass.READ;
 }
 
-/** 註冊一個工具的風險等級（給你自己的領域工具用）。 */
+/** Register a risk class for one tool (for your own domain tools). */
 export function declareRisk(toolName: string, risk: RiskClass): void {
 	BASE[toolName] = risk;
 }

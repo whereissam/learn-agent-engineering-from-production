@@ -1,72 +1,74 @@
 /**
- * 權限引擎。
+ * The permission engine.
  *
- * 這個檔案最重要的一句話，來自 OpenWorker permissions.py 的 docstring：
+ * The most important sentence about this file comes from OpenWorker's
+ * permissions.py docstring:
  *
  *   > The engine only *decides*; the turn engine routes `needs_user` decisions
  *   > to a surface for approval and records the outcome.
  *
- * **引擎只負責「決定」，不負責「詢問」。**
+ * The engine decides. It does not ask.
  *
- * Lesson 2 把這兩件事混在一起：registry 一發現 mutating 就直接呼叫
- * ctx.approve()，也就是「決定」跟「怎麼問」綁死了。
+ * Lesson 2 mixed those together: the registry saw `mutating` and called
+ * ctx.approve() on the spot, welding the decision to one way of asking.
  *
- * 拆開之後你才能做到：
- *   - 同一套規則，在 CLI 問終端機、在 GUI 跳對話框、無人值守時丟進 inbox
- *   - 決策可以單獨測試（不用 mock 一個假的使用者）
- *   - 決策可以記進 audit log（為什麼允許、依據哪條規則）
+ * Splitting them buys three things:
+ *   - one rule set, asked at a terminal, in a GUI dialog, or parked in an
+ *     inbox when nobody is there
+ *   - decisions testable on their own, with no fake user to mock
+ *   - decisions recordable in an audit log: what was allowed, under which rule
  *
- * Lesson 9 完全依賴這個拆分：無人值守模式改的是「去哪裡問」，
- * 完全不動這個引擎。
+ * Lesson 9 rests entirely on that split. Unattended mode changes where the
+ * question goes and touches nothing in here.
  *
- * 對照：openworker/coworker/permissions.py
+ * Source: openworker/coworker/permissions.py
  */
 
 import { isAbsolute, relative, resolve } from "node:path";
 import { classify, isConsequential, RiskClass, type RiskOverrides, type ToolRiskMetadata } from "./risk.ts";
 
 /**
- * 模式決定「自主程度的天花板」。
+ * The mode sets the ceiling on autonomy.
  *
- * 注意模式跟風險是**兩個獨立的維度**：
- *   風險 = 這個操作有多危險（工具的屬性）
- *   模式 = 使用者現在願意給多少自主權（session 的屬性）
+ * Mode and risk are independent dimensions:
+ *   risk  how dangerous this operation is    (a property of the tool)
+ *   mode  how much autonomy the user grants  (a property of the session)
  *
- * 決策 = 兩者的交集。
+ * A decision is the intersection of the two.
  */
 export enum Mode {
-	/** 唯讀。任何有副作用的操作都直接拒絕，連問都不問。 */
+	/** Read-only. Anything with a side effect is denied outright, never asked. */
 	PLAN = "plan",
 
-	/** 預設。讀取自動放行，其他要問。 */
+	/** The default. Reads pass, everything else asks. */
 	INTERACTIVE = "interactive",
 
-	/** 全部放行。但注意：**路徑限制仍然有效**，見下面 evaluate。 */
+	/** Everything passes. Note that path limits still apply; see evaluate below. */
 	AUTO = "auto",
 
-	/** interactive + 自動允許設定檔裡指定的工具。 */
+	/** interactive, plus tools the config file auto-allows. */
 	CUSTOM = "custom",
 }
 
-/** 唯讀模式。抽成常數是因為 OpenWorker 有兩個唯讀模式（discuss / plan）。 */
+/** Read-only modes. A constant because OpenWorker has two of them (discuss / plan). */
 const READ_ONLY_MODES = new Set<Mode>([Mode.PLAN]);
 
 /**
- * 一個決定。注意它是**資料**，不是動作。
+ * A decision. It is data, not an action.
  *
- * `reason` 不是給人看的除錯訊息，它會進 audit log，
- * 也會顯示在批准框上讓使用者知道「為什麼會問我」。
+ * `reason` is not a debug string. It goes into the audit log, and it is shown
+ * in the approval prompt so the user knows why they are being asked.
  */
 export interface Decision {
 	allowed: boolean;
 	reason: string;
-	/** true = 引擎不能自己決定，要去問人。 */
+	/** true = the engine cannot decide alone; ask a human. */
 	needsUser: boolean;
-	/** 如果是被某條 standing rule 放行的，記下是哪一條。 */
+	/** If a standing rule allowed it, which one. */
 	rule?: string;
 }
 
-/** 可寫入的根目錄。分開 writable 是因為你可能想讓 agent 讀某個目錄但不能改。 */
+/** A root directory. `writable` is separate because you may want the agent to read a directory but not change it. */
 export interface Root {
 	path: string;
 	writable: boolean;
@@ -75,29 +77,29 @@ export interface Root {
 export interface PermissionEngineOptions {
 	workspaceRoot: string;
 	mode?: Mode;
-	/** 這些指令前綴不用問（例如 "git status", "ls"）。 */
+	/** Command prefixes that need no approval, e.g. "git status", "ls". */
 	allowedCommands?: string[];
-	/** CUSTOM 模式下自動允許的工具。 */
+	/** Tools auto-allowed in CUSTOM mode. */
 	autoAllowTools?: string[];
-	/** 多根目錄。省略的話就只有 workspaceRoot 可寫。 */
+	/** Multiple roots. Omitted means only workspaceRoot is writable. */
 	roots?: Root[];
 	riskOverrides?: RiskOverrides;
 }
 
 /**
- * 會把一個「允許的指令」變成好幾個的 shell 元字元。
+ * Shell metacharacters, which turn one allowed command into several.
  *
- * 這正是 Lesson 2 練習 5 出的題目，OpenWorker 真的做了。
+ * This is exercise 5 of Lesson 2, and OpenWorker actually does it.
  *
- * 為什麼重要：假設你把 "ls" 加進允許清單，模型送來
+ * Why it matters: put "ls" on the allowlist and the model sends
  *
  *   ls; rm -rf ~
  *
- * 前綴比對會通過（開頭是 "ls"），但實際上跑了兩個指令。
- * 只要出現任何一個元字元，就取消自動放行、改成詢問。
+ * The prefix check passes (it does start with "ls") while two commands run.
+ * Any metacharacter cancels the auto-allow and falls back to asking.
  *
- * 涵蓋：串接（; & && ||）、管線（|）、重導向（> <）、
- * 指令替換（` $(）、群組（(）、換行。
+ * Covers chaining (; & && ||), pipes (|), redirection (> <),
+ * command substitution (` $(), grouping ((), and newlines.
  */
 const SHELL_OPERATORS = [";", "&", "|", ">", "<", "`", "$(", "(", "\n", "\r"];
 
@@ -114,16 +116,16 @@ export class PermissionEngine {
 	private readonly riskOverrides?: RiskOverrides;
 	private roots: Root[];
 
-	/** 這一輪對話中，使用者選了「都允許」的工具與指令。 */
+	/** Tools and commands the user chose "always allow" for, this session. */
 	private readonly sessionAllowTools = new Set<string>();
 	private readonly sessionAllowCommands = new Set<string>();
 
 	/**
-	 * 任務層級的持久規則：{ 工具: 允許的目標 }。
+	 * Task-level standing rules: { tool: allowed targets }.
 	 *
-	 * 跟 sessionAllowTools 的差別是它**綁定到特定目標**。
-	 * 「允許 send_email」很危險，「允許 send_email 給 team@example.com」就還好。
-	 * Lesson 9 會用到。
+	 * Unlike sessionAllowTools, these are bound to a specific target.
+	 * "Allow send_email" is dangerous; "allow send_email to team@example.com"
+	 * is not. Lesson 9 uses this.
 	 */
 	private readonly taskRules = new Map<string, Set<string>>();
 
@@ -137,10 +139,11 @@ export class PermissionEngine {
 	}
 
 	/**
-	 * 決定一個工具呼叫該怎麼處理。
+	 * Decide what to do with one tool call.
 	 *
-	 * **判斷順序是刻意的**，每一步都在縮小範圍。順序錯了會有安全漏洞，
-	 * 下面每一段都寫了為什麼在這個位置。
+	 * The order of the checks is deliberate; each one narrows the field. Get
+	 * the order wrong and you have a security hole, so every block below says
+	 * why it sits where it does.
 	 */
 	evaluate(
 		toolName: string,
@@ -151,45 +154,45 @@ export class PermissionEngine {
 		const consequential = isConsequential(risk);
 		const isConnector = metadata?.category === "connector";
 
-		// ── 1. 唯讀模式 ────────────────────────────────────
-		// 最先檢查。使用者說了「只准看不准動」，那就沒有任何例外。
+		// ── 1. Read-only mode ──────────────────────────────
+		// Checked first. The user said look-but-do-not-touch; no exceptions.
 		if (READ_ONLY_MODES.has(this.mode) && consequential) {
 			return {
 				allowed: false,
 				reason: `${this.mode} 模式是唯讀的`,
-				needsUser: false, // 注意：不是「去問人」，是直接拒絕
+				needsUser: false, // Not "go ask"; a flat refusal.
 			};
 		}
 
-		// ── 2. 路徑限制 ────────────────────────────────────
+		// ── 2. Path limits ─────────────────────────────────
 		//
-		// **這一步在 AUTO 模式檢查之前，是刻意的。**
+		// This sits before the AUTO check on purpose.
 		//
-		// AUTO 模式的意思是「不要一直問我」，不是「可以動我整台電腦」。
-		// 沙箱邊界不該被自主程度的設定繞過。
+		// AUTO means "stop asking me", not "help yourself to the machine".
+		// A sandbox boundary must not be reachable through an autonomy setting.
 		if (risk === RiskClass.WRITE_LOCAL) {
 			const path = args.path;
 			if (typeof path === "string" && !this.underWritableRoot(path)) {
 				return {
 					allowed: false,
 					reason: `路徑不在可寫入的目錄內：${path}`,
-					needsUser: false, // 這是硬性邊界，問使用者也不該放行
+					needsUser: false, // A hard boundary: asking must not unlock it.
 				};
 			}
 		}
 
-		// ── 3. 純讀取 ──────────────────────────────────────
+		// ── 3. Pure reads ──────────────────────────────────
 		if (!consequential) {
 			return { allowed: true, reason: "低風險", needsUser: false };
 		}
 
-		// ── 4. AUTO 模式 ───────────────────────────────────
-		// 走到這裡代表路徑檢查已經過了
+		// ── 4. AUTO mode ───────────────────────────────────
+		// Reaching here means the path check already passed.
 		if (this.mode === Mode.AUTO) {
 			return { allowed: true, reason: "完全存取", needsUser: false };
 		}
 
-		// ── 5. 指令允許清單 ────────────────────────────────
+		// ── 5. Command allowlist ───────────────────────────
 		if (risk === RiskClass.EXEC) {
 			const command = String(args.command ?? "");
 			if (this.commandAllowed(command)) {
@@ -200,21 +203,21 @@ export class PermissionEngine {
 			}
 		}
 
-		// ── 6. 這一輪允許的工具 ────────────────────────────
+		// ── 6. Tools allowed for this session ──────────────
 		//
-		// 注意 `!isConnector`：connector 工具（Slack、Gmail…）**不能**
-		// 用「這個工具都允許」放行。
+		// Note `!isConnector`: connector tools (Slack, Gmail, ...) cannot be
+		// unlocked by "always allow this tool".
 		//
-		// 為什麼？「允許 send_slack_message」等於允許發訊息到任何頻道。
-		// 使用者按「都允許」時想的是「發到剛剛那個頻道」，不是「發到全公司」。
+		// "Allow send_slack_message" means allow messages to any channel.
+		// The user pressing "always" meant that channel, not the whole company.
 		if (this.sessionAllowTools.has(toolName) && !isConnector) {
 			return { allowed: true, reason: "這一輪已允許此工具", needsUser: false };
 		}
 
-		// ── 7. 綁定目標的持久規則 ──────────────────────────
+		// ── 7. Target-bound standing rules ─────────────────
 		//
-		// 這裡刻意「不」排除 connector，因為規則綁死了特定目標，
-		// 那個綁定正是讓它安全的原因。
+		// Connectors are deliberately not excluded here: the rule is pinned
+		// to one target, and that pinning is what makes it safe.
 		const targets = this.taskRules.get(toolName);
 		if (targets) {
 			const target = standingRuleTarget(toolName, args, metadata, this.riskOverrides);
@@ -224,30 +227,30 @@ export class PermissionEngine {
 			}
 		}
 
-		// ── 8. CUSTOM 模式的設定 ───────────────────────────
+		// ── 8. CUSTOM mode config ──────────────────────────
 		if (this.mode === Mode.CUSTOM && this.autoAllowTools.has(toolName)) {
 			return { allowed: true, reason: "設定檔自動允許", needsUser: false };
 		}
 
-		// ── 9. 都不符合 → 問人 ─────────────────────────────
+		// ── 9. Nothing matched → ask ───────────────────────
 		//
-		// reason 要講清楚**為什麼**，不能只說「需要批准」。
+		// The reason must say why. "Approval required" is not a reason.
 		//
-		// 這一條是接進真的 agent loop 之後才發現的（Lesson 8 的 agent.ts）：
-		// 拒絕訊息是模型**唯一**知道發生什麼事的管道，它看不到你的設定檔，
-		// 也看不到終端機上那個紅色的 ✗。只講「需要批准」，模型就無從判斷
-		// 「換什麼做法才會被接受」，只能亂猜，而亂猜看起來就很像在繞道。
+		// This came out of wiring the engine into a real agent loop
+		// (Lesson 8's agent.ts): the denial text is the model's only channel for
+		// finding out what happened. It cannot see your config file or the red
+		// ✗ in the terminal. Told only "approval required" it cannot work out
 		//
-		// 對使用者也一樣：批准框上寫「需要批准」等於沒寫。
+		// which approach would be accepted, so it guesses — and guessing looks
 		return { allowed: false, reason: this.whyAsk(toolName, args, risk), needsUser: true };
 	}
 
-	/** 為什麼這個呼叫需要人來決定。給模型看，也給批准框看。 */
+	/** Why this call needs a human. Read by the model and by the approval box. */
 	private whyAsk(toolName: string, args: Record<string, unknown>, risk: RiskClass): string {
 		if (risk === RiskClass.EXEC) {
 			const command = String(args.command ?? "");
-			// 前綴騙過了清單，但含元字元，這是最值得講清楚的一種，
-			// 因為模型很可能就是在試著繞過清單（見 Lesson 8 Step 4）。
+			// Prefix fooled the allowlist but metacharacters are present. Worth
+			// spelling out: the model may be trying to slip past the list (Lesson 8 Step 4).
 			if (hasShellOperators(command) && this.prefixAllowed(command)) {
 				return "指令開頭雖然在允許清單上，但含有 shell 元字元，等於可以跑第二個指令";
 			}
@@ -259,7 +262,7 @@ export class PermissionEngine {
 		return `風險等級 ${risk}，${this.mode} 模式下需要使用者批准`;
 	}
 
-	// ── session / task 記憶 ──────────────────────────────
+	// ── session / task memory ────────────────────────────
 
 	allowToolForSession(toolName: string): void {
 		this.sessionAllowTools.add(toolName);
@@ -269,7 +272,7 @@ export class PermissionEngine {
 		if (command) this.sessionAllowCommands.add(command);
 	}
 
-	/** 新增一條綁定目標的持久規則。 */
+	/** Add a target-bound standing rule. */
 	addTaskRule(toolName: string, target: string): void {
 		const existing = this.taskRules.get(toolName) ?? new Set<string>();
 		existing.add(target);
@@ -280,24 +283,24 @@ export class PermissionEngine {
 		this.roots = roots;
 	}
 
-	// ── 內部 ─────────────────────────────────────────────
+	// ── internals ────────────────────────────────────────
 
 	private commandAllowed(command: string): boolean {
 		const trimmed = command.trim();
 		if (!trimmed) return false;
 
-		// 有元字元就不能自動放行，不管前綴多乾淨
+		// Metacharacters block the auto-allow, however clean the prefix.
 		if (hasShellOperators(trimmed)) return false;
 
 		return this.prefixAllowed(trimmed);
 	}
 
 	/**
-	 * 只看前綴，**不看元字元**。
+	 * Prefix only; metacharacters not considered.
 	 *
-	 * 單獨拆出來是為了讓 `whyAsk` 能分辨兩種不同的拒絕：
-	 * 「這個指令根本不在清單上」跟「前綴在清單上但被元字元破功」。
-	 * 對模型來說這是兩個完全不同的訊息。
+	 * Split out so `whyAsk` can tell two refusals apart: "this command is not
+	 * on the list at all" versus "the prefix is on the list but
+	 * metacharacters break it". To the model those are different messages.
 	 */
 	private prefixAllowed(command: string): boolean {
 		const trimmed = command.trim();
@@ -311,23 +314,24 @@ export class PermissionEngine {
 		return this.roots.some((root) => {
 			if (!root.writable) return false;
 			const rel = relative(resolve(root.path), candidate);
-			// 空字串 = 就是那個目錄本身；開頭是 .. = 跑到外面去了
+			// Empty = the directory itself; leading .. = escaped outside it.
 			return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 		});
 	}
 }
 
 /**
- * 這個呼叫可不可以變成一條「綁定目標」的持久規則？
+ * Can this call become a target-bound standing rule?
  *
- * 三個條件（照 OpenWorker 的 standing_rule_candidate）：
- *   1. 只有 EXTERNAL 風險可以。**exec 和 write_local 永遠要問。**
- *   2. 工具要有一個「目標」參數
- *   3. 這次呼叫真的有指定目標
+ * Three conditions, following OpenWorker's standing_rule_candidate:
+ *   1. EXTERNAL risk only. exec and write_local always ask.
+ *   2. the tool must have a "target" argument
+ *   3. this call must actually name a target
  *
- * 第 1 點的理由很實際：shell 指令沒有「目標」可以綁。
- * 「允許 run_command 執行 X」跟「允許 run_command」幾乎一樣危險，
- * 因為 X 下次可能長得完全不同。所以 shell 就是問到底。
+ * The reason for the first condition is practical: a shell command has no
+ * target to bind to. "Allow run_command running X" is nearly as dangerous as
+ * "allow run_command", because next time X can look completely different. So
+ * shell keeps asking.
  */
 const TARGET_ARG: Record<string, string> = {
 	send_email: "to",
