@@ -22,3 +22,6 @@ lesson-10-agent-server/sessions/
 lesson-15-memory/.memory/
 lesson-16-skills/.skills/
 lesson-09-unattended/outbox/
+
+# Lesson 29 的影子 git（不該進版控）
+lesson-29-evidence/.snapshots/

@@ -1,0 +1,9 @@
+{
+	"name": "evidence-workspace",
+	"private": true,
+	"type": "module",
+	"description": "The project the agent works on. Having its own package.json stops `npm test` from walking up into the parent repo.",
+	"scripts": {
+		"test": "echo 'no tests here' && exit 0"
+	}
+}
