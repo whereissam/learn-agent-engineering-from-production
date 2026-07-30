@@ -54,30 +54,31 @@ the full measure → find → fix → confirm loop.
 
 **If you already understand the agent loop, start at Lesson 6.**
 
-## The completed path: 23 runnable steps
+## The completed path: 27 runnable steps
 
 The thesis of the series in one sentence:
 
 > **Learn how AI agents work by reading real open-source projects, one at a
 > time, and rebuilding the smallest version of each mechanism yourself.**
 
-**The 23 steps below are written and runnable, and they are ordered as one
-path, not a list of independent topics.** Steps 1-15 are the core; steps 16-23
-form an optional branch that can be skipped *as a whole*. The planned lessons
-continue the same path after step 23. Every step names the source you are
+**The 27 steps below are written and runnable.** Steps 1-17 are the core;
+steps 18-25 form an optional domain branch that can be skipped *as a whole*,
+and steps 26-27 return to the harness around the loop. The planned lessons
+continue after step 27. Every step names the source you are
 reading at that point.
 
 ```mermaid
 flowchart LR
     P1["Steps 1-5<br/><b>The engine</b><br/>Pi"] --> P2["Steps 6-7<br/><b>Your domain</b><br/>you"]
     P2 --> P3["Steps 8-12<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
-    P3 --> P4["Steps 13-15<br/><b>Running for months</b><br/>Hermes"]
-    P4 --> P5["Steps 16-23<br/><b>A whole domain</b><br/>4 search projects"]
+    P3 --> P4["Steps 13-17<br/><b>Running for months</b><br/>Hermes"]
+    P4 --> P5["Steps 18-25<br/><b>A whole domain</b><br/>4 search projects"]
+    P5 --> P6["Steps 26-27<br/><b>Around the loop</b><br/>Mastra, OpenCode"]
 ```
 
 > **Lesson numbers have gaps; step numbers don't.** 11, 13 and 14 were merged
-> into other lessons, 18-19 are deferred. Follow the **Step** column and you
-> will never wonder where you are.
+> into other lessons. Follow the **Step** column and you will never wonder
+> where you are.
 
 | Step | Lesson | The question it answers | Source you read |
 |---|---|---|---|
@@ -97,38 +98,38 @@ flowchart LR
 | 11 | [12 MCP client](lesson-12-mcp/) | How do you use someone else's tools without being dragged down? | OpenWorker `mcp/` (647 lines) |
 | 12 | [30 Schema compatibility](lesson-30-schema-compat/) | Their schema is not yours to fix — so what breaks? | Mastra `schema-compat/` |
 | | | *Lesson 30 sits here, despite its higher number, because MCP is what makes schema compatibility unavoidable — it continues step 11's experiment directly.* | |
-| | | **④ Running for months, not minutes · Lessons 15-17 · Hermes** | |
+| | | **④ Running for months, not minutes · Lessons 15-19 · Hermes**<br/>Five faces of one question: how does it keep existing while you are not watching? | |
 | 13 | [15 Long-term memory](lesson-15-memory/) | How does it still know this next time? | Hermes `memory_manager.py` |
 | 14 | [16 Skills](lesson-16-skills/) | How do capabilities accumulate without polluting context? | Hermes `skill_utils.py` |
 | 15 | [17 Cross-session search](lesson-17-search/) | How do you find that session from last month? | Hermes `session_search_tool.py` |
+| 16 | [18 Scheduling](lesson-18-scheduling/) | It runs at 3am — who starts it, and what if it dies halfway? | Hermes `cron/` (8,727 lines) |
+| 17 | [19 Delegation](lesson-19-delegation/) | Handing a task to a sub-agent — what does it get to see? | Hermes `delegate_tool.py` |
 | | | **⑤ One whole domain · Lessons 20-27 · four search projects**<br/>Optional — but it is the real thing. | |
-| 16 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
-| 17 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
-| 18 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
-| 19 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
-| 20 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
-| 21 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
-| 22 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
-| 23 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
+| 18 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
+| 19 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
+| 20 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
+| 21 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
+| 22 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
+| 23 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
+| 24 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
+| 25 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
+| | | **⑥ Around the loop · Mastra, OpenCode** | |
+| 26 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
+| 27 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
 
-Steps 16-23 can be skipped — they are a full-scale demonstration of the method
-from step 6, not a prerequisite for anything. Everything else builds forward,
-and each lesson README repeats its own prerequisites at the top.
+Steps 18-25 can be skipped — they are a full-scale demonstration of the method
+from step 6. Each lesson README states its own prerequisites at the top.
 
-### The planned continuation · Lessons 18-19 and 28-37 — not written yet
+### The planned continuation · Lessons 28 and 32-37 — not written yet
 
-These extend the same path after step 23, and **none of them are runnable
+These extend the same path after step 27, and **none of the lessons in this table are runnable
 today**. Primary sources have been cloned and scoped; which paths and line
 counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
 still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| 18 | It should run at 3am every day — who starts it, and what if it fails? | Hermes `cron/` |
-| 19 | Handing a task to a subagent — what does it get to see? | Hermes, CrewAI |
-| 28 | Interrupted mid-stream — can the session still be trusted? | OpenCode |
-| **29** | **The model says "done" — why would you believe it?** | OpenCode |
-| 31 | How do guardrails stay *out* of the loop? | Mastra |
+| **28** | **Interrupted mid-stream — can the session still be trusted?** | OpenCode |
 | 32 | 200 tools don't fit in the context window | Mastra |
 | 33 | The process died — how do you resume elsewhere? | Mastra, LangGraph |
 | 34 | The process crashed after the email was sent — should resume send it again? | Restate |
@@ -143,12 +144,14 @@ permission / session, and has a mechanism you can **switch off** and watch
 fail. A filter that only rejects bad projects is useless — this one says no to
 good ones.
 
-**Lesson 29 is the one to want most.** It answers a question step 8 leaves
-open: the permission engine blocked every attempt and the file was never
-touched, and then the model told the user *"I have refactored and simplified
-src/app.ts for you."*
+**Lesson 28 is now the one to want most.** Step 25 answered step 8's open
+question — the permission engine blocked every attempt, the file was never
+touched, and the model still told the user *"I have refactored and simplified
+src/app.ts for you."* Snapshots make that provable without a human running
+`md5`. Lesson 28 is the harder version of the same question: after an
+interruption, can the record itself be trusted?
 
-### Prod part · Lessons 50-59 — *not* part of the 23 steps
+### Prod part · Lessons 50-59 — *not* part of the 27 steps
 
 Different entry rule, different stage:
 
@@ -181,7 +184,7 @@ Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # no API key needed
-bun run test                        # 112 pass, 1 skipped; no API key needed
+bun run test                        # 162 pass, 1 skipped; no API key needed
 ```
 
 `fake` is a scripted model. It doesn't think, but **the loop is entirely
@@ -213,7 +216,7 @@ work — what they teach doesn't live in the model.
 > **The model is the one part of this series you don't have to build.**
 
 - **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
-  covered by **113 deterministic checks: 112 passing, 1 intentionally skipped**
+  covered by **163 deterministic checks: 162 passing, 1 intentionally skipped**
   (a live-provider contract test that only runs when `PROVIDER` is set, because
   it spends money).
 - **Model behaviour** is measured separately against live Gemini 3.6 Flash,
@@ -237,7 +240,9 @@ The parts worth reading even if you never run the code:
 - **Lesson 8** — the permission engine blocked every attempt and the file was
   never touched, and then the model told the user *"I have refactored and
   simplified src/app.ts for you."* The engine worked 100%; the user was
-  deceived 100%. **Lesson 29 exists to answer this.**
+  deceived 100%. **Lesson 29 answers it**: a shadow-git snapshot around the
+  turn makes "no file changed" a fact the harness holds, not something a human
+  has to go and check. Live Gemini claimed completion 3/3 with an empty patch.
 - **Lesson 21** — an extractor that silently dropped `<table>` burned two
   entire step budgets. No error, no warning, the answer simply wasn't findable.
 - **Lesson 22** — average nDCG went *up* while one query collapsed from 1.000
@@ -247,6 +252,14 @@ The parts worth reading even if you never run the code:
 - **Lesson 27** — a similarity threshold copied verbatim from a respected
   project blocked nothing, because a threshold is a property of the embedding
   model, not a universal constant.
+- **Lesson 19** — the same task, solo vs. delegated to three sub-agents:
+  identical correctness, **3.9x the tokens**. The cost isn't coordination
+  overhead, it's that every sub-agent re-explores from scratch — the parent's
+  `list_files` doesn't cross the isolation boundary.
+- **Lesson 29** — the tool reported two successful edits and the working tree
+  ended up byte-identical. Tool results describe calls; only the filesystem
+  describes outcomes. The same lesson caught a sandbox escape 27 lessons after
+  the first one: the agent ran `npm test` and it climbed into this repo.
 
 The pattern behind several of these: **models are very good at papering over
 bad infrastructure**, which makes bad infrastructure look fine until the once

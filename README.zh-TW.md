@@ -52,27 +52,28 @@ Lesson 6 從零設計一整組領域工具，Lesson 7 跑完
 
 **如果你已經懂 agent loop，直接從 Lesson 6 開始。**
 
-## 已完成的路：23 步，都跑得起來
+## 已完成的路：27 步，都跑得起來
 
 這個系列的主旨一句話：
 
 > **透過真實開源專案的原始碼，從零開始搞懂 AI agent——
 > 一次讀一個專案，把它的機制抽成自己寫得出來的最小版本。**
 
-**下面 23 步都寫完了、都跑得起來，而且是照一條路排的**，不是一堆獨立主題。
-第 1-15 步是核心；第 16-23 步是一條**可以整包跳過**的支線。
-規劃中的課接在第 23 步後面，走同一條路。
+**下面 27 步都寫完了、都跑得起來。** 第 1-17 步是核心；第 18-25 步是
+一條**可以整包跳過**的領域支線，第 26-27 步回到 loop 周圍的 harness。
+規劃中的課接在第 27 步後面。
 每一步都標出你在讀哪個專案的哪一段。
 
 ```mermaid
 flowchart LR
     P1["第 1-5 步<br/><b>引擎本體</b><br/>Pi"] --> P2["第 6-7 步<br/><b>你的領域</b><br/>自己做"]
     P2 --> P3["第 8-12 步<br/><b>從 loop 到能用的系統</b><br/>OpenWorker + Mastra"]
-    P3 --> P4["第 13-15 步<br/><b>跑好幾個月</b><br/>Hermes"]
-    P4 --> P5["第 16-23 步<br/><b>一整個領域</b><br/>四個搜尋專案"]
+    P3 --> P4["第 13-17 步<br/><b>跑好幾個月</b><br/>Hermes"]
+    P4 --> P5["第 18-25 步<br/><b>一整個領域</b><br/>四個搜尋專案"]
+    P5 --> P6["第 26-27 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode"]
 ```
 
-> **課號會跳，步驟號不會跳。** 11、13、14 併進別課，18-19 延後。
+> **課號會跳，步驟號不會跳。** 11、13、14 併進別課。
 > 你只要照著「步」那一欄走，永遠知道自己在哪裡。
 
 | 步 | 課 | 這一步回答的問題 | 你讀的原始碼 |
@@ -93,37 +94,38 @@ flowchart LR
 | 11 | [12 MCP client](lesson-12-mcp/) | 接別人寫的工具，怎麼不被拖垮？ | OpenWorker `mcp/`（647 行） |
 | 12 | [30 Schema 相容](lesson-30-schema-compat/) | 別人的 schema 你改不了，那會壞在哪？ | Mastra `schema-compat/` |
 | | | *Lesson 30 號碼比較大卻排在這裡，是因為**MCP 才讓 schema 相容變成非解不可**，它直接接續第 11 步的實驗。* | |
-| | | **④ 跑好幾個月，不是跑幾分鐘 · Lesson 15-17 · Hermes** | |
+| | | **④ 跑好幾個月，不是跑幾分鐘 · Lesson 15-19 · Hermes**<br/>同一個問題的五個面向：你不看著的時候，它怎麼繼續存在。 | |
 | 13 | [15 長期記憶](lesson-15-memory/) | 這次學到的，下次怎麼還記得？ | Hermes `memory_manager.py` |
 | 14 | [16 Skills](lesson-16-skills/) | 能力怎麼累積，又不弄髒 context？ | Hermes `skill_utils.py` |
 | 15 | [17 跨 session 搜尋](lesson-17-search/) | 上個月那個 session 怎麼找回來？ | Hermes `session_search_tool.py` |
+| 16 | [18 排程與無人值守](lesson-18-scheduling/) | 半夜三點自己跑，跑到一半死掉怎麼辦？ | Hermes `cron/`（8,727 行） |
+| 17 | [19 委派](lesson-19-delegation/) | 把任務交給子 agent，它看得到什麼？ | Hermes `delegate_tool.py` |
 | | | **⑤ 一整個領域 · Lesson 20-27 · 四個搜尋專案**<br/>可以跳過，但它才是真實的樣子。 | |
-| 16 | [20 最小的 search agent](lesson-20-search-agent/) | 模型怎麼看到訓練資料以外的東西？ | deep-research |
-| 17 | [21 Crawl 與內容抽取](lesson-21-crawl/) | 搜尋結果點進去之後呢？ | Crawl4AI、Firecrawl |
-| 18 | [22 檢索與排序](lesson-22-retrieval/) | 找到一堆結果，哪些真的相關？ | txtai |
-| 19 | [23 對照真實原始碼](lesson-23-real-world/) | 真實產品跟我們的玩具差在哪？ | 四個專案逐行對照 |
-| 20 | [24 Deep Research loop](lesson-24-research-loop/) | 研究幾十個網頁，控制流誰說了算？ | `deep-research.ts:230` |
-| 21 | [25 引用與評估](lesson-25-citations/) | 報告裡的引用是真的嗎？ | 沒有人——四個專案都不驗 |
-| 22 | [26 成本與預算](lesson-26-cost/) | 錢到底花在哪一步？ | gpt-researcher `costs.py:63` |
-| 23 | [27 本地文件 + web](lesson-27-local-docs/) | 自己的文件跟 web 怎麼混在一起搜？ | gpt-researcher `document/` |
+| 18 | [20 最小的 search agent](lesson-20-search-agent/) | 模型怎麼看到訓練資料以外的東西？ | deep-research |
+| 19 | [21 Crawl 與內容抽取](lesson-21-crawl/) | 搜尋結果點進去之後呢？ | Crawl4AI、Firecrawl |
+| 20 | [22 檢索與排序](lesson-22-retrieval/) | 找到一堆結果，哪些真的相關？ | txtai |
+| 21 | [23 對照真實原始碼](lesson-23-real-world/) | 真實產品跟我們的玩具差在哪？ | 四個專案逐行對照 |
+| 22 | [24 Deep Research loop](lesson-24-research-loop/) | 研究幾十個網頁，控制流誰說了算？ | `deep-research.ts:230` |
+| 23 | [25 引用與評估](lesson-25-citations/) | 報告裡的引用是真的嗎？ | 沒有人——四個專案都不驗 |
+| 24 | [26 成本與預算](lesson-26-cost/) | 錢到底花在哪一步？ | gpt-researcher `costs.py:63` |
+| 25 | [27 本地文件 + web](lesson-27-local-docs/) | 自己的文件跟 web 怎麼混在一起搜？ | gpt-researcher `document/` |
+| | | **⑥ loop 周圍那一圈 · Mastra、OpenCode** | |
+| 26 | [31 Processor pipeline](lesson-31-processors/) | guardrail 怎麼留在 loop 外，而且 secret 不漏進任何 sink？ | Mastra `core/src/processors/` |
+| 27 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
 
-第 16-23 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
-其餘每一步都疊在前一步上，而且每一課的 README 開頭都會再標一次自己的前置。
+第 18-25 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
+每一課的 README 開頭都會再標一次自己的前置。
 
-### 規劃中的續篇 · Lesson 18-19、28-37 —— 還沒寫
+### 規劃中的續篇 · Lesson 28、32-37 —— 還沒寫
 
-它們接在第 23 步後面，走同一條路，而且**目前一課都跑不起來**。
+它們接在第 27 步後面，而且**這張表裡的課目前都跑不起來**。
 主要來源都 clone 下來盤點過了；**哪些路徑和行數真的驗證過、
 哪些（CrewAI、LangGraph、x402）目前只是對照來源還沒盤點**，
 照實記在 [docs/TODO.md](docs/TODO.md)。
 
 | 課 | 這課回答的問題 | 來源 |
 |---|---|---|
-| 18 | 每天半夜三點要自己跑——誰啟動它？失敗了怎麼辦？ | Hermes `cron/` |
-| 19 | 把任務交給 subagent——它看得到什麼？ | Hermes、CrewAI |
-| 28 | 串流到一半被中斷，session 會不會說謊？ | OpenCode |
-| **29** | **模型說「改好了」，憑什麼相信它？** | OpenCode |
-| 31 | guardrail 怎麼**不要**寫死進 loop？ | Mastra |
+| **28** | **串流到一半被中斷，session 會不會說謊？** | OpenCode |
 | 32 | 200 個工具塞不進 context 怎麼辦？ | Mastra |
 | 33 | 進程死了，怎麼換一台機器接回來？ | Mastra、LangGraph |
 | 34 | 信已經寄出去了才 crash，接回來要不要再寄一次？ | Restate |
@@ -137,11 +139,14 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 而且有一個**關得掉、關掉就看得到失敗**的機制。
 **一個只會對爛專案說不的判準沒有用，這一個會對好專案說不。**
 
-**最想要的是 Lesson 29。** 它回答第 8 步留下來的問題：
-權限引擎擋下了每一次嘗試、檔案一個 byte 都沒動，
-**然後模型跟使用者說「已經為您將 src/app.ts 重構並簡化」**。
+**現在最想要的是 Lesson 28。** 第 8 步留下來的那個問題
+（權限引擎擋下每一次嘗試、檔案一個 byte 都沒動，
+**然後模型說「已經為您將 src/app.ts 重構並簡化」**）
+已經由第 25 步回答了：snapshot 讓「什麼都沒變」變成 harness 握著的事實，
+不用人去跑 `md5`。Lesson 28 是同一個問題更難的版本：
+**被中斷之後，那份紀錄本身還可不可信。**
 
-### Prod 篇 · Lesson 50-59 —— **不算在 23 步裡**
+### Prod 篇 · Lesson 50-59 —— **不算在 27 步裡**
 
 准入條件不一樣，因為它是另一個階段：
 
@@ -173,7 +178,7 @@ vLLM 和 Fish Speech 都 clone 下來盤點過才放進這一篇的，
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # 不用 API key
-bun run test                        # 112 通過、1 skip；不用 API key
+bun run test                        # 162 通過、1 skip；不用 API key
 ```
 
 `fake` 是照腳本回應的假模型。它不會思考，但**整個 loop 是完全真實的**：
@@ -206,7 +211,7 @@ Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案，`bun run reset` 
 
 > **模型是這個系列裡唯一一個你不用蓋的零件。**
 
-- **機制**（權限、inbox、排序、引用檢查、檢索）由 **113 個確定性檢查覆蓋：112 通過，1 個是刻意 skip 的**
+- **機制**（權限、inbox、排序、引用檢查、檢索）由 **163 個確定性檢查覆蓋：162 通過，1 個是刻意 skip 的**
   （那是要真 provider 才跑的契約測試，因為它會花錢）。
 - **模型行為**分開量，用真的 Gemini 3.6 Flash 反覆跑，每一次都記在
   [docs/TODO.md](docs/TODO.md) 裡，**包括結果跟我預期相反的那幾次**
@@ -225,7 +230,10 @@ OpenAI 全部是 0（reasoning 已經含在裡面）。**同一個欄位名，�
 
 - **Lesson 8** — 權限引擎擋下了每一次嘗試，檔案一個 byte 都沒動，
   然後模型跟使用者說「**已經為您將 src/app.ts 重構並簡化**」。
-  引擎 100% 成功，使用者 100% 被騙。**Lesson 29 就是為了回答這件事而存在。**
+  引擎 100% 成功，使用者 100% 被騙。**Lesson 29 回答了它**：
+  在一輪的兩端各抓一次影子 git snapshot，「沒有任何檔案變更」就變成
+  harness 握著的事實，不用人去查。真 Gemini 3/3 都在 patch 是空的情況下
+  宣稱完成。
 - **Lesson 21** — 抽取器安靜地把 `<table>` 丟掉，燒掉兩次完整的步數上限。
   沒有錯誤、沒有警告，答案就是永遠找不到。
 - **Lesson 22** — 平均 nDCG 上升，但其中一題從 1.000 崩到 0.131。
@@ -234,6 +242,13 @@ OpenAI 全部是 0（reasoning 已經含在裡面）。**同一個欄位名，�
   而且會吃掉你的 `maxTokens` 額度。
 - **Lesson 27** — 從一個可信專案照抄過來的相似度門檻，**一筆都沒擋掉**，
   因為門檻是那個 embedding 模型的性質，不是通則。
+- **Lesson 19** — 同一個任務，一個 agent 做 vs 拆給三個子 agent：
+  正確率一樣，**token 3.9 倍**。代價不在協調，而在**每個子 agent 都要
+  自己重新探索一遍** —— 父 agent 的 `list_files` 跨不過那條隔離邊界。
+- **Lesson 29** — 工具回報了兩次成功的編輯，working tree 最後一個 byte
+  都沒變。tool result 描述的是「這次呼叫做了什麼」，只有檔案系統描述結果。
+  同一課還抓到隔了 27 課再度發生的沙箱逃逸：agent 跑 `npm test`，
+  爬到本專案的測試上。
 
 背後有一條共同的線：**模型很會替爛基礎設施擦屁股**，
 所以爛設計會一直看起來沒問題，直到某一次它沒擦成功。
