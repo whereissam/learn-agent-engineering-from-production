@@ -116,7 +116,7 @@ async function runTurn(
 		}
 
 		if (failure || !response) {
-			console.log(red(`\n[串流失敗] ${failure ?? "沒有正常結束"}`));
+			console.log(red(`\n[stream failed] ${failure ?? "did not end cleanly"}`));
 			return;
 		}
 
@@ -137,7 +137,7 @@ async function runTurn(
 					denial = decision.reason;
 				} else if (decision.needsUser) {
 					console.log(
-						`\n${yellow("⏸")}  ${bold("agent 暫停")}：${call.name} 需要批准，但沒人在場`,
+						`\n${yellow("⏸")}  ${bold("agent paused")}: ${call.name} needs approval and nobody is here`,
 					);
 					console.log(dim(`   ${decision.reason}`));
 
@@ -153,10 +153,10 @@ async function runTurn(
 					const waited = Date.now() - started;
 
 					console.log(
-						dim(`   等了 ${waited}ms 之後，從另一個介面收到：`) +
+						dim(`   after waiting ${waited}ms, an answer arrived from another surface: `) +
 							(outcome === "deny" ? red(outcome) : green(outcome)),
 					);
-					if (outcome === "deny") denial = `使用者拒絕了。（${decision.reason}）`;
+					if (outcome === "deny") denial = `The user declined. (${decision.reason})`;
 					if (outcome === "always") engine.allowToolForSession(call.name);
 				}
 			}
@@ -168,7 +168,7 @@ async function runTurn(
 					content: `Denied by the permission engine: ${denial}`,
 					isError: true,
 				});
-				console.log(`  ${red("✗ 沒有執行")} ${dim(denial)}`);
+				console.log(`  ${red("✗ not executed")} ${dim(denial)}`);
 				continue;
 			}
 
@@ -191,7 +191,7 @@ async function runTurn(
 		messages.push({ role: "toolResult", results });
 	}
 
-	console.log(red(`\n[已達 ${MAX_STEPS} 步上限]`));
+	console.log(red(`\n[hit the ${MAX_STEPS}-step cap]`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ async function runTurn(
  */
 function startOtherSurface(store: InboxStore): { stop: () => void } {
 	if (RESOLVE === "none") {
-		console.log(dim("RESOLVE=none：沒有人會回答，agent 會一直等下去（Ctrl+C 離開）\n"));
+		console.log(dim("RESOLVE=none: nobody will answer, so the agent waits forever (Ctrl+C to leave)\n"));
 		return { stop: () => {} };
 	}
 
@@ -212,7 +212,7 @@ function startOtherSurface(store: InboxStore): { stop: () => void } {
 		const pending = store.pending(SESSION_ID);
 		const item = pending[0];
 		if (!item) return;
-		console.log(dim(`\n   [你的手機] 看到通知「${item.title}」，按了「${RESOLVE}」`));
+		console.log(dim(`\n   [your phone] saw the notification "${item.title}" and tapped "${RESOLVE}"`));
 		void store.resolve(item.id, RESOLVE === "deny" ? "deny" : "allow");
 	}, RESOLVE_DELAY_MS);
 
@@ -234,12 +234,12 @@ async function main(): Promise<void> {
 	const reader = new LineReader();
 	const ctx: ToolContext = {
 		root: ROOT,
-		approve: async () => true, // 引擎已經決定過了
+		approve: async () => true, // the engine has already decided
 		log: (line) => console.log(dim(`    │ ${line}`)),
 	};
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(dim(`手機會在 ${RESOLVE_DELAY_MS}ms 後回答「${RESOLVE}」\n`));
+	console.log(dim(`the phone will answer "${RESOLVE}" after ${RESOLVE_DELAY_MS}ms\n`));
 
 	const surface = startOtherSurface(store);
 	const controller = new AbortController();
@@ -247,8 +247,8 @@ async function main(): Promise<void> {
 
 	try {
 		if (!process.env.PROVIDER) {
-			const prompt = "幫我寄一封每日摘要給 team@example.com。";
-			console.log(`${cyan("你")} ${prompt}`);
+			const prompt = "Send a daily summary to team@example.com for me.";
+			console.log(`${cyan("you")} ${prompt}`);
 			messages.push({ role: "user", text: prompt });
 			await runTurn(provider, engine, approve, messages, ctx, controller.signal);
 		} else {
@@ -271,12 +271,12 @@ async function main(): Promise<void> {
 	//
 	// This section is Lesson 8 Step 7's lesson: **do not trust the model's self-report.**
 	// outbox/ is the fact, and nothing the model says changes it.
-	console.log(bold("\n──── 實際發生的事（不看模型怎麼說）────"));
+	console.log(bold("\n──── what actually happened (ignoring what the model said) ────"));
 	const sent = existsSync(OUTBOX_DIR) ? readdirSync(OUTBOX_DIR) : [];
-	console.log(`  outbox/ 裡有 ${sent.length} 封信${sent.length ? `：${sent.join(", ")}` : ""}`);
+	console.log(`  outbox/ holds ${sent.length} message(s)${sent.length ? `: ${sent.join(", ")}` : ""}`);
 
 	const { pending, recap } = store.reconcileOnResume(SESSION_ID);
-	console.log(`  inbox 還有 ${pending.length} 個待處理，${recap.length} 個已處理`);
+	console.log(`  inbox has ${pending.length} still pending and ${recap.length} resolved`);
 	for (const item of recap) {
 		const mark = item.resolution === "deny" ? red("✗") : green("✓");
 		console.log(dim(`    ${mark} ${item.title} → ${item.resolution}`));

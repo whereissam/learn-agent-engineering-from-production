@@ -78,16 +78,16 @@ const VARIANT = (process.env.DESC ?? "good").toLowerCase();
  */
 const DISTRACTOR_SETS: Record<string, Array<[string, string, string]>> = {
 	easy: [
-		["compare-sessions", "Compare two robot sessions field by field.", "逐欄位比對。"],
-		["export-report", "Export an incident report as PDF.", "輸出 PDF。"],
-		["tune-gait", "Adjust walking gait parameters for a robot.", "調整步態參數。"],
-		["check-battery", "Check battery health across a robot fleet.", "檢查電池健康度。"],
+		["compare-sessions", "Compare two robot sessions field by field.", "Field-by-field comparison."],
+		["export-report", "Export an incident report as PDF.", "Writes a PDF."],
+		["tune-gait", "Adjust walking gait parameters for a robot.", "Adjusts gait parameters."],
+		["check-battery", "Check battery health across a robot fleet.", "Checks battery health."],
 	],
 	hard: [
-		["session-timeline", "Show a timeline of events in a robot session.", "列出事件時間軸。"],
-		["sensor-dump", "Export raw sensor readings for a time range.", "匯出區間內的原始讀數。"],
-		["fall-detector", "Detect fall events from accelerometer data.", "從加速度計偵測跌倒。"],
-		["incident-summary", "Summarise what happened during an incident.", "摘要事故經過。"],
+		["session-timeline", "Show a timeline of events in a robot session.", "Lists an event timeline."],
+		["sensor-dump", "Export raw sensor readings for a time range.", "Exports raw readings for a range."],
+		["fall-detector", "Detect fall events from accelerometer data.", "Detects falls from the accelerometer."],
+		["incident-summary", "Summarise what happened during an incident.", "Summarises an incident."],
 	],
 };
 
@@ -97,7 +97,7 @@ const DISTRACTORS =
 
 /** The question deliberately **excludes** the words in the skill's name, so literal matching alone cannot succeed. */
 const QUESTION =
-	"機器人 R-204 昨天在倉庫跌倒了，我想看看牠倒下去前後那段時間的感測器數值。該怎麼做？";
+	"Robot R-204 fell over in the warehouse yesterday. I want to see the sensor values around the moment it went down. How do I do that?";
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
@@ -121,7 +121,7 @@ function skillFile(name: string, description: string, body: string): string {
 async function main(): Promise<void> {
 	const description = DESCRIPTIONS[VARIANT];
 	if (!description) {
-		throw new Error(`DESC 只能是 ${Object.keys(DESCRIPTIONS).join(" / ")}`);
+		throw new Error(`DESC must be one of ${Object.keys(DESCRIPTIONS).join(" / ")}`);
 	}
 
 	const dir = mkdtempSync(resolve(tmpdir(), "lesson16-"));
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 		skillFile(
 			TARGET,
 			description,
-			"1. 找出 fall 事件的時間戳\n2. 取前後各 5 秒的所有感測器欄位\n3. 對齊時間軸後輸出",
+			"1. Find the fall event's timestamp\n2. Take every sensor field for 5 seconds either side\n3. Align the timeline and print it",
 		),
 	);
 	for (const [name, desc, body] of DISTRACTORS) {
@@ -141,10 +141,14 @@ async function main(): Promise<void> {
 	await store.load();
 	const index = store.buildIndex();
 
-	console.log(bold(`\nSkill 路由實驗   DESC=${VARIANT}  NAME=${OPAQUE_NAME ? "opaque" : "descriptive"}  干擾項=${DISTRACTOR_MODE}`));
+	console.log(
+		bold(
+			`\nSkill routing experiment   DESC=${VARIANT}  NAME=${OPAQUE_NAME ? "opaque" : "descriptive"}  distractors=${DISTRACTOR_MODE}`,
+		),
+	);
 	console.log(dim("─".repeat(66)));
-	console.log(dim(`原始描述 ${description.length} 字元`));
-	console.log(dim("模型實際看到的索引："));
+	console.log(dim(`original description: ${description.length} characters`));
+	console.log(dim("the index the model actually sees:"));
 	console.log(dim(index.split("\n").map((l) => `  │ ${l}`).join("\n")));
 	console.log(dim("─".repeat(66)));
 
@@ -165,7 +169,7 @@ async function main(): Promise<void> {
 
 	const messages: Message[] = [{ role: "user", text: QUESTION }];
 
-	console.log(`\n${bold("問：")}${QUESTION}`);
+	console.log(`\n${bold("Q: ")}${QUESTION}`);
 
 	const loaded: string[] = [];
 	let stopReason = "?";
@@ -186,18 +190,18 @@ async function main(): Promise<void> {
 	// ── the deterministic verdict ───────────────────────────────
 	const hit = loaded.includes(TARGET);
 
-	console.log(bold(`\n\n判定`));
-	console.log(`  模型載入了：${loaded.length ? loaded.join(", ") : dim("（沒有載入任何 skill）")}`);
+	console.log(bold(`\n\nVerdict`));
+	console.log(`  the model loaded: ${loaded.length ? loaded.join(", ") : dim("(no skill at all)")}`);
 	console.log(
 		hit
-			? `  ${green("✓ 路由成功")}：找到了 ${TARGET}`
-			: `  ${red("✗ 路由失敗")}：沒有載入 ${TARGET}`,
+			? `  ${green("✓ routing succeeded")}: it found ${TARGET}`
+			: `  ${red("✗ routing failed")}: ${TARGET} was never loaded`,
 	);
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
 	// Lesson 15's lesson: without a normal finish, "it did not happen" is not a conclusion.
 	if (!hit && stopReason !== "tool_use" && stopReason !== "end") {
-		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
+		console.log(yellow(`  ⚠ the reply did not end cleanly (${stopReason}), so this result is not trustworthy; run it again`));
 	}
 
 	rmSync(dir, { recursive: true, force: true });
@@ -213,7 +217,7 @@ function scriptedProvider(): StreamingProvider {
 	};
 	return {
 		name: "fake",
-		model: "scripted-routing（不能當證據）",
+		model: "scripted-routing (not evidence)",
 		async *stream() {
 			yield { type: "tool_call", ...call };
 			yield { type: "done", response };

@@ -140,7 +140,7 @@ async function gate(
 	if (decision.needsUser) {
 		const approved = await ask(decision, toolName, args);
 		if (!approved) {
-			return { decision, risk, denial: denialText(`使用者拒絕了。（${decision.reason}）`) };
+			return { decision, risk, denial: denialText(`The user declined. (${decision.reason})`) };
 		}
 	}
 
@@ -200,11 +200,11 @@ async function runTurn(
 		}
 
 		if (streamError) {
-			console.log(red(`\n[${streamError.aborted ? "已中斷" : "串流失敗"}] ${streamError.message}`));
+			console.log(red(`\n[${streamError.aborted ? "interrupted" : "stream failed"}] ${streamError.message}`));
 			return;
 		}
 		if (!response) {
-			console.log(red("\n[串流沒有正常結束]"));
+			console.log(red("\n[the stream did not end cleanly]"));
 			return;
 		}
 
@@ -235,8 +235,8 @@ async function runTurn(
 					content: denial,
 					isError: true,
 				});
-				console.log(`  ${red("✗ 擋下來了")} ${dim(decision.reason)}`);
-				console.log(dim(`    模型會收到：${JSON.stringify(firstLine(denial))}`));
+				console.log(`  ${red("✗ blocked")} ${dim(decision.reason)}`);
+				console.log(dim(`    the model receives: ${JSON.stringify(firstLine(denial))}`));
 				continue;
 			}
 
@@ -244,7 +244,7 @@ async function runTurn(
 				const content = await registry.execute(call.name, call.args, ctx);
 				results.push({ toolCallId: call.id, toolName: call.name, content });
 				console.log(
-					`  ${green("✓ 放行")} ${dim(decision.rule ? `（規則：${decision.rule}）` : decision.reason)}`,
+					`  ${green("✓ allowed")} ${dim(decision.rule ? `(rule: ${decision.rule})` : decision.reason)}`,
 				);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -254,14 +254,14 @@ async function runTurn(
 					content: message,
 					isError: true,
 				});
-				console.log(`  ${red("✗ 執行失敗")} ${red(firstLine(message))}`);
+				console.log(`  ${red("✗ execution failed")} ${red(firstLine(message))}`);
 			}
 		}
 
 		messages.push({ role: "toolResult", results });
 	}
 
-	console.log(red(`\n[已達 ${MAX_STEPS} 步上限]`));
+	console.log(red(`\n[hit the ${MAX_STEPS}-step cap]`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -284,17 +284,17 @@ function makeAsker(reader: LineReader) {
 		toolName: string,
 		args: Record<string, unknown>,
 	): Promise<boolean> => {
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${toolName}(${summarize(args)})`);
 		console.log(`${yellow("│")} ${dim(decision.reason)}`);
 		console.log(yellow("└"));
 
 		if (ANSWER) {
-			console.log(dim(`  （ANSWER=${ANSWER}，自動回答）`));
+			console.log(dim(`  (ANSWER=${ANSWER}, answered automatically)`));
 			return ANSWER === "y" || ANSWER === "yes";
 		}
 
-		const line = await reader.next(`  ${yellow("[y]")} 允許  ${yellow("[n]")} 拒絕 › `);
+		const line = await reader.next(`  ${yellow("[y]")} allow  ${yellow("[n]")} deny › `);
 		if (line === null) return false;
 		return line.trim().toLowerCase().startsWith("y");
 	};
@@ -341,8 +341,8 @@ async function main(): Promise<void> {
 	};
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(dim(`模式: ${engine.mode}   允許清單: ls, git status, cat`));
-	console.log(dim(`拒絕訊息${DENY_HINT ? "有" : "沒有"}加「不要繞道」的指示（DENY_HINT）`));
+	console.log(dim(`mode: ${engine.mode}   allowlist: ls, git status, cat`));
+	console.log(dim(`the denial ${DENY_HINT ? "does" : "does not"} carry the "do not work around this" instruction (DENY_HINT)`));
 	console.log();
 
 	const controller = new AbortController();
@@ -351,11 +351,11 @@ async function main(): Promise<void> {
 	try {
 		// Scripted mode: ask one question automatically and play the whole thing through.
 		if (!process.env.PROVIDER) {
-			const prompt = "src/app.ts 寫得很亂，幫我砍掉重來。";
-			console.log(`${cyan("你")} ${prompt}`);
+			const prompt = "src/app.ts is a mess. Wipe it and start over.";
+			console.log(`${cyan("you")} ${prompt}`);
 			messages.push({ role: "user", text: prompt });
 			await runTurn(provider, engine, messages, ctx, ask, controller.signal);
-			console.log(dim("\n（這是腳本化的示範。用 PROVIDER=gemini 換成真模型自己問。）"));
+			console.log(dim("\n(A scripted demo. Use PROVIDER=gemini to ask a real model yourself.)"));
 			return;
 		}
 

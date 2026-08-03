@@ -110,11 +110,11 @@ async function runTurn(provider: Provider, messages: Message[]): Promise<void> {
 			// 3. Look at stopReason before reading the content.
 			//    On a refusal or a truncation, blocks may be empty or half-formed.
 		if (response.stopReason === "refusal") {
-			console.log("\n[模型拒絕了這個請求]");
+			console.log("\n[the model refused this request]");
 			return;
 		}
 		if (response.stopReason === "max_tokens") {
-			console.log(`\n[輸出撞到 ${MAX_TOKENS} token 上限，這一輪的結果不可信]`);
+			console.log(`\n[output hit the ${MAX_TOKENS} token cap; this turn is not trustworthy]`);
 			return;
 		}
 
@@ -184,7 +184,7 @@ async function main(): Promise<void> {
 	const rl = createInterface({ input: process.stdin, output: process.stdout });
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(dim("輸入問題，/exit 或 Ctrl+C 離開\n"));
+	console.log(dim("Ask a question. /exit or Ctrl+C to leave\n"));
 
 	try {
 		while (true) {
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
 			try {
 				input = (await rl.question("\x1b[36m> \x1b[0m")).trim();
 			} catch {
-				break; // stdin 關掉了（Ctrl+D，或用管線餵輸入）
+				break; // stdin closed (Ctrl+D, or piped input ran out)
 			}
 			if (!input) continue;
 			if (input === "/exit") break;

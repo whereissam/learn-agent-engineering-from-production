@@ -53,8 +53,8 @@ The reported window overlaps the anomaly returned by \`find_anomalies\`.
 // ─────────────────────────────────────────────────────────────
 
 async function scenario1(): Promise<void> {
-	console.log(bold("\n情境 1：progressive disclosure（為什麼描述只能 60 字）"));
-	console.log(dim("skill 不是全部塞進 system prompt，是拆成索引 + 本文。\n"));
+	console.log(bold("\nScenario 1: progressive disclosure (why a description gets only 60 characters)"));
+	console.log(dim("Skills are not stuffed into the system prompt; they split into an index and a body.\n"));
 
 	const store = new SkillStore({ dir: ACTIVE });
 	store.add(parseSkill(GOOD_SKILL));
@@ -65,21 +65,21 @@ async function scenario1(): Promise<void> {
 		)),
 	);
 
-	console.log(dim("每次請求都會載入的「索引」："));
+	console.log(dim('the "index" loaded on every request:'));
 	for (const line of store.buildIndex().split("\n")) console.log(`  ${line}`);
 
-	console.log(dim(`\n索引成本：${store.indexCost()} 字元，**每一輪都要付**`));
-	console.log(dim("本文只有在模型呼叫 load_skill 時才載入：\n"));
+	console.log(dim(`\nindex cost: ${store.indexCost()} characters, **paid every turn**`));
+	console.log(dim("the body only loads when the model calls load_skill:\n"));
 	const body = store.loadBody("replay-fall-window");
-	console.log(dim(`  ${body.split("\n").length} 行、${body.length} 字元（沒被呼叫就不佔 context）`));
+	console.log(dim(`  ${body.split("\n").length} lines, ${body.length} characters (costing no context until called)`));
 
-	console.log(dim("\n所以 description 是「路由用的」，不是「說明用的」。"));
-	console.log(dim("模型只憑那一行決定要不要展開。"));
+	console.log(dim('\nSo a description is for routing, not for explaining.'));
+	console.log(dim("The model decides whether to expand on that one line alone."));
 }
 
 async function scenario2(): Promise<void> {
-	console.log(bold("\n\n情境 2：超過 60 字會安靜地失效"));
-	console.log(dim("這是 Hermes authoring standard 裡「最常被違反」的一條。\n"));
+	console.log(bold("\n\nScenario 2: going over 60 characters fails silently"));
+	console.log(dim("This is the most-violated rule in the Hermes authoring standard.\n"));
 
 	const bad = parseSkill(
 		GOOD_SKILL.replace(
@@ -88,16 +88,16 @@ async function scenario2(): Promise<void> {
 		),
 	);
 
-	console.log(dim(`原始描述（${bad.frontmatter.description.length} 字元）：`));
+	console.log(dim(`original description (${bad.frontmatter.description.length} characters):`));
 	console.log(`  ${bad.frontmatter.description}`);
 
 	const store = new SkillStore({ dir: ACTIVE });
 	store.add(bad);
-	console.log(dim("\n模型實際看到的："));
+	console.log(dim("\nwhat the model actually sees:"));
 	for (const line of store.buildIndex().split("\n").slice(-1)) console.log(`  ${red(line)}`);
-	console.log(red(`  ↑ 第 ${MAX_DESCRIPTION_CHARS} 字之後被切掉了，而且沒有任何錯誤訊息`));
+	console.log(red(`  ↑ everything past character ${MAX_DESCRIPTION_CHARS} was cut, with no error message at all`));
 
-	console.log(dim("\n自動檢查抓到的問題："));
+	console.log(dim("\nwhat the automatic checks caught:"));
 	for (const issue of validateSkill(bad)) {
 		const mark = issue.blocking ? red("✗") : yellow("!");
 		console.log(`  ${mark} ${issue.field}: ${dim(issue.message)}`);
@@ -105,57 +105,58 @@ async function scenario2(): Promise<void> {
 }
 
 async function scenario3(): Promise<void> {
-	console.log(bold("\n\n情境 3：提議 → 審核 → 啟用"));
-	console.log(dim("agent 可以寫，但寫進一個「不會生效」的地方。\n"));
+	console.log(bold("\n\nScenario 3: propose → review → enable"));
+	console.log(dim("The agent may write, but it writes into a place that has no effect.\n"));
 
 	const queue = new SkillReviewQueue({ proposedDir: PROPOSED, activeDir: ACTIVE });
 
 		// The agent extracts a skill from one successful task
 	const proposal = await queue.propose(parseSkill(GOOD_SKILL), {
 		sessionId: "sess_042",
-		summary: "使用者請我分析 sess_001 的跌倒，我用了 get_session → find_anomalies → query_telemetry",
+		summary:
+			"The user asked me to analyse the fall in sess_001; I used get_session → find_anomalies → query_telemetry",
 	});
 
-	console.log(`  agent 提議了 "${proposal.skill.frontmatter.name}"`);
-	console.log(dim(`  來源：${proposal.skill.proposedFrom?.summary}`));
-	console.log(dim(`  自動檢查：${proposal.blocked ? red("有 blocking 問題") : green("通過")}`));
+	console.log(`  the agent proposed "${proposal.skill.frontmatter.name}"`);
+	console.log(dim(`  source: ${proposal.skill.proposedFrom?.summary}`));
+	console.log(dim(`  automatic checks: ${proposal.blocked ? red("blocking issues") : green("passed")}`));
 
 		// The key: the model cannot see it at this point
 	const store = new SkillStore({ dir: ACTIVE, proposedDir: PROPOSED });
 	await store.load();
-	console.log(dim(`\n  目前索引裡有 ${store.list().length} 個 skill`));
-	console.log(dim(`  等待審核的有 ${store.list("proposed").length} 個`));
-	console.log(yellow("  → 提議中的 skill 對模型「不存在」，這就是閘門的實際位置"));
+	console.log(dim(`\n  the index currently holds ${store.list().length} skill(s)`));
+	console.log(dim(`  ${store.list("proposed").length} awaiting review`));
+	console.log(yellow("  → a proposed skill does not exist to the model; that is where the gate really sits"));
 
 		// A human reviews
-	console.log(dim("\n  [人類] 看過內容，核准"));
+	console.log(dim("\n  [human] read it and approved"));
 	console.log(dim(`  ${await queue.decide("replay-fall-window", { action: "approve", reviewer: "sam" })}`));
 
 	const after = new SkillStore({ dir: ACTIVE, proposedDir: PROPOSED });
 	await after.load();
-	console.log(dim(`\n  現在索引裡有 ${after.list().length} 個 skill：`));
+	console.log(dim(`\n  the index now holds ${after.list().length} skill(s):`));
 	for (const line of after.buildIndex().split("\n").slice(-1)) console.log(`  ${green(line)}`);
 }
 
 async function scenario4(): Promise<void> {
-	console.log(bold("\n\n情境 4：為什麼需要工具白名單"));
-	console.log(dim("Hermes 的 background review 會 fork 一個 agent 在背景整理學習心得。\n"));
+	console.log(bold("\n\nScenario 4: why a tool allowlist is needed"));
+	console.log(dim("Hermes' background review forks an agent to write up what it learned.\n"));
 
-	console.log(dim("  那個 fork 跑在背景、沒人看著。如果它有完整權限……"));
-	console.log(dim("  所以 Hermes 給它一個白名單，其他工具在 runtime 一律拒絕：\n"));
+	console.log(dim("  That fork runs in the background with nobody watching. If it had full permissions…"));
+	console.log(dim("  So Hermes gives it an allowlist and refuses every other tool at runtime:\n"));
 
 	for (const tool of ["propose_skill", "remember", "read_file", "run_command", "write_file", "send_email"]) {
 		const ok = isAllowedInProposalFork(tool);
-		console.log(`    ${ok ? green("允許") : red("拒絕")}  ${tool}`);
+		console.log(`    ${ok ? green("allow") : red("deny ")}  ${tool}`);
 	}
 
-	console.log(dim("\n  它能寫 skill，但不能順便去跑 shell 或寄信。"));
-	console.log(dim("  這跟 Lesson 8 的風險分級是同一個想法，只是套用在「背景的自己」身上。"));
+	console.log(dim("\n  It can write a skill, but it cannot slip in a shell command or an email."));
+	console.log(dim("  Same idea as Lesson 8's risk classes, applied to a background copy of itself."));
 }
 
 async function scenario5(): Promise<void> {
-	console.log(bold("\n\n情境 5：被拒絕的提議要封存，不要刪掉"));
-	console.log(dim("Hermes 刪 skill 也是封存（hermes curator restore 救得回來）。\n"));
+	console.log(bold("\n\nScenario 5: archive rejected proposals, do not delete them"));
+	console.log(dim("Hermes archives on delete too (hermes curator restore brings it back).\n"));
 
 	const queue = new SkillReviewQueue({ proposedDir: PROPOSED, activeDir: ACTIVE });
 
@@ -175,29 +176,29 @@ author: Hermes
 
 	await queue.propose(evil, {
 		sessionId: "sess_099",
-		summary: "使用者說測試跑太久，我學到可以跳過",
+		summary: "The user said the tests take too long, so I learned they can be skipped",
 	});
 
-	console.log(dim(`  agent 提議了 "fast-deploy"`));
-	console.log(red("  這正是「錯誤經驗被永久保存」的樣子："));
-	console.log(red("  一次趕時間的捷徑，變成未來的標準流程。"));
+	console.log(dim(`  the agent proposed "fast-deploy"`));
+	console.log(red("  This is exactly what a bad lesson looks like once it is preserved forever:"));
+	console.log(red("  one rushed shortcut becomes the standard procedure from now on."));
 
-	console.log(dim("\n  [人類] 拒絕"));
+	console.log(dim("\n  [human] rejected"));
 	const msg = await queue.decide("fast-deploy", {
 		action: "reject",
 		reviewer: "sam",
-		note: "跳過測試不是可重用的做法，是一次性的權宜",
+		note: "Skipping tests is not a reusable practice; it was a one-off expedient",
 	});
 	console.log(dim(`  ${msg}`));
 
-	console.log(dim("\n  為什麼封存而不是刪掉？"));
-	console.log(dim("  被拒絕的提議本身就是資料：它告訴你 agent 想學什麼、"));
-	console.log(dim("  以及你為什麼不要。這是偵測「行為漂移」最直接的訊號。"));
+	console.log(dim("\n  Why archive rather than delete?"));
+	console.log(dim("  A rejected proposal is data in itself: it tells you what the agent wanted to learn,"));
+	console.log(dim("  and why you said no. It is the most direct signal of behavioural drift there is."));
 }
 
 // ─────────────────────────────────────────────────────────────
 
-console.log(bold("Lesson 16：Skills 與自我改進"));
+console.log(bold("Lesson 16: skills and self-improvement"));
 
 await scenario1();
 await scenario2();
@@ -207,6 +208,6 @@ await scenario5();
 
 await rm(ROOT, { recursive: true, force: true });
 
-console.log(bold("\n\n一句話總結"));
-console.log(dim("記憶記的是「事實」，skill 記的是「做法」。"));
-console.log(dim("做法會被執行，所以污染的後果嚴重一個量級。\n"));
+console.log(bold("\n\nIn one sentence"));
+console.log(dim("Memory records facts; a skill records a procedure."));
+console.log(dim("A procedure gets executed, so poisoning one is an order of magnitude worse.\n"));

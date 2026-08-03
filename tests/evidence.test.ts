@@ -32,7 +32,7 @@ import { Snapshot } from "../lesson-29-evidence/snapshot.ts";
 function record(
 	toolResults: ToolRecord[],
 	files: string[],
-	claim = "做完了。",
+	claim = "Done.",
 ) {
 	return { claim, toolResults, patch: { hash: "BASE", files } };
 }
@@ -45,15 +45,15 @@ const edit = (path: string, ok = true): ToolRecord => ({
 	summary: ok ? `Edited ${path}` : "denied",
 });
 
-describe("三份紀錄的比對（Lesson 29）", () => {
-	test("工具改了、檔案也變了 → 沒有結構性分歧", () => {
-		const findings = compare(record([edit("src/app.ts")], ["src/app.ts"], "已經改好 src/app.ts。"));
+describe("comparing the three records (Lesson 29)", () => {
+	test("the tool edited and the file changed → no structural divergence", () => {
+		const findings = compare(record([edit("src/app.ts")], ["src/app.ts"], "src/app.ts has been updated."));
 		assert.equal(hasStructuralDivergence(findings), false);
 	});
 
-	test("被拒絕、什麼都沒變 → no-evidence（Lesson 8 那個謊報）", () => {
+	test("denied and nothing changed → no-evidence (Lesson 8's false report)", () => {
 		const findings = compare(
-			record([edit("src/app.ts", false)], [], "已經為您將 src/app.ts 重構並簡化。"),
+			record([edit("src/app.ts", false)], [], "I have refactored and simplified src/app.ts for you."),
 		);
 		assert.deepEqual(
 			findings.map((f) => f.kind),
@@ -61,22 +61,22 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 		);
 	});
 
-	test("改完又改回去 → unbacked-write，而且 snapshot 才是對的", () => {
+	test("changed and changed back → unbacked-write, and the snapshot is the one that is right", () => {
 		const findings = compare(record([edit("src/app.ts"), edit("src/app.ts")], []));
 		const kinds = findings.map((f) => f.kind);
 		assert.ok(kinds.includes("unbacked-write"));
 		assert.equal(hasStructuralDivergence(findings), true);
 	});
 
-	test("沒有工具承認的變更 → unreported-change", () => {
-		const findings = compare(record([], ["notes.md"], "我看完了。"));
+	test("a change no tool admits to → unreported-change", () => {
+		const findings = compare(record([], ["notes.md"], "I have read it."));
 		assert.deepEqual(
 			findings.filter((f) => f.strength === "structural").map((f) => f.kind),
 			["unreported-change"],
 		);
 	});
 
-	test("read_file 不算「聲稱改過」", () => {
+	test('read_file does not count as "claiming to have edited"', () => {
 			// Without the mutating field, this case produces a false unbacked-write.
 		const read: ToolRecord = {
 			name: "read_file",
@@ -85,19 +85,19 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 			ok: true,
 			summary: "1 import …",
 		};
-		const findings = compare(record([read], [], "我看過了，沒有需要改的地方。"));
+		const findings = compare(record([read], [], "I read it; nothing needs changing."));
 		assert.deepEqual(
 			findings.map((f) => f.kind),
 			["no-evidence"],
 		);
 	});
 
-	test("改了兩個檔案只提一個 → unmentioned-change，而且只是啟發式", () => {
+	test("two files changed, one mentioned → unmentioned-change, and only a heuristic", () => {
 		const findings = compare(
 			record(
 				[edit("src/app.ts"), edit("src/util.ts")],
 				["src/app.ts", "src/util.ts"],
-				"已經整理好 src/app.ts。",
+				"src/app.ts has been tidied up.",
 			),
 		);
 		assert.deepEqual(
@@ -109,16 +109,16 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 		assert.equal(hasStructuralDivergence(findings), false);
 	});
 
-	test("沒有變更也沒有說話 → 不報 no-evidence", () => {
+	test("no change and nothing said → no-evidence is not reported", () => {
 			// The user only asked a question, and the model saying nothing must not count as a false report.
 		const findings = compare(record([], [], ""));
 		assert.deepEqual(findings, []);
 	});
 
-	test("mentions 認得完整路徑與檔名", () => {
-		assert.equal(mentions("我改了 src/app.ts", "src/app.ts"), true);
-		assert.equal(mentions("我改了 app.ts", "src/app.ts"), true);
-		assert.equal(mentions("我改了那個處理函式", "src/app.ts"), false);
+	test("mentions recognises both a full path and a bare filename", () => {
+		assert.equal(mentions("I edited src/app.ts", "src/app.ts"), true);
+		assert.equal(mentions("I edited app.ts", "src/app.ts"), true);
+		assert.equal(mentions("I edited that handler function", "src/app.ts"), false);
 	});
 });
 
@@ -126,7 +126,7 @@ describe("三份紀錄的比對（Lesson 29）", () => {
 // Snapshot (really calls git)
 // ─────────────────────────────────────────────────────────────
 
-describe("影子 git snapshot（Lesson 29）", () => {
+describe("the shadow git snapshot (Lesson 29)", () => {
 	let base: string;
 	let workspace: string;
 	let gitdir: string;
@@ -143,21 +143,21 @@ describe("影子 git snapshot（Lesson 29）", () => {
 		await rm(base, { recursive: true, force: true });
 	});
 
-	test("gitdir 在 workspace 裡面時直接拒絕建構", () => {
+	test("constructing with the gitdir inside the workspace is refused outright", () => {
 		assert.throws(
 			() => new Snapshot({ workspace, gitdir: join(workspace, ".shadow") }),
 			/outside the workspace/,
 		);
 	});
 
-	test("沒有變更時 patch 是空的", async () => {
+	test("with no change the patch is empty", async () => {
 		const snapshot = new Snapshot({ workspace, gitdir });
 		const hash = await snapshot.track();
 		assert.match(hash, /^[0-9a-f]{40}$/);
 		assert.deepEqual((await snapshot.patch(hash)).files, []);
 	});
 
-	test("修改、新增、刪除都看得到", async () => {
+	test("edits, additions and deletions are all visible", async () => {
 		const snapshot = new Snapshot({ workspace, gitdir });
 		const hash = await snapshot.track();
 
@@ -173,7 +173,7 @@ describe("影子 git snapshot（Lesson 29）", () => {
 		assert.deepEqual((await snapshot.patch(after)).files, ["sub/b.txt"]);
 	});
 
-	test("改完又改回去 → patch 是空的（這一課的重點情境）", async () => {
+	test("changed and changed back → the patch is empty (this lesson's key scenario)", async () => {
 		const snapshot = new Snapshot({ workspace, gitdir });
 		const original = "round trip\n";
 		await writeFile(join(workspace, "a.txt"), original, "utf8");
@@ -186,7 +186,7 @@ describe("影子 git snapshot（Lesson 29）", () => {
 		assert.deepEqual(
 			(await snapshot.patch(hash)).files,
 			[],
-			"淨變化為零時 patch 必須是空的 —— tool result 會說改了兩次",
+			"With zero net change the patch must be empty — the tool results say it was edited twice",
 		);
 	});
 });

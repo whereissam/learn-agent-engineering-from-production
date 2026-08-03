@@ -76,7 +76,7 @@ function loadCorpus(): IndexedPage[] {
 		return JSON.parse(readFileSync(resolve(CORPUS, "index.json"), "utf8")) as IndexedPage[];
 	} catch {
 		throw new Error(
-			"找不到 Lesson 20 的語料。先產生：bun run lesson-20:corpus",
+			"Lesson 20's corpus not found. Generate it first: bun run lesson-20:corpus",
 		);
 	}
 }
@@ -98,17 +98,17 @@ if (import.meta.main) {
 
 	if (showId) {
 		const page = pages.find((p) => p.id === showId || p.url.includes(showId));
-		if (!page) throw new Error(`找不到 ${showId}。用 id 或網址的一部分。`);
+		if (!page) throw new Error(`${showId} not found. Use an id or part of the URL.`);
 		const html = readHtml(page);
 		console.log(dim(`── ${page.url}`));
-		console.log(dim("\n【stripTags】把標籤拿掉就好了吧？\n"));
+		console.log(dim("\n[stripTags] just remove the tags, surely?\n"));
 		console.log(stripTags(html));
-		console.log(dim("\n【extractMain】砍掉 boilerplate 之後\n"));
+		console.log(dim("\n[extractMain] after cutting the boilerplate\n"));
 		console.log(extractMain(html).text);
 		process.exit(0);
 	}
 
-	console.log(dim("recall = 正文抽到多少   noise = 抽出來的東西有多少不是正文\n"));
+	console.log(dim("recall = how much of the body was extracted   noise = how much of the extract is not body\n"));
 	console.log(dim("                                          stripTags        extractMain"));
 	console.log(dim("                                        recall  noise    recall  noise"));
 
@@ -143,13 +143,13 @@ if (import.meta.main) {
 	const n = pages.length;
 	console.log(dim("─".repeat(70)));
 	console.log(
-		`${"平均".padEnd(38)}${pct(naiveRecall / n)}${pct(naiveNoise / n)}   ` +
+		`${"average".padEnd(38)}${pct(naiveRecall / n)}${pct(naiveNoise / n)}   ` +
 			`${pct(mainRecall / n)}${pct(mainNoise / n)}`,
 	);
 	console.log();
-	console.log(`正文實際大小        ${truthChars} 字元`);
-	console.log(`stripTags 抽出來    ${naiveChars} 字元  (${(naiveChars / truthChars).toFixed(2)}x)`);
-	console.log(`extractMain 抽出來  ${mainChars} 字元  (${(mainChars / truthChars).toFixed(2)}x)`);
+	console.log(`actual body size        ${truthChars} characters`);
+	console.log(`stripTags extracted     ${naiveChars} characters  (${(naiveChars / truthChars).toFixed(2)}x)`);
+	console.log(`extractMain extracted   ${mainChars} characters  (${(mainChars / truthChars).toFixed(2)}x)`);
 	console.log();
-	console.log(dim("看某一頁的實際差別：bun run lesson-21-crawl/extract/measure.ts --show retarget-anything"));
+	console.log(dim("To see the difference on one page: bun run lesson-21-crawl/extract/measure.ts --show retarget-anything"));
 }

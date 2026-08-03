@@ -12,11 +12,11 @@
 > `packages/schema/src/session-message.ts`
 
 ```bash
-bun run lesson-28                        # 六個中斷位置 × 有沒有收尾（不用金鑰）
-bun run lesson-28 tool_input             # 看一格的細節
+bun run lesson-28                        # six interruption points × cleanup or not (no key needed)
+bun run lesson-28 tool_input             # one cell in detail
 CLEANUP=off bun run lesson-28 tool_running
 
-PROVIDER=gemini bun run lesson-28:agent                 # 中斷一個真的串流
+PROVIDER=gemini bun run lesson-28:agent                 # interrupt a real stream
 INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent
 ```
 
@@ -41,12 +41,12 @@ stopping does not make the session consistent, because at the moment of
 interruption there may simultaneously be:
 
 ```
-reasoning 在輸出          一個沒有結束時間的 part
-text 在輸出               使用者已經看到半句話
-一個或多個工具在執行       沒有人會把它們推進下一個狀態
-工具參數收到一半           一段 parse 不了的 JSON
-檔案已經改了、patch 還沒算  一個沒有紀錄的變更
-session 還是 busy         下次載回來會被當成還在跑
+reasoning is streaming        a part with no end time
+text is streaming             the user has already seen half a sentence
+one or more tools are running nobody will move them to the next state
+tool arguments half received  a chunk of JSON that will not parse
+the file changed, the patch is not computed yet   an unrecorded change
+the session is still busy     the next load will treat it as still running
 ```
 
 None of those throws. This is the most concentrated appearance of design
@@ -75,7 +75,7 @@ const stop = (at: InterruptPoint) => {
 }
 
 yield { type: "reasoning_delta", ... }
-if (stop("reasoning")) return      // ← 中斷位置變成一個參數
+if (stop("reasoning")) return      // ← the interruption point becomes a parameter
 yield { type: "reasoning_end", ... }
 ```
 
@@ -108,7 +108,7 @@ arrive character by character, and interrupting midway leaves **half a JSON
 document**:
 
 ```
-{"path":"src/a.ts","content        ← parse 不了
+{"path":"src/a.ts","content        ← will not parse
 ```
 
 Represent all four states with one `input?: Record` and that fact disappears — and
@@ -135,16 +135,16 @@ bun run lesson-28
 ```
 
 ```
-中斷位置              CLEANUP=on   CLEANUP=off
-reasoning             乾淨         unfinished-span, message-never-completed
-tool_input            乾淨         in-flight-in-storage, message-never-completed
-tool_running          乾淨         in-flight-in-storage, unfinished-span,
+interruption point    CLEANUP=on   CLEANUP=off
+reasoning             clean        unfinished-span, message-never-completed
+tool_input            clean        in-flight-in-storage, message-never-completed
+tool_running          clean        in-flight-in-storage, unfinished-span,
                                    message-never-completed, unrecorded-patch
-tool_finishing        乾淨         （同上）
-text                  乾淨         unfinished-span, message-never-completed,
+tool_finishing        clean        (as above)
+text                  clean        unfinished-span, message-never-completed,
                                    unrecorded-patch
-before_step_finish    乾淨         message-never-completed, unrecorded-patch
-none（不中斷）        乾淨         message-never-completed
+before_step_finish    clean        message-never-completed, unrecorded-patch
+none (no interruption) clean       message-never-completed
 ```
 
 The verdict comes from five rules in `audit.ts`, run **against the saved file**
@@ -187,11 +187,11 @@ interrupted**.
 
 ```ts
 async cleanup(reason) {
-  1. 還在跑的工具 → 等（正常結束等到底 / 中斷等寬限窗口）
-  2. 沒趕上的 → error + interrupted，不是留在 running
-  3. 沒結束的 reasoning / text → 補上結束時間，內容留著
-  4. patch 照算 —— 被中斷的那一輪也可能改過檔案
-  5. 訊息收尾（completed + finish）
+  1. tools still running → wait (to the end on a normal finish; a grace window on an interruption)
+  2. the ones that did not make it → error + interrupted, not left running
+  3. unfinished reasoning / text → fill in an end time and keep the content
+  4. compute the patch anyway — an interrupted turn can still have changed files
+  5. close the message off (completed + finish)
 }
 ```
 
@@ -230,8 +230,8 @@ A self-contradictory record, with no error anywhere.
 ## Step 5: the real model can only reproduce two of the six cells
 
 ```bash
-PROVIDER=gemini bun run lesson-28:agent                 # 中斷在 text
-INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # 中斷在工具執行中
+PROVIDER=gemini bun run lesson-28:agent                 # interrupt during text
+INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # interrupt during tool execution
 ```
 
 **And the reason the other four are missing is in our own abstraction:**
@@ -246,9 +246,9 @@ INTERRUPT=tool PROVIDER=gemini bun run lesson-28:agent  # 中斷在工具執行�
 The last row cites the deliberate simplification at
 `shared/streaming/types.ts:44-51` directly:
 
-> 注意：這是在參數「完整收到之後」才發出。
-> 有些 provider 會逐字串流工具參數，但半截的 JSON 對 UI 沒用，
-> 所以我們等它完整了再發。
+> Note that this is emitted only **after** the arguments are fully received.
+> Some providers stream tool arguments token by token, but half a JSON object is
+> useless to a UI, so we wait for it to be complete.
 
 That decision is right for Lessons 3-27. But it makes "interrupted mid-arguments"
 **unrepresentable in the type system**.
@@ -265,13 +265,13 @@ That decision is right for Lessons 3-27. But it makes "interrupted mid-arguments
 
 ```
 → write_file {"path":"a.ts","content":"export const A = 2;\n"}
-中斷 工具開始執行之後
+interrupted after the tool started running
 
 CLEANUP=on                                    CLEANUP=off
 tool write_file [error (interrupted)]         tool write_file [running]
-finish=interrupted                            finish=（沒有）
-檔案系統：a.ts 變了                            檔案系統：a.ts 變了
-稽核：沒有違規                                 稽核：4 條違規
+finish=interrupted                            finish=(none)
+filesystem: a.ts changed                      filesystem: a.ts changed
+audit: no violations                          audit: 4 violations
 ```
 
 The four in the `CLEANUP=off` column: `in-flight-in-storage`,
@@ -282,8 +282,8 @@ so.
 **Interrupted during text output** (after the second delta):
 
 ```
-CLEANUP=on   text "我打算使用 `write_file` 工具重新寫入 `a.ts` 檔案，"  finish=interrupted  稽核乾淨
-CLEANUP=off  text "我將會讀取並更新 `a.ts` 檔案的內容，將其中的常數值從 1 修改為"…  finish=（沒有）  2 條違規
+CLEANUP=on   text "I am going to use the `write_file` tool to rewrite `a.ts`,"  finish=interrupted  audit clean
+CLEANUP=off  text "I will read and update the contents of `a.ts`, changing the constant from 1 to"…  finish=(none)  2 violations
 ```
 
 The half sentence **is kept**, which is precisely what the user saw on screen.

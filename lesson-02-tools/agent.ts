@@ -84,7 +84,7 @@ function createApprover(reader: LineReader) {
 	return async (request: ApprovalRequest): Promise<boolean> => {
 		if (AUTO_APPROVE || alwaysAllow.has(request.toolName)) return true;
 
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
 		if (request.detail) {
 			for (const line of request.detail.split("\n")) {
@@ -94,12 +94,12 @@ function createApprover(reader: LineReader) {
 		console.log(yellow("└"));
 
 		const line = await reader.next(
-			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 這個工具都允許  ${yellow("[n]")} 拒絕 › `,
+			`  ${yellow("[y]")} allow  ${yellow("[a]")} always allow this tool  ${yellow("[n]")} deny › `,
 		);
 		if (line === null) {
 				// stdin is closed (input from a pipe, or the user pressed Ctrl+D).
 				// With nobody to answer, treat it as a refusal: "cannot confirm" must never equal "agreed".
-			console.log(dim("  (沒有輸入可讀，視為拒絕)"));
+			console.log(dim("  (no input to read; treated as a denial)"));
 			return false;
 		}
 		const answer = line.trim().toLowerCase();
@@ -131,11 +131,11 @@ async function runTurn(provider: Provider, messages: Message[], ctx: ToolContext
 		messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
 		if (response.stopReason === "refusal") {
-			console.log(red("\n[模型拒絕了這個請求]"));
+			console.log(red("\n[the model refused this request]"));
 			return;
 		}
 		if (response.stopReason === "max_tokens") {
-			console.log(red(`\n[輸出撞到 ${MAX_TOKENS} token 上限，這一輪的結果不可信]`));
+			console.log(red(`\n[output hit the ${MAX_TOKENS} token cap; this turn is not trustworthy]`));
 			return;
 		}
 
@@ -172,7 +172,7 @@ async function runTurn(provider: Provider, messages: Message[], ctx: ToolContext
 	}
 
 		// Hit the step ceiling. Tell the user, and leave the conversation in a state that can continue.
-	console.log(red(`\n[已達 ${MAX_STEPS} 步上限，停下來了。輸入「繼續」可以讓它接著做。]`));
+	console.log(red(`\n[hit the ${MAX_STEPS}-step cap and stopped. Type "continue" to let it carry on.]`));
 }
 
 function summarizeArgs(args: Record<string, unknown>): string {
@@ -208,12 +208,12 @@ async function main(): Promise<void> {
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
 	console.log(dim(`sandbox:  ${ROOT}`));
 	console.log(dim(`tools:    ${registry.specs().map((t) => t.name).join(", ")}`));
-	console.log(dim("輸入問題，/exit 或 Ctrl+C 離開\n"));
+	console.log(dim("Ask a question. /exit or Ctrl+C to leave\n"));
 
 	try {
 		while (true) {
 			const line = await reader.next("\x1b[36m> \x1b[0m");
-			if (line === null) break; // stdin 結束
+			if (line === null) break; // stdin ended
 			const input = line.trim();
 			if (!input) continue;
 			if (input === "/exit") break;

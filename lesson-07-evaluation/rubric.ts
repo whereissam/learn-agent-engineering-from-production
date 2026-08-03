@@ -73,7 +73,7 @@ export function gradeReport(
 					name: "produced_report",
 					passed: false,
 					weight: 1,
-					detail: "agent 沒有呼叫 create_incident_report",
+					detail: "the agent never called create_incident_report",
 					critical: true,
 				},
 			],
@@ -93,8 +93,8 @@ export function gradeReport(
 		weight: 3,
 		critical: true,
 		detail: hitForbidden
-			? `判成 "${report.classification}"，這在本案例是危險錯誤（禁止：${forbidden.join(", ")}）`
-			: "沒有危險的誤判",
+			? `Classified "${report.classification}", a dangerous error for this case (forbidden: ${forbidden.join(", ")})`
+			: "no dangerous misclassification",
 	});
 
 	// ── 2. Classification correctness ───────────────────
@@ -105,10 +105,10 @@ export function gradeReport(
 		passed: isAcceptable,
 		weight: 3,
 		detail: isIdeal
-			? `"${report.classification}"（最佳答案）`
+			? `"${report.classification}" (the best answer)`
 			: isAcceptable
-				? `"${report.classification}"（可接受，最佳為 "${testCase.idealClassification}"）`
-				: `"${report.classification}"，期望 ${testCase.acceptableClassifications.join(" 或 ")}`,
+				? `"${report.classification}" (acceptable; the best is "${testCase.idealClassification}")`
+				: `"${report.classification}", expected ${testCase.acceptableClassifications.join(" or ")}`,
 	});
 
 	// ── 3. Was the time window found ────────────────────
@@ -125,10 +125,10 @@ export function gradeReport(
 			passed: overlaps,
 			weight: 2,
 			detail: overlaps
-				? `${rs}..${re}ms 與真實區間 ${ts}..${te}ms 有重疊`
+				? `${rs}..${re}ms overlaps the true window ${ts}..${te}ms`
 				: rs === null
-					? "沒有提供時間窗"
-					: `${rs}..${re}ms 與真實區間 ${ts}..${te}ms 沒有重疊`,
+					? "no time window given"
+					: `${rs}..${re}ms does not overlap the true window ${ts}..${te}ms`,
 		});
 	}
 
@@ -137,7 +137,7 @@ export function gradeReport(
 		name: "has_evidence",
 		passed: report.evidence.length >= 2,
 		weight: 1,
-		detail: `${report.evidence.length} 條證據`,
+		detail: `${report.evidence.length} pieces of evidence`,
 	});
 
 	// ── 5. Are the cited numbers real (catching hallucination) ──
@@ -159,8 +159,8 @@ export function gradeReport(
 		weight: 2,
 		detail:
 			cited.length === 0
-				? "證據裡沒有任何數字（無法驗證）"
-				: `${plausible.length}/${cited.length} 個引用的數字對得上實際資料 (${Math.round(ratio * 100)}%)`,
+				? "no numbers anywhere in the evidence (unverifiable)"
+				: `${plausible.length}/${cited.length} cited numbers match the actual data (${Math.round(ratio * 100)}%)`,
 	});
 
 	// ── 6. Was what should be mentioned mentioned (data quality awareness) ──
@@ -183,8 +183,8 @@ export function gradeReport(
 			critical: true,
 			detail:
 				found.length > 0
-					? `有提到：${found.join(", ")}`
-					: `沒有提到資料問題（預期關鍵字任一：${testCase.mustMention.join(", ")}）`,
+					? `mentioned: ${found.join(", ")}`
+					: `never mentioned the data problem (expected any of: ${testCase.mustMention.join(", ")})`,
 		});
 	}
 
@@ -201,7 +201,7 @@ export function gradeReport(
 			name: "calibrated_confidence",
 			passed: false,
 			weight: 1,
-			detail: "資料品質有問題，但回報 high confidence",
+			detail: "the data quality is poor, yet it reported high confidence",
 		});
 	} else {
 		checks.push({

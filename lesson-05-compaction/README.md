@@ -25,22 +25,22 @@ bun run lesson-05
 ```
 
 ```
-> 把 playground 的 README、docs 底下所有檔案和 src 底下每個檔案都讀過一遍，
-  列出每個模組負責什麼
+> read the playground's README, every file under docs and every file under
+  src, then list what each module is responsible for
 ```
 
 Real output, Gemini 3.6 Flash, default threshold 8000:
 
 ```
-  [壓縮中… 目前約 8417 tokens]
-  [已壓縮 43 則訊息：8417 → 406 tokens，省下 95%]
+  [compacting… about 8417 tokens right now]
+  [compacted 43 messages: 8417 → 406 tokens, 95% saved]
 
-  [壓縮中… 目前約 15638 tokens]
-  [已壓縮 46 則訊息：15638 → 7351 tokens，省下 53%]
+  [compacting… about 15638 tokens right now]
+  [compacted 46 messages: 15638 → 7351 tokens, 53% saved]
 
 > /tokens
-  55 則訊息，約 16290 tokens
-  壓縮門檻 8000（目前 204%）
+  55 messages, about 16290 tokens
+  compaction threshold 8000 (currently 204%)
 ```
 
 One ordinary investigation triggered compaction twice, and the two runs saved
@@ -61,11 +61,11 @@ COMPACT_AT=300 PROVIDER=fake bun run lesson-05
 ```
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [摘要不比原文短，這次跳過壓縮]
+  [compacting… about 666 tokens right now]
+  [the summary is no shorter than the original; skipping compaction]
 
-  [壓縮中… 目前約 473 tokens]
-  [已壓縮 5 則訊息：473 → 203 tokens，省下 57%]
+  [compacting… about 797 tokens right now]
+  [compacted 5 messages: 797 → 510 tokens, 36% saved]
 ```
 
 "Skip when the summary is not shorter than the original" is also Step 4.
@@ -74,8 +74,8 @@ Use `/tokens` at any time to see where you are:
 
 ```
 > /tokens
-  13 則訊息，約 578 tokens
-  壓縮門檻 8000（目前 7%）
+  8 messages, about 662 tokens
+  compaction threshold 8000 (currently 8%)
 ```
 
 ---
@@ -112,11 +112,11 @@ And it is not only money:
 ## Step 2: the shape of compaction
 
 ```
-壓縮前： [msg1][msg2][msg3]……[msg40][msg41][msg42]
-          └────────── 40 則舊訊息 ──────┘ └─ 最近 ─┘
+before: [msg1][msg2][msg3]……[msg40][msg41][msg42]
+         └───────── 40 old messages ─────┘ └ recent ┘
 
-壓縮後： [摘要:msg1-msg36 ][msg37]……[msg42]
-          └─ 一段文字 ──┘  └─ 保留原文 ─┘
+after:  [summary:msg1-msg36][msg37]……[msg42]
+         └─ one passage ──┘  └─ kept verbatim ─┘
 ```
 
 Keeping the tail is the crucial part. The most recent messages are usually
@@ -201,7 +201,7 @@ failed.
 ```ts
 const summaryMessage: Message = {
   role: "user",
-  text: "[以下是這次對話較早部分的摘要。原始訊息已從 context 中移除以節省空間。]\n\n" + summary + …,
+  text: "[The following is a summary of the earlier part of this conversation…]\n\n" + summary + …,
 };
 ```
 
@@ -217,9 +217,9 @@ earlier") about things it never said.
 This came out of measurement. The first compaction:
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [已壓縮 3 則訊息：424 → 455 tokens，省下 -7%]
-                                        ↑ 倒賠
+  [compacting… about 666 tokens right now]
+  [compacted 3 messages: 666 → 678 tokens, -2% saved]
+                                       ↑ a net loss
 ```
 
 The cause: a summary has a fixed floor. The "[here is a summary...]" wrapper,
@@ -231,9 +231,9 @@ So check after computing it:
 ```ts
 if (tokensAfter >= tokensBefore) {
   return {
-    messages,              // ← 退回原本的
+    messages,              // ← fall back to the originals
     tokensAfter: tokensBefore,
-    compactedCount: 0,     // 0 代表「算了，沒壓」
+    compactedCount: 0,     // 0 means "never mind, nothing was compacted"
   };
 }
 ```
@@ -241,11 +241,12 @@ if (tokensAfter >= tokensBefore) {
 After the fix:
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [摘要不比原文短，這次跳過壓縮]      ← 認賠一次摘要的錢，但至少沒讓 context 變大
+  [compacting… about 666 tokens right now]
+  [the summary is no shorter than the original; skipping compaction]
+                                  ← one summary paid for, but the context did not grow
 
-  [壓縮中… 目前約 473 tokens]
-  [已壓縮 5 則訊息：473 → 203 tokens，省下 57%]
+  [compacting… about 797 tokens right now]
+  [compacted 5 messages: 797 → 510 tokens, 36% saved]
 ```
 
 > Note that skipping still paid for one summary. Avoiding that means tuning
@@ -397,7 +398,7 @@ One field of `CompactionEntry` is worth a look:
 export interface CompactionEntry<T = unknown> extends SessionTreeEntryBase {
   type: "compaction";
   summary: string;
-  firstKeptEntryId?: string;   // ← 從哪一筆開始保留原文
+  firstKeptEntryId?: string;   // ← the entry from which the originals are kept
   tokensBefore: number;
   retainedTail?: AgentMessage[];
   …

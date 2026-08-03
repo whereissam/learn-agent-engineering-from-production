@@ -22,9 +22,12 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
  * a query that returns only local results means the web index does not cover this topic (or the reverse).
  */
 const DEMOS = [
-	{ query: "chunk 大小要怎麼選", note: "預期：只有本地（網頁語料是機器人主題）" },
-	{ query: "unitree g1 retargeting deprecated", note: "預期：兩邊都有（我們的課程也在講這個語料）" },
-	{ query: "BM25 RRF 融合 排序", note: "預期：只有本地" },
+	{ query: "how to choose a chunk size", note: "expected: local only (the web corpus is about robots)" },
+	{
+		query: "unitree g1 retargeting deprecated",
+		note: "expected: both (the lessons discuss this corpus too)",
+	},
+	{ query: "BM25 RRF fusion ranking", note: "expected: local only" },
 ];
 
 async function show(query: string, note?: string): Promise<void> {
@@ -34,18 +37,18 @@ async function show(query: string, note?: string): Promise<void> {
 	const result = await hybridSearch(query, 6);
 
 	if (!result.denseAvailable) {
-		console.log(yellow("  ⚠ dense 不可用（沒金鑰且不在快取裡），已退化成純關鍵字"));
+		console.log(yellow("  ⚠ dense is unavailable (no key and not cached); degraded to keywords only"));
 	}
 
 	console.log(
 		dim(
-			`  本地 ${result.counts.local} 筆、網頁 ${result.counts.web} 筆` +
-				`（門檻擋掉 本地 ${result.filtered.local}、網頁 ${result.filtered.web}）\n`,
+			`  ${result.counts.local} local, ${result.counts.web} web` +
+				` (the floor blocked ${result.filtered.local} local, ${result.filtered.web} web)\n`,
 		),
 	);
 
 	for (const hit of result.hits) {
-		const tag = hit.kind === "local" ? cyan("[本地]") : dim("[網頁]");
+		const tag = hit.kind === "local" ? cyan("[local]") : dim("[web]  ");
 		const from = [
 			hit.localRank ? `local#${hit.localRank}` : "",
 			hit.webRank ? `web#${hit.webRank}` : "",
@@ -66,8 +69,8 @@ if (custom.length > 0) {
 	for (const demo of DEMOS) await show(demo.query, demo.note);
 	console.log(
 		dim(
-			"\n來源分佈本身就是訊號：只回本地代表網頁索引沒涵蓋這個主題，\n" +
-				"只回網頁代表你的文件還沒寫到。**兩者都是有用的資訊。**",
+			"\nThe source distribution is itself a signal: local-only means the web index does not cover this topic,\n" +
+				"web-only means your own documents have not been written yet. **Both are useful information.**",
 		),
 	);
 }

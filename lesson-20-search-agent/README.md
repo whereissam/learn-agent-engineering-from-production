@@ -21,9 +21,9 @@
 ## The conclusion first
 
 ```text
-搜尋回來的不是網頁，是 snippet。
-snippet 是「跟你的 query 最像的那一段」，不是「這一頁的結論」。
-所以：換一個 query，同一個頁面可以給你相反的答案。
+What search returns is not a page, it is a snippet.
+A snippet is "the passage most like your query", not "this page's conclusion".
+So: change the query and the same page can give you the opposite answer.
 ```
 
 Two measured runs back that sentence up shortly: **same model, same corpus,
@@ -60,8 +60,8 @@ bun run lesson-20:corpus
 ```
 
 ```
-已產生 14 個頁面到 lesson-20-search-agent/corpus/pages
-索引：lesson-20-search-agent/corpus/index.json（正文共 8688 字元）
+Generated 14 pages into lesson-20-search-agent/corpus/pages
+Index: lesson-20-search-agent/corpus/index.json (8688 characters of body text)
 ```
 
 It produces two things, and that split is exactly the boundary between Lesson 20
@@ -75,12 +75,12 @@ and 21:
 The corpus is **deliberately diseased**, carrying every ailment the real web has:
 
 ```text
-snippet 講的跟正文不一樣（而且兩個方向都有）
-同一份內容有兩個網址（GitHub README 和 docs 站）
-關鍵字塞滿但沒有內容的 SEO 農場
-兩年前的懶人包還在到處被引用
-已經封存的 repo，頁面上看不太出來
-提到關鍵字很多次但其實無關的新聞
+a snippet that contradicts the body (in both directions)
+the same content at two URLs (a GitHub README and a docs site)
+an SEO farm stuffed with keywords and no content
+a two-year-old round-up still being cited everywhere
+an archived repo that does not look archived on the page
+a news item that mentions the keywords often and is irrelevant
 ```
 
 A clean corpus teaches you nothing about ranking. Lesson 22 deals with these.
@@ -103,8 +103,8 @@ The real top four:
 
 ```
 query: unitree g1 retargeting
-斷詞:  [unitree, g1, retargeting]
-8 筆結果
+tokens: [unitree, g1, retargeting]
+8 results
 
 1. Unitree G1 retargeting: best open source video to humanoid retargeting 2026
    https://top-robotics-tools.example.net/…  2026-07-01  score=2.771
@@ -169,40 +169,38 @@ bun run lesson-20
 ```
 
 ```
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
-What actually ran (Gemini 3.6 Flash). It searched **11 times**:
+What actually ran (Gemini 3.6 Flash). It searched **7 times**:
 
 ```
-→ web_search(Unitree G1 motion retargeting open source github)
-→ web_search(github "Unitree G1" retargeting)
-→ web_search(github video retargeting "Unitree G1" OR "G1" humanoid)
-→ web_search(github "dex-retargeting" unitree g1)
-→ web_search(github Open-TeleVision Unitree G1)
-→ web_search(github Human2Humanoid unitree)
-→ web_search(github unitree retargeting motion)
-→ web_search(github dex-retargeting unitree)
-→ web_search("humanoid-mimic" OR "retarget-anything" github)
-→ web_search(github "Unitree" "G1" retargeting video OR pose OR motion)
-→ web_search(github "dex-retargeting" OR "dex_retargeting" "unitree")
+→ web_search(Unitree G1 video motion retargeting github)
+→ web_search(Unitree G1 human motion retargeting github)
+→ web_search(github unitreerobotics retargeting)
+→ web_search("Unitree G1" retargeting site:github.com)
+→ web_search(github humanoid video motion retargeting "unitree")
+→ web_search("dex-retargeting" Unitree G1 OR H1)
+→ web_search("human-to-humanoid" OR "H2O" OR "Open-TeleVision" Unitree G1)
 ```
 
 Then it answered (excerpted):
 
 ```markdown
-### 1. openmotion/retarget-anything
-* Unitree G1 支援：開箱即用（Out of the box），內建 Unitree G1（23 自由度）
-  以及 Unitree H1 等預設 Profile。 [CONFIRMED: https://github.com/openmotion/retarget-anything]
-* 開源授權：Apache License 2.0。 [CONFIRMED: .../blob/main/LICENSE]
+### 1. `openmotion/retarget-anything`
+* Status: CONFIRMED (https://github.com/openmotion/retarget-anything)
+* Capabilities: Converts monocular video of a human into joint trajectories for
+  humanoid robots. Out of the box, it includes retargeting profiles specifically
+  for the Unitree G1, Unitree H1, and Booster T1.
 
-### 2. kinelabs/humanoid-mimic
-* Unitree G1 支援：提供對應 Unitree G1 的設定檔，並針對 SDK 的關節順序
-  進行適配與實機測試。 [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
+### 2. `kinelabs/humanoid-mimic`
+* Status: CONFIRMED (https://github.com/kinelabs/humanoid-mimic)
+* Capabilities: Real-time motion imitation at 50 Hz. Includes an official
+  Unitree G1 profile (added in v0.7).
 
-### 實務開發注意事項
-2. 關節對應：請務必確認 SDK 的關節排序是否與重定向工具中的配對檔案一致
-   [CONFIRMED: https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211]
+### Notes & Related Projects
+* `legacy-robotics/mocap2robot`: UNVERIFIED for direct monocular video
+  retargeting on the G1 …
 ```
 
 It looks extremely professional. Categorised, linked, every line tagged
@@ -238,7 +236,7 @@ This is the part of the lesson most worth remembering. Same model, same corpus,
 a different phrasing:
 
 ```
-> retarget-anything 的 G1 profile 現在還能用在 2026 SDK 上嗎？
+> Does retarget-anything's G1 profile still work on the 2026 SDK?
 ```
 
 It searched only twice:
@@ -251,13 +249,13 @@ It searched only twice:
 The answer (excerpted):
 
 ```markdown
-**無法直接正常使用**。
+**Not directly usable**.
 
-* G1 Profile 已棄用且不再維護：官方 README 及文檔明確指出，G1 profile 在 v2.0
-  已被標示為棄用（deprecated）且不會再進行更新維護。
-* 相容性問題原因：原本的 G1 profile 是針對 2024 年的 G1 URDF 設計，
-  而 Unitree 在 2026 SDK 中更改了關節順序。
-* 替代方案：humanoid-mimic 在 v0.7 已新增支援 2026 SDK 關節順序的 G1 profile。
+* The G1 profile is deprecated and unmaintained: the official README and docs
+  state plainly that it was marked deprecated in v2.0 and receives no updates.
+* Why it broke: the original G1 profile targeted the 2024 G1 URDF, and Unitree
+  changed the joint ordering in the 2026 SDK.
+* Alternative: humanoid-mimic added a G1 profile for the 2026 SDK joint ordering in v0.7.
 ```
 
 Entirely correct.
@@ -268,16 +266,16 @@ says "deprecated, unusable". The only difference is the query.
 The cause is `makeSnippet` in `search/engine.ts`:
 
 ```ts
-// 挑一段最像「有回答到 query」的文字當 snippet
+// pick the passage that most looks like "this answers the query" as the snippet
 for (let start = 0; start + SNIPPET_WORDS <= words.length; start += 4) {
-  // 數這個視窗裡命中幾個 query 的字，取最高的那個視窗
+  // count how many query terms hit inside this window and keep the best window
 }
 ```
 
 Real search engines do the same. Therefore:
 
 ```text
-query 決定 snippet，snippet 決定模型看到頁面的哪一面。
+The query decides the snippet, and the snippet decides which face of the page the model sees.
 ```
 
 The first question asked "which projects exist", which matched the introductory
@@ -309,7 +307,7 @@ Three things happen at once:
 |---|---|
 | the model builds queries from remembered names | it thinks it already knows the answer and just needs the link |
 | some query syntax means nothing to this engine | `site:`, `OR` and quotes are ordinary words to BM25 |
-| 11 searches with heavy repetition | nothing tells it "this angle was already tried" |
+| 7 searches with heavy repetition | nothing tells it "this angle was already tried" |
 
 None of the three is the model's fault; they are things the harness did not do.
 Lesson 24 adds the "what has been searched" state, which is also one of the
@@ -322,16 +320,16 @@ bun run lesson-20:search "把影片動作轉到人形機器人"
 ```
 
 ```
-斷詞:  []
-0 筆結果
+tokens: []
+0 results
 ```
 
 Not "no relevant content found" but **this retrieval method cannot read this
 query**. `engine.ts`'s tokeniser only recognises `a-z0-9`:
 
 ```ts
-// 中文、日文、韓文丟進來會得到空陣列——
-// 這是關鍵字檢索的真實限制，不是這份程式偷懶。
+// Chinese, Japanese and Korean all come back as an empty array —
+// that is a real limitation of keyword retrieval, not laziness in this code.
 export function tokenize(text: string): string[] {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter(...);
 }
@@ -343,8 +341,8 @@ three lines of defence help it:
 ```text
 1. tool description：  "The index is keyword-based and English-only,
                         so write the query in English"
-2. system prompt 規則 2：把使用者的問題轉成英文關鍵字
-3. 空結果的錯誤訊息：   "rewrite the query in English … and search again"
+2. system prompt rule 2:  turn the user's question into English keywords
+3. the empty-result error: "rewrite the query in English … and search again"
 ```
 
 The third deserves a look (`tools/search.ts`). When nothing is found, do not
@@ -397,8 +395,8 @@ said by some snippet. It did not lie; it has no way to know what it missed.
 Which is the thing this lesson wants you to feel and the next one fixes:
 
 ```text
-prompt 可以要求誠實，
-但只有工具能讓誠實變得可能。
+a prompt can ask for honesty,
+but only a tool can make honesty possible.
 ```
 
 Once Lesson 21 adds `fetch_page`, the same prompt starts to work — because by
@@ -420,13 +418,13 @@ followed by a canned paragraph with nothing to do with search.
 The fake provider acts out a **one-search-then-conclude** trajectory:
 
 ```
-我先搜尋一下有哪些相關專案。
+Let me search for the relevant projects first.
   → web_search(query=unitree g1 video retargeting open source max_results=5)
   ✓ 5 results for "unitree g1 video retargeting open source"
 
-**1. retarget-anything** — 支援 Unitree G1，最主流的選擇。
-**2. humanoid-mimic** — snippet 沒有提到 G1，所以不支援 G1。
-結論：你要 G1 的話用 retarget-anything。
+**1. retarget-anything** — supports the Unitree G1, the mainstream choice.
+**2. humanoid-mimic** — the snippet does not mention the G1, so it does not support the G1.
+Conclusion: if you want the G1, use retarget-anything.
 ```
 
 Both conclusions are wrong: the first is deprecated, and the second has
@@ -443,7 +441,7 @@ supported the G1 since v0.7.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `找不到語料索引 …/corpus/index.json` | the corpus has not been generated | `bun run lesson-20:corpus` |
+| `Corpus index not found at …/corpus/index.json` | the corpus has not been generated | `bun run lesson-20:corpus` |
 | a Chinese query returns 0 results | keyword retrieval cannot read CJK | by design, see Step 4 |
 | `Unknown tool "list_files"` | you got `shared`'s fake provider | this lesson has its own: `PROVIDER=fake bun run lesson-20` |
 | the model searched a dozen times and is still circling | there is no "what has been searched" state | that is Lesson 24's subject |
@@ -537,10 +535,10 @@ agent cannot see a whole page. The next one gives it `fetch_page`, and then the
 real problems begin:
 
 ```text
-一頁 HTML 有 8 成是導覽列、廣告、訂閱表單
-正文在哪裡？
-一萬字的頁面怎麼塞進 context？
-抓回來的內容要不要保留結構？
+80% of an HTML page is navigation, ads and subscribe forms
+where is the body text?
+how do you fit a ten-thousand-word page into the context?
+should the fetched content keep its structure?
 ```
 
 The corpus's `corpus/pages/*.html` was generated in advance for exactly that.

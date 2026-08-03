@@ -31,21 +31,21 @@ import { drain } from "../shared/streaming/types.ts";
 
 const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 8);
 
-const OPENING = "我先搜尋一下有哪些相關專案。";
+const OPENING = "Let me search for the relevant projects first.";
 
-const ANSWER = `根據搜尋結果，有兩個 open source 專案可以把影片動作 retarget 到人形機器人：
+const ANSWER = `Based on the search results, two open source projects can retarget video motion onto a humanoid robot:
 
 **1. retarget-anything** — https://github.com/openmotion/retarget-anything
-snippet 寫著 "ships retargeting profiles for the Unitree G1, the Unitree H1, and the
-Booster T1"，所以它**支援 Unitree G1**，而且是最主流的選擇。授權是 Apache-2.0。
+the snippet says "ships retargeting profiles for the Unitree G1, the Unitree H1, and the
+Booster T1", so it **supports the Unitree G1** and is the mainstream choice. Licence Apache-2.0.
 
 **2. humanoid-mimic** — https://github.com/kinelabs/humanoid-mimic
-這是給 Unitree H1 用的即時動作模仿，snippet 沒有提到 G1，所以**不支援 G1**。
+Real-time motion imitation for the Unitree H1. The snippet does not mention the G1, so it **does not support the G1**.
 
-另外 robotblog 那篇 2025 年的整理文也把 retarget-anything 列為首選，並且說
-humanoid-mimic 是 H1 only，跟上面的結論一致。
+The 2025 robotblog round-up also lists retarget-anything as the first choice and says
+humanoid-mimic is H1-only, which agrees with the above.
 
-結論：你要 G1 的話用 retarget-anything。`;
+Conclusion: if you want the G1, use retarget-anything.`;
 
 export function fakeSearchProvider(): StreamingProvider {
 	let step = 0;
@@ -95,9 +95,9 @@ export function fakeSearchProvider(): StreamingProvider {
 
 				// Afterwards: the script is finished
 			const outro =
-				"（這個假 provider 只有一段寫死的腳本，演完了。\n" +
-				"想繼續問，換成真模型：bun run lesson-20\n" +
-				"或者直接玩排序：bun run lesson-20-search-agent/search/engine.ts \"你的 query\"）";
+				"(This fake provider has one hardcoded script and it just finished.\n" +
+				"To keep asking, switch to a real model: bun run lesson-20\n" +
+				"Or play with the ranking directly: bun run lesson-20-search-agent/search/engine.ts \"your query\")";
 			yield* say(outro, signal);
 			if (signal?.aborted) return yield aborted();
 			yield {

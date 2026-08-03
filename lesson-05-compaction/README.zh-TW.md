@@ -22,22 +22,22 @@ bun run lesson-05
 ```
 
 ```
-> 把 playground 的 README、docs 底下所有檔案和 src 底下每個檔案都讀過一遍，
-  列出每個模組負責什麼
+> read the playground's README, every file under docs and every file under
+  src, then list what each module is responsible for
 ```
 
 真的跑出來的（Gemini 3.6 Flash，預設門檻 8000）：
 
 ```
-  [壓縮中… 目前約 8417 tokens]
-  [已壓縮 43 則訊息：8417 → 406 tokens，省下 95%]
+  [compacting… about 8417 tokens right now]
+  [compacted 43 messages: 8417 → 406 tokens, 95% saved]
 
-  [壓縮中… 目前約 15638 tokens]
-  [已壓縮 46 則訊息：15638 → 7351 tokens，省下 53%]
+  [compacting… about 15638 tokens right now]
+  [compacted 46 messages: 15638 → 7351 tokens, 53% saved]
 
 > /tokens
-  55 則訊息，約 16290 tokens
-  壓縮門檻 8000（目前 204%）
+  55 messages, about 16290 tokens
+  compaction threshold 8000 (currently 204%)
 ```
 
 **一次普通的調查就觸發了兩次壓縮**，而且兩次省下的比例差很多
@@ -56,11 +56,11 @@ COMPACT_AT=300 PROVIDER=fake bun run lesson-05
 ```
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [摘要不比原文短，這次跳過壓縮]
+  [compacting… about 666 tokens right now]
+  [the summary is no shorter than the original; skipping compaction]
 
-  [壓縮中… 目前約 473 tokens]
-  [已壓縮 5 則訊息：473 → 203 tokens，省下 57%]
+  [compacting… about 797 tokens right now]
+  [compacted 5 messages: 797 → 510 tokens, 36% saved]
 ```
 
 「摘要不比原文短就跳過」也是 Step 4 的內容。
@@ -69,8 +69,8 @@ COMPACT_AT=300 PROVIDER=fake bun run lesson-05
 
 ```
 > /tokens
-  13 則訊息，約 578 tokens
-  壓縮門檻 8000（目前 7%）
+  8 messages, about 662 tokens
+  compaction threshold 8000 (currently 8%)
 ```
 
 ---
@@ -104,11 +104,11 @@ LLM 是**無狀態**的。它不記得上一輪講過什麼，每一輪你都要
 ## Step 2：壓縮的形狀
 
 ```
-壓縮前： [msg1][msg2][msg3]……[msg40][msg41][msg42]
-          └────────── 40 則舊訊息 ──────┘ └─ 最近 ─┘
+before: [msg1][msg2][msg3]……[msg40][msg41][msg42]
+         └───────── 40 old messages ─────┘ └ recent ┘
 
-壓縮後： [摘要:msg1-msg36 ][msg37]……[msg42]
-          └─ 一段文字 ──┘  └─ 保留原文 ─┘
+after:  [summary:msg1-msg36][msg37]……[msg42]
+         └─ one passage ──┘  └─ kept verbatim ─┘
 ```
 
 保留尾巴是關鍵。最近的訊息通常正是使用者在講的事情，把它們摘要掉，
@@ -186,7 +186,7 @@ Drop: full file contents, verbose command output, exploratory dead ends.
 ```ts
 const summaryMessage: Message = {
   role: "user",
-  text: "[以下是這次對話較早部分的摘要。原始訊息已從 context 中移除以節省空間。]\n\n" + summary + …,
+  text: "[The following is a summary of the earlier part of this conversation…]\n\n" + summary + …,
 };
 ```
 
@@ -201,9 +201,9 @@ assistant 訊息代表「模型說過的話」，但這段摘要是**我們（ha
 這是實測才發現的。第一次壓縮：
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [已壓縮 3 則訊息：424 → 455 tokens，省下 -7%]
-                                        ↑ 倒賠
+  [compacting… about 666 tokens right now]
+  [compacted 3 messages: 666 → 678 tokens, -2% saved]
+                                       ↑ a net loss
 ```
 
 原因：摘要有**固定成本下限**。那段「[以下是摘要…]」的包裝文字，加上模型
@@ -214,9 +214,9 @@ assistant 訊息代表「模型說過的話」，但這段摘要是**我們（ha
 ```ts
 if (tokensAfter >= tokensBefore) {
   return {
-    messages,              // ← 退回原本的
+    messages,              // ← fall back to the originals
     tokensAfter: tokensBefore,
-    compactedCount: 0,     // 0 代表「算了，沒壓」
+    compactedCount: 0,     // 0 means "never mind, nothing was compacted"
   };
 }
 ```
@@ -224,11 +224,12 @@ if (tokensAfter >= tokensBefore) {
 修好之後：
 
 ```
-  [壓縮中… 目前約 424 tokens]
-  [摘要不比原文短，這次跳過壓縮]      ← 認賠一次摘要的錢，但至少沒讓 context 變大
+  [compacting… about 666 tokens right now]
+  [the summary is no shorter than the original; skipping compaction]
+                                  ← one summary paid for, but the context did not grow
 
-  [壓縮中… 目前約 473 tokens]
-  [已壓縮 5 則訊息：473 → 203 tokens，省下 57%]
+  [compacting… about 797 tokens right now]
+  [compacted 5 messages: 797 → 510 tokens, 36% saved]
 ```
 
 > 注意：跳過壓縮**還是花了一次摘要的錢**。要避免這個，就要把
@@ -370,7 +371,7 @@ summarization drift。真實系統怎麼緩解？）
 export interface CompactionEntry<T = unknown> extends SessionTreeEntryBase {
   type: "compaction";
   summary: string;
-  firstKeptEntryId?: string;   // ← 從哪一筆開始保留原文
+  firstKeptEntryId?: string;   // ← the entry from which the originals are kept
   tokensBefore: number;
   retainedTail?: AgentMessage[];
   …

@@ -21,28 +21,28 @@ function engine(mode: Mode) {
 	});
 }
 
-describe("風險分級（Lesson 8）", () => {
-	test("內建工具照名稱分級", () => {
+describe("risk classification (Lesson 8)", () => {
+	test("built-in tools are classified by name", () => {
 		assert.equal(classify("read_file"), RiskClass.READ);
 		assert.equal(classify("write_file"), RiskClass.WRITE_LOCAL);
 		assert.equal(classify("run_command"), RiskClass.EXEC);
 		assert.equal(classify("send_email"), RiskClass.EXTERNAL);
 	});
 
-	test("未知工具預設為 READ", () => {
+	test("an unknown tool defaults to READ", () => {
 		assert.equal(classify("something_new"), RiskClass.READ);
 	});
 
-	test("requiresApproval 的未知工具視為 EXTERNAL", () => {
+	test("an unknown tool with requiresApproval counts as EXTERNAL", () => {
 		assert.equal(classify("mcp_thing", { requiresApproval: true }), RiskClass.EXTERNAL);
 	});
 
-	test("使用者覆寫優先於內建表", () => {
+	test("a user override beats the built-in table", () => {
 		const overrides = (name: string) => (name === "run_command" ? RiskClass.READ : undefined);
 		assert.equal(classify("run_command", undefined, overrides), RiskClass.READ);
 	});
 
-	test("只有 READ 不需要引擎過目", () => {
+	test("only READ skips the engine", () => {
 		assert.equal(isConsequential(RiskClass.READ), false);
 		assert.equal(isConsequential(RiskClass.WRITE_LOCAL), true);
 		assert.equal(isConsequential(RiskClass.EXEC), true);
@@ -50,88 +50,88 @@ describe("風險分級（Lesson 8）", () => {
 	});
 });
 
-describe("AUTO 模式擋不住路徑逃逸（Lesson 8 Step 3）", () => {
-	test("AUTO 允許 root 內的寫入", () => {
+describe("AUTO mode still blocks path escapes (Lesson 8 Step 3)", () => {
+	test("AUTO allows writes inside root", () => {
 		const d = engine(Mode.AUTO).evaluate("write_file", { path: "report.md" });
 		assert.equal(d.allowed, true);
 	});
 
-	test("AUTO 仍然擋掉 root 外的寫入", () => {
+	test("AUTO still blocks writes outside root", () => {
 		const d = engine(Mode.AUTO).evaluate("write_file", { path: "../../.ssh/id_rsa" });
-		assert.equal(d.allowed, false, "提高自主程度不該擴大沙箱邊界");
+		assert.equal(d.allowed, false, "raising autonomy must not widen the sandbox boundary");
 	});
 
-	test("路徑逃逸是拒絕，不是「去問人」", () => {
+	test("a path escape is a refusal, not a go-ask-a-human", () => {
 		const d = engine(Mode.INTERACTIVE).evaluate("write_file", { path: "/etc/hosts" });
 		assert.equal(d.allowed, false);
-		assert.equal(d.needsUser, false, "硬性邊界問使用者也不該放行");
+		assert.equal(d.needsUser, false, "a hard boundary must not be unlocked by asking the user");
 	});
 
-	test("四種模式都擋得住路徑逃逸", () => {
+	test("all four modes block path escapes", () => {
 		for (const mode of [Mode.PLAN, Mode.INTERACTIVE, Mode.CUSTOM, Mode.AUTO]) {
 			const d = engine(mode).evaluate("write_file", { path: "../escape.txt" });
-			assert.equal(d.allowed, false, `${mode} 模式沒擋住`);
+			assert.equal(d.allowed, false, `${mode} mode did not block it`);
 		}
 	});
 });
 
-describe("唯讀模式（Lesson 8）", () => {
-	test("PLAN 拒絕所有有副作用的操作，且不詢問", () => {
+describe("read-only mode (Lesson 8)", () => {
+	test("PLAN refuses every side-effecting operation without asking", () => {
 		for (const tool of ["write_file", "run_command", "send_email"]) {
 			const d = engine(Mode.PLAN).evaluate(tool, { path: "a.md", command: "ls", to: "x@y.z" });
-			assert.equal(d.allowed, false, `${tool} 應該被拒絕`);
-			assert.equal(d.needsUser, false, "唯讀模式不該去問人");
+			assert.equal(d.allowed, false, `${tool} should have been refused`);
+			assert.equal(d.needsUser, false, "read-only mode must not ask a human");
 		}
 	});
 
-	test("PLAN 仍然允許讀取", () => {
+	test("PLAN still allows reads", () => {
 		const d = engine(Mode.PLAN).evaluate("read_file", { path: "a.md" });
 		assert.equal(d.allowed, true);
 	});
 });
 
-describe("shell 元字元（Lesson 2 練習 5 / Lesson 8 Step 4）", () => {
-	test("偵測會串接指令的元字元", () => {
+describe("shell metacharacters (Lesson 2 exercise 5 / Lesson 8 Step 4)", () => {
+	test("detects metacharacters that chain commands", () => {
 		for (const cmd of ["ls; rm -rf ~", "ls && rm", "cat a | sh", "echo x > f", "`whoami`", "$(id)"]) {
-			assert.equal(hasShellOperators(cmd), true, `沒抓到：${cmd}`);
+			assert.equal(hasShellOperators(cmd), true, `missed: ${cmd}`);
 		}
 	});
 
-	test("乾淨的指令不誤判", () => {
+	test("clean commands are not false-flagged", () => {
 		for (const cmd of ["git status", "ls -la", "npm run build"]) {
-			assert.equal(hasShellOperators(cmd), false, `誤判：${cmd}`);
+			assert.equal(hasShellOperators(cmd), false, `false positive: ${cmd}`);
 		}
 	});
 
-	test("允許清單上的乾淨指令自動放行", () => {
+	test("a clean allowlisted command is auto-allowed", () => {
 		const d = engine(Mode.INTERACTIVE).evaluate("run_command", { command: "git status" });
 		assert.equal(d.allowed, true);
 	});
 
-	test("允許清單前綴 + 元字元要降級成詢問", () => {
+	test("an allowlisted prefix plus a metacharacter downgrades to asking", () => {
 		const d = engine(Mode.INTERACTIVE).evaluate("run_command", { command: "git status; rm -rf ~" });
 		assert.equal(d.allowed, false);
-		assert.equal(d.needsUser, true, "應該是詢問而不是直接拒絕");
+		assert.equal(d.needsUser, true, "it should ask rather than refuse outright");
 	});
 });
 
-describe("「都允許」的邊界（Lesson 8 Step 5）", () => {
-	test("一般工具可以整個放行", () => {
+describe('the limits of "always allow" (Lesson 8 Step 5)', () => {
+	test("an ordinary tool can be unlocked wholesale", () => {
 		const e = engine(Mode.INTERACTIVE);
 		e.allowToolForSession("write_file");
 		const d = e.evaluate("write_file", { path: "a.md" });
 		assert.equal(d.allowed, true);
 	});
 
-	test("connector 工具不能整個放行", () => {
+	test("a connector tool cannot be unlocked wholesale", () => {
 		const e = engine(Mode.INTERACTIVE);
 		e.allowToolForSession("post_slack_message");
 		const d = e.evaluate("post_slack_message", { channel: "#all" }, { category: "connector" });
-		assert.equal(d.allowed, false, "「允許這個工具」不該等於「發到任何頻道」");
+		assert.equal(d.allowed, false, '"allow this tool" must not mean "post to any channel"');
 		assert.equal(d.needsUser, true);
 	});
 
-	test("綁定目標的規則只對該目標生效", () => {
+	test("a target-bound rule applies only to that target", () => {
 		const e = engine(Mode.INTERACTIVE);
 		e.addTaskRule("send_email", "team@example.com");
 
@@ -140,13 +140,13 @@ describe("「都允許」的邊界（Lesson 8 Step 5）", () => {
 		assert.ok(ok.rule?.includes("team@example.com"));
 
 		const no = e.evaluate("send_email", { to: "everyone@example.com" }, { category: "connector" });
-		assert.equal(no.allowed, false, "換個收件人就該重問");
+		assert.equal(no.allowed, false, "a different recipient should be asked about again");
 	});
 
-	test("exec 風險不能有綁定目標的規則", () => {
+	test("exec risk cannot hold a target-bound rule", () => {
 		const e = engine(Mode.INTERACTIVE);
 		e.addTaskRule("run_command", "deploy.sh");
 		const d = e.evaluate("run_command", { command: "deploy.sh" });
-		assert.equal(d.allowed, false, "shell 要問到底");
+		assert.equal(d.allowed, false, "shell asks every time");
 	});
 });

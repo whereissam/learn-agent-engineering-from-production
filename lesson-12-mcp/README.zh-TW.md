@@ -30,13 +30,13 @@ bun run lesson-12
 ```
 
 ```
-連線 MCP server
-  ✓ fleet  3 個工具
-  ✗ ghost  initialize 逾時（5000ms）
-  ✗ rubble  MCP server "rubble" 結束了（code 1）
-  （5020ms，壞掉的兩台沒有拖垮啟動）
+Connecting to MCP servers
+  ✓ fleet  3 tools
+  ✗ ghost  initialize timed out (5000ms)
+  ✗ rubble  MCP server "rubble" exited (code 1)
+  (5020ms; the two broken ones did not hold up startup)
 
-載到的工具
+Tools loaded
   mcp__fleet__list_robots  [external]  ← fleet/list_robots
   mcp__fleet__get_robot  [external]  ← fleet/get_robot
   mcp__fleet__schedule_maintenance  [external]  ← fleet/schedule_maintenance
@@ -48,10 +48,10 @@ bun run lesson-12
 其他玩法：
 
 ```bash
-PROVIDER=gemini bun run lesson-12   # 真模型
-MODE=auto bun run lesson-12         # AUTO 模式下 MCP 工具還會不會被問
-COLLIDE=1 bun run lesson-12         # 名稱截斷造成的碰撞（Step 4）
-TODAY=1 PROVIDER=gemini bun run lesson-12  # Step 6 的對照組
+PROVIDER=gemini bun run lesson-12   # a real model
+MODE=auto bun run lesson-12         # are MCP tools still asked about under AUTO
+COLLIDE=1 bun run lesson-12         # collisions caused by name truncation (Step 4)
+TODAY=1 PROVIDER=gemini bun run lesson-12  # Step 6's control group
 ```
 
 ---
@@ -61,9 +61,9 @@ TODAY=1 PROVIDER=gemini bun run lesson-12  # Step 6 的對照組
 `server.ts` 是一個真的 MCP server，零依賴，不到 200 行。整個協定就三個方法：
 
 ```
-initialize     握手，交換版本與能力
-tools/list     你有哪些工具
-tools/call     跑一個
+initialize     handshake; exchange versions and capabilities
+tools/list     what tools do you have
+tools/call     run one
 ```
 
 訊息是換行分隔的 JSON-RPC 2.0，走 stdin/stdout。
@@ -75,7 +75,7 @@ tools/call     跑一個
 還有一個容易搞混的地方，在 `server.ts` 裡標了出來：
 
 ```ts
-// 工具的錯誤是 `isError: true` 的正常回應，不是 JSON-RPC error。
+// A tool error is a normal response with `isError: true`, not a JSON-RPC error.
 reply(id, { content: [{ type: "text", text }], isError });
 ```
 
@@ -111,9 +111,9 @@ Lesson 9 的 inbox `wait()` 刻意沒有 timeout，這裡卻一定要有。判�
 ## Step 3：一台壞掉不能拖垮其他台
 
 ```
-✗ ghost   initialize 逾時（5000ms）    ← 接受連線但永遠不回握手
-✗ rubble  結束了（code 1）             ← 啟動就掛
-（5020ms）
+✗ ghost   initialize timed out (5000ms)   ← accepts the connection and never answers the handshake
+✗ rubble  exited (code 1)                 ← dies at startup
+(5020ms)
 ```
 
 `ghost` 那種最難處理：沒有錯誤，只有沉默。沒有逾時的話 agent 永遠起不來。
@@ -143,15 +143,15 @@ COLLIDE=1 bun run lesson-12
 ```
 
 ```
-✓ acme-internal-platform-tools-production-cluster  5 個工具
-  ⚠ 名稱碰撞 mcp__acme-internal-platform-tools-production-cluster__create_inc
-    …/create_incident_report 會被 …/create_incident_summary 蓋掉
+✓ acme-internal-platform-tools-production-cluster  5 tools
+  ⚠ name collision mcp__acme-internal-platform-tools-production-cluster__create_inc
+    …/create_incident_report would be shadowed by …/create_incident_summary
 
-載到的工具
+Tools loaded
   …__list_robot
   …__get_robot
   …__schedule_m
-  …__create_inc        ← 5 個工具只活下來 4 個
+  …__create_inc        ← only 4 of the 5 tools survive
 ```
 
 server 名字 47 個字元，加上 `mcp__` 和 `__` 就吃掉 54，
@@ -183,7 +183,7 @@ mcp__fleet__list_robots  [external]
 
 ```ts
 const metadata: ToolRiskMetadata = { requiresApproval: true, category: "mcp" };
-// classify() 看到 requiresApproval → RiskClass.EXTERNAL
+// classify() sees requiresApproval → RiskClass.EXTERNAL
 ```
 
 `category: "mcp"` 也有用：Lesson 8 Step 5 講過，
@@ -215,7 +215,7 @@ connector 類的工具不能用「這個工具都允許」整個放行。
 也正確填了 `notes` 字串：
 
 ```json
-{"robot_id":"R-204","window":{"start":"2026-08-01T02:00:00Z","hours":3},"notes":"更換電池"}
+{"robot_id":"R-204","window":{"start":"2026-08-01T02:00:00Z","hours":3},"notes":"battery replacement"}
 ```
 
 所以「provider 吃不下 MCP schema」這個擔心，至少對 Gemini 沒有發生。
@@ -228,12 +228,12 @@ connector 類的工具不能用「這個工具都允許」整個放行。
 使用者說的「8/1」應該是 2026-08-01。
 
 ```
-┌ 需要批准
+┌ approval needed
 │ fleet/schedule_maintenance
 │ {"robot_id":"R-204","window":{"start":"2024-08-01T02:00:00","hours":3},…}
-│ 這個操作的副作用會跑到這台機器外面，收不回來
+│ This operation has side effects that leave the machine and cannot be taken back
 └
-  （ANSWER=y，自動回答）
+  (ANSWER=y, answered automatically)
   ✓ Maintenance scheduled for R-204. On-site team notified.
 ```
 

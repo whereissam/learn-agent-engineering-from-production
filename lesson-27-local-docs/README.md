@@ -25,21 +25,21 @@ prepare, and you can read every result.
 ## Step 0: run it
 
 ```bash
-bun run lesson-27:ingest    # 掃描 → 切塊 → 建索引
-bun run lesson-27           # 三個示範查詢
+bun run lesson-27:ingest    # scan → chunk → index
+bun run lesson-27           # three demo queries
 ```
 
 ```
-索引：22 個檔案、214 個 chunk
-  沿用 0、重切 22、移除 0
-  正文共 230,931 字元
-  最大的檔案：docs/TODO.md (25 塊)、lesson-23-real-world/README.md (15 塊)
+indexed: 33 files, 746 chunks
+  reused 0, rebuilt 33, removed 0
+  802,521 characters of body text
+  largest files: docs/TODO.md (165 chunks), docs/TODO.zh-TW.md (83 chunks)
 ```
 
 Run it again:
 
 ```
-  沿用 22、重切 0、移除 0
+  reused 33, rebuilt 0, removed 0
 ```
 
 That one line is the biggest difference between this lesson and every previous
@@ -56,9 +56,9 @@ so recomputing everything each time is out.
 `ingest.ts` uses a content hash to decide what to re-chunk:
 
 ```text
-雜湊沒變  → 沿用舊 chunk（連帶沿用它們的 embedding）
-雜湊變了  → 只重切這一個檔案
-檔案不見  → 移除它的 chunk
+hash unchanged  → reuse the old chunks (and their embeddings with them)
+hash changed    → re-chunk only that one file
+file gone       → remove its chunks
 ```
 
 This is where the real engineering in local RAG lives. Many tutorials skip it,
@@ -91,7 +91,7 @@ like 2.7) and web is a signal-adjusted fusion score (numbers like 0.9).
 But **RRF only looks at rank**:
 
 ```ts
-rrf([localIds, webIds])   // 本地第 1 名 + 網頁第 3 名 → 1/61 + 1/63
+rrf([localIds, webIds])   // local rank 1 + web rank 3 → 1/61 + 1/63
 ```
 
 Lesson 22 chose RRF because "BM25's 2.771 and a cosine's 0.83 are not on the same
@@ -110,10 +110,10 @@ The first version had no filtering, taking the top N from each side and fusing.
 Then, querying "how do you choose chunk size":
 
 ```
-1. [本地] 對照原始碼             lesson-21-crawl/README.md#L477-L501
-2. [本地] 下一課                 lesson-21-crawl/README.md#L501
-3. [網頁] retarget-anything/LICENSE
-4. [網頁] A practical guide to sous vide cooking times     ← ???
+1. [local] Against the source          lesson-21-crawl/README.md#L477-L501
+2. [local] Next lesson                 lesson-21-crawl/README.md#L501
+3. [web]   retarget-anything/LICENSE
+4. [web]   A practical guide to sous vide cooking times     ← ???
 ```
 
 A sous vide cooking guide ranks 4th.
@@ -124,8 +124,8 @@ and **RRF gives a high score to anything called "rank 1"**. The absolute level o
 relevance is discarded during fusion.
 
 ```text
-單一來源  top-k 沒事：爛結果排在後面，使用者自己會忽略
-跨來源    top-k 有害：爛來源的第 1 名會被當成「第 1 名」對待
+one source     top-k is fine: bad results sit at the bottom and the user ignores them
+across sources top-k is harmful: the bad source's rank 1 gets treated as a rank 1
 ```
 
 This is exactly the difference read in Lesson 23 Step 3 and merely noted at the
@@ -152,10 +152,10 @@ The fix is having the pipeline also return a `denseScore` (the cosine similarity
 Measuring shows why:
 
 ```text
-query                          web 結果的 cosine 範圍
-"unitree g1 retargeting…"      0.70 - 0.79    ← 真的相關
-"chunk 大小要怎麼選"            0.45 - 0.50    ← 完全不相關
-"BM25 RRF 融合 排序"            0.47 - 0.52    ← 完全不相關
+query                          cosine range of the web results
+"unitree g1 retargeting…"      0.70 - 0.79    ← genuinely relevant
+"how to choose a chunk size"   0.45 - 0.50    ← wholly irrelevant
+"BM25 RRF fusion ranking"      0.47 - 0.52    ← wholly irrelevant
 ```
 
 `gemini-embedding-001`'s irrelevant baseline is already 0.45-0.52.
@@ -174,8 +174,8 @@ The separation is actually clean (0.52 vs 0.70), so take the middle: **0.60**.
 ### After the fix
 
 ```
-chunk 大小要怎麼選
-  本地 6 筆、網頁 0 筆（門檻擋掉 本地 0、網頁 6）
+how to choose a chunk size
+  6 local, 0 web (the floor blocked 0 local, 6 web)
 ```
 
 The cooking guide is gone, and all six results are passages this repo wrote about
@@ -190,8 +190,8 @@ intermediate product, and the real question is:
 > actually cite them?
 
 ```bash
-PROVIDER=gemini bun run lesson-27:agent            # 有門檻
-FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
+PROVIDER=gemini bun run lesson-27:agent            # with the floor
+FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # without it
 ```
 
 The verdict is deterministic: the web corpus is uniformly irrelevant to chunk
@@ -213,9 +213,9 @@ and it simply did not touch it.
 What it blocks is not "garbage that gets cited" but **slots**:
 
 ```
-有門檻    8 個位置：本地 8 筆
-沒門檻    8 個位置：本地 4 筆 + 不相關的網頁 4 筆
-                    ↑ 4 筆相關的本地文件被擠掉了
+floor on    8 slots: 8 local
+floor off   8 slots: 4 local + 4 irrelevant web
+                     ↑ 4 relevant local documents were pushed out
 ```
 
 > The real damage is crowding out, not hallucination.
@@ -230,8 +230,8 @@ There is a second bill, back to Lesson 26: you pay for those 4 results' tokens.
 ### Do not read this 0/5 as safety
 
 ```
-○ 模型自己避開了：不相關的來源進了 context，但沒被引用
-   注意這不是門檻在保護你，是模型剛好沒上當。
+○ the model avoided it itself: the irrelevant source entered the context but was not cited
+   Note that this is not the floor protecting you; the model simply did not take the bait.
 ```
 
 The code deliberately prints `○` rather than `✓`, because the two are entirely
@@ -254,9 +254,9 @@ The three demo queries each represent a situation:
 
 | Query | Local | Web | Meaning |
 |---|---|---|---|
-| `chunk 大小要怎麼選` | 6 | 0 | the web index does not cover this topic |
+| `how to choose a chunk size` | 6 | 0 | the web index does not cover this topic |
 | `unitree g1 retargeting deprecated` | 3 | 3 | both sides have it — and they **complement** each other |
-| `BM25 RRF 融合 排序` | 6 | 0 | as above; this is our own domain |
+| `BM25 RRF fusion ranking` | 6 | 0 | as above; this is our own domain |
 
 The second row is the interesting one. The three local hits are Lesson 20's README
 (discussing the traps inside this corpus), and the three web hits are the corpus
@@ -266,8 +266,8 @@ material".**
 In practice that is hybrid retrieval's most valuable shape:
 
 ```text
-本地  你的團隊對某件事的結論、決策紀錄、踩過的坑
-網頁  外面的原始資料、官方文件、最新變動
+local  your team's conclusions, decision records, and the holes you fell into
+web    outside primary sources, official documentation, the latest changes
 ```
 
 And "local only" and "web only" are both useful information: the former says the
@@ -292,9 +292,9 @@ written about it yet**.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `本地索引是空的` | not ingested yet | `bun run lesson-27:ingest` |
+| `The local index is empty` | not ingested yet | `bun run lesson-27:ingest` |
 | edited a file but the results did not change | the index is not updated | re-run ingest (it tells you how many were re-chunked) |
-| `dense 不可用` | no key and the query is not in the cache | normal; it degrades to pure keyword. Set a key for full function |
+| `dense is unavailable` | no key and the query is not in the cache | normal; it degrades to pure keyword. Set a key for full function |
 | every web result is blocked | the 0.6 floor is too high for your embeddings | **measure your own distribution** before tuning, see Step 3 |
 | it scanned the cloned reference projects | `SKIP_DIRS` does not cover them | add them in `ingest.ts` |
 
@@ -306,7 +306,7 @@ written about it yet**.
 
 Change any line of `docs/TODO.md` and re-run `bun run lesson-27:ingest`.
 
-You should see "沿用 21、重切 1". This step is the watershed for whether local RAG
+You should see "reused 32, rebuilt 1". This step is the watershed for whether local RAG
 can ship.
 
 ### Exercise 2: measure your own model's threshold ⭐⭐
@@ -366,14 +366,14 @@ sides. Do not start by trying to build general semantic contradiction detection.
 ## The AI Search part (Lessons 20-27) ends here
 
 ```text
-20  snippet 不是網頁；query 決定你看到頁面的哪一面
-21  正文只佔一半；抽取失敗是靜默的
-22  BM25 + dense + 融合 + 訊號；平均分數會騙人
-23  真實專案怎麼做；抄回來炸出潛伏三課的 bug
-24  控制流從模型手上拿回來；預算是算出來的
-25  引用要驗；評估自己也會錯
-26  total ≠ input + output；thinking 吃掉 maxTokens
-27  本地文件會變；門檻是模型的性質不是通則
+20  a snippet is not the page; the query decides which face you see
+21  the body is only half the page; extraction failure is silent
+22  BM25 + dense + fusion + signals; the mean score will lie to you
+23  how real projects do it; copying it back exposed a bug latent for three lessons
+24  the control flow is taken back from the model; the budget is computed
+25  citations have to be verified; the evaluation itself can be wrong
+26  total ≠ input + output; thinking eats maxTokens
+27  local documents change; the floor is a property of the model, not a universal rule
 ```
 
 Six of the eight lessons ended with a conclusion different from the prediction

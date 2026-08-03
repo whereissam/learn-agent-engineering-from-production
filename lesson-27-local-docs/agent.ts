@@ -28,7 +28,7 @@ const FLOOR = (process.env.FLOOR ?? "on").toLowerCase() !== "off";
  * Only the local documents can answer this question (the web corpus is entirely robotics).
  * So it is a clean "one side is wholly irrelevant" scenario.
  */
-const QUESTION = "chunk 大小要怎麼選？";
+const QUESTION = "How do I choose a chunk size?";
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
@@ -41,16 +41,16 @@ async function main(): Promise<void> {
 
 	const webHits = result.hits.filter((h) => h.kind === "web");
 
-	console.log(bold(`\n相關性門檻的下游傷害   門檻 ${FLOOR ? green("開啟") : red("關閉")}`));
+	console.log(bold(`\nthe downstream damage of the relevance floor   floor ${FLOOR ? green("on") : red("off")}`));
 	console.log(dim("─".repeat(66)));
-	console.log(dim(`檢索到 ${result.hits.length} 筆，其中 ${webHits.length} 筆來自網頁語料`));
+	console.log(dim(`retrieved ${result.hits.length} hits, ${webHits.length} of them from the web corpus`));
 	for (const hit of result.hits) {
-		const tag = hit.kind === "web" ? red("[網頁]") : dim("[本地]");
+		const tag = hit.kind === "web" ? red("[web]  ") : dim("[local]");
 		console.log(dim(`  ${hit.rank}. `) + tag + dim(` ${hit.source}`));
 	}
 	if (webHits.length > 0) {
 		console.log(
-			yellow(`  ⚠ 網頁語料是機器人主題，對這個問題全部都不相關。引用任何一筆都是錯的。`),
+			yellow(`  ⚠ The web corpus is about robots and is wholly irrelevant here. Citing any of it is wrong.`),
 		);
 	}
 	console.log(dim("─".repeat(66)));
@@ -63,8 +63,8 @@ async function main(): Promise<void> {
 		? selectStreamingProvider()
 		: scriptedProvider(webHits.map((h) => h.source));
 
-	console.log(`\n${bold("問：")}${QUESTION}`);
-	console.log(bold("答："));
+	console.log(`\n${bold("Q: ")}${QUESTION}`);
+	console.log(bold("A:"));
 
 	let answer = "";
 	let stopReason = "?";
@@ -99,35 +99,35 @@ async function main(): Promise<void> {
 
 	const localCount = result.hits.length - webHits.length;
 
-	console.log(bold("\n\n判定"));
+	console.log(bold("\n\nVerdict"));
 	console.log(
-		dim(`  8 個位置：本地 ${localCount} 筆、不相關的網頁 ${webHits.length} 筆`) +
+		dim(`  8 slots: ${localCount} local, ${webHits.length} irrelevant web`) +
 			(webHits.length > 0
-				? red(`（${webHits.length} 筆相關的本地文件被擠掉了）`)
-				: green("（全部給了相關來源）")),
+				? red(` (${webHits.length} relevant local documents were pushed out)`)
+				: green(" (every slot went to a relevant source)")),
 	);
 	if (citedWeb.length > 0) {
-		console.log(`  ${red("✗ 引用了不相關的來源")}：`);
+		console.log(`  ${red("✗ cited an irrelevant source")}:`);
 		for (const url of citedWeb) console.log(red(`     ${url}`));
 	} else if (webHits.length > 0) {
-		console.log(`  ${yellow("○ 模型自己避開了")}：不相關的來源進了 context，但沒被引用`);
-		console.log(dim("     注意這不是門檻在保護你，是模型剛好沒上當。"));
+		console.log(`  ${yellow("○ the model avoided it itself")}: the irrelevant source entered the context but was not cited`);
+		console.log(dim("     Note that this is not the floor protecting you; the model simply did not take the bait."));
 	} else {
-		console.log(`  ${green("✓ 不相關的來源根本沒進 context")}`);
+		console.log(`  ${green("✓ the irrelevant source never entered the context")}`);
 	}
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
 	// Lesson 15's lesson: a negative result must first rule out "the reply never finished".
 	if (citedWeb.length === 0 && stopReason !== "end") {
-		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
+		console.log(yellow(`  ⚠ the reply did not end cleanly (${stopReason}), so this result is not trustworthy; run it again`));
 	}
 }
 
 /** The scripted provider used without a key: it shows what the output looks like and is not evidence. */
 function scriptedProvider(webSources: string[]): StreamingProvider {
 	const text =
-		"chunk 大小要在語意完整和 context 預算之間取捨。" +
-		(webSources[0] ? ` 另外可參考 [${webSources[0]}]。` : "");
+		"Chunk size is a trade-off between semantic completeness and the context budget." +
+		(webSources[0] ? ` See also [${webSources[0]}].` : "");
 	const response = {
 		blocks: [{ type: "text" as const, text }],
 		raw: null,
@@ -135,7 +135,7 @@ function scriptedProvider(webSources: string[]): StreamingProvider {
 	};
 	return {
 		name: "fake",
-		model: "scripted-floor（不能當證據）",
+		model: "scripted-floor (not evidence)",
 		async *stream() {
 			yield { type: "text_start" };
 			yield { type: "text_delta", delta: text };

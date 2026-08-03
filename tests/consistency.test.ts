@@ -43,12 +43,12 @@ const goodTool: Part = {
 
 const goodText: Part = { type: "text", id: "x1", text: "done", time: { created: 4, completed: 5 } };
 
-describe("稽核規則的鑑別度（Lesson 28）", () => {
-	test("形狀正確的訊息沒有違規", () => {
+describe("the audit rules discriminate (Lesson 28)", () => {
+	test("a well-shaped message has no violations", () => {
 		assert.deepEqual(audit({ message: message([goodTool, goodText]) }), []);
 	});
 
-	test("存檔裡有 running 的工具 → in-flight-in-storage", () => {
+	test("a running tool in storage → in-flight-in-storage", () => {
 		const part: Part = {
 			type: "tool",
 			id: "t1",
@@ -58,10 +58,10 @@ describe("稽核規則的鑑別度（Lesson 28）", () => {
 		};
 		const kinds = audit({ message: message([part]) }).map((v) => v.kind);
 		assert.ok(kinds.includes("in-flight-in-storage"));
-		assert.ok(kinds.includes("unfinished-span"), "ran 了卻沒有 completed 也要報");
+		assert.ok(kinds.includes("unfinished-span"), "ran without completed must also be reported");
 	});
 
-	test("存檔裡有 pending 的工具 → in-flight-in-storage", () => {
+	test("a pending tool in storage → in-flight-in-storage", () => {
 		const part: Part = {
 			type: "tool",
 			id: "t1",
@@ -76,22 +76,22 @@ describe("稽核規則的鑑別度（Lesson 28）", () => {
 		);
 	});
 
-	test("text 沒有結束時間 → unfinished-span", () => {
-		const part: Part = { type: "text", id: "x1", text: "半截", time: { created: 4 } };
+	test("text with no end time → unfinished-span", () => {
+		const part: Part = { type: "text", id: "x1", text: "half a senten", time: { created: 4 } };
 		assert.deepEqual(
 			audit({ message: message([part]) }).map((v) => v.kind),
 			["unfinished-span"],
 		);
 	});
 
-	test("訊息沒有結束時間 → message-never-completed", () => {
+	test("a message with no end time → message-never-completed", () => {
 		assert.deepEqual(
 			audit({ message: message([goodTool, goodText], { time: { created: 1 } }) }).map((v) => v.kind),
 			["message-never-completed"],
 		);
 	});
 
-	test("終局狀態但沒有內容 → terminal-without-result", () => {
+	test("a terminal state with no content → terminal-without-result", () => {
 		const empty: Part = {
 			type: "tool",
 			id: "t1",
@@ -105,7 +105,7 @@ describe("稽核規則的鑑別度（Lesson 28）", () => {
 		);
 	});
 
-	test("檔案變了但沒記 → unrecorded-patch", () => {
+	test("a file changed with nothing recorded → unrecorded-patch", () => {
 		const kinds = audit({ message: message([goodTool]), changedFiles: ["a.ts"] }).map((v) => v.kind);
 		assert.deepEqual(kinds, ["unrecorded-patch"]);
 
@@ -114,7 +114,7 @@ describe("稽核規則的鑑別度（Lesson 28）", () => {
 		assert.deepEqual(audit({ message: recorded, changedFiles: ["a.ts"] }), []);
 	});
 
-	test("被中斷的工具是合法的終局狀態，不該被報", () => {
+	test("an interrupted tool is a legal terminal state and must not be reported", () => {
 			// interrupted is a kind of error with content and an end time; the record is honest.
 		const part: Part = {
 			type: "tool",
@@ -134,8 +134,8 @@ function clock() {
 	return () => (t += 1);
 }
 
-describe("收尾（Lesson 28）", () => {
-	test("工具參數逐塊累積，pending 的 input 是字串", async () => {
+describe("cleanup (Lesson 28)", () => {
+	test("tool arguments accumulate chunk by chunk, and a pending input is a string", async () => {
 		const processor = new SessionProcessor("m1", { clock: clock(), execute: async () => "ok" });
 		await processor.handle({ type: "tool_input_delta", id: "t1", name: "write_file", chunk: '{"path"' });
 		await processor.handle({ type: "tool_input_delta", id: "t1", name: "write_file", chunk: ':"a.ts"' });
@@ -150,14 +150,14 @@ describe("收尾（Lesson 28）", () => {
 		assert.throws(() => JSON.parse(part.state.status === "pending" ? part.state.input : "{}"));
 	});
 
-	test("中斷 pending 的工具 → error + interrupted，半截參數留在訊息裡", async () => {
+	test("interrupting a pending tool → error + interrupted, with the half-received arguments kept", async () => {
 		const processor = new SessionProcessor("m1", { clock: clock(), execute: async () => "ok" });
 		await processor.handle({ type: "tool_input_delta", id: "t1", name: "write_file", chunk: '{"path' });
 		await processor.cleanup("interrupted");
 
 		const part = processor.message.parts[0];
 		if (part?.type !== "tool" || part.state.status !== "error") {
-			assert.fail("應該變成 error");
+			assert.fail("it should have become error");
 			return;
 		}
 		assert.equal(part.state.interrupted, true);
@@ -167,7 +167,7 @@ describe("收尾（Lesson 28）", () => {
 		assert.ok(part.time.completed !== undefined);
 	});
 
-	test("中斷正在跑的工具 → error + interrupted", async () => {
+	test("interrupting a running tool → error + interrupted", async () => {
 		let release: () => void = () => {};
 		const processor = new SessionProcessor("m1", {
 			clock: clock(),
@@ -179,14 +179,14 @@ describe("收尾（Lesson 28）", () => {
 
 		const part = processor.message.parts[0];
 		if (part?.type !== "tool" || part.state.status !== "error") {
-			assert.fail("應該變成 error");
+			assert.fail("it should have become error");
 			return;
 		}
 		assert.equal(part.state.interrupted, true);
 		release();
 	});
 
-	test("寬限窗口內跑完的工具 → completed，不是 interrupted", async () => {
+	test("a tool that finishes inside the grace window → completed, not interrupted", async () => {
 		const processor = new SessionProcessor("m1", {
 			clock: clock(),
 			graceMs: 200,
@@ -202,7 +202,7 @@ describe("收尾（Lesson 28）", () => {
 		assert.equal(part?.type === "tool" && part.state.status, "completed");
 	});
 
-	test("⚠ 正常結束時要等工具真的跑完，不能套用寬限窗口", async () => {
+	test("⚠ on a normal finish, wait for the tool to really finish; the grace window does not apply", async () => {
 			// This one is a bug a real model produced: the model called a tool without emitting text first,
 			// the stream finished normally with the tool still running → the 250ms elapsed → a successful tool was marked
 			// interrupted while finish was "end". A self-contradictory record.
@@ -222,18 +222,18 @@ describe("收尾（Lesson 28）", () => {
 		assert.deepEqual(audit({ message: processor.message }), []);
 	});
 
-	test("半截的文字保留下來，並補上結束時間", async () => {
+	test("half a sentence is kept, with an end time filled in", async () => {
 		const processor = new SessionProcessor("m1", { clock: clock(), execute: async () => "ok" });
 		await processor.handle({ type: "text_start", id: "x1" });
-		await processor.handle({ type: "text_delta", id: "x1", delta: "我已經把" });
+		await processor.handle({ type: "text_delta", id: "x1", delta: "I have already" });
 		await processor.cleanup("interrupted");
 
 		const part = processor.message.parts[0];
-		assert.equal(part?.type === "text" && part.text, "我已經把");
-		assert.ok(part?.time.completed !== undefined, "使用者已經看過的字不能沒有結束時間");
+		assert.equal(part?.type === "text" && part.text, "I have already");
+		assert.ok(part?.time.completed !== undefined, "text the user has already seen must not lack an end time");
 	});
 
-	test("被中斷的那一輪也要記 patch", async () => {
+	test("an interrupted turn still records its patch", async () => {
 		const processor = new SessionProcessor("m1", {
 			clock: clock(),
 			execute: async () => "ok",
@@ -246,7 +246,7 @@ describe("收尾（Lesson 28）", () => {
 		assert.deepEqual(audit({ message: processor.message, changedFiles: ["a.ts"] }), []);
 	});
 
-	test("CLEANUP=off：什麼都不做，稽核就會抓到", async () => {
+	test("CLEANUP=off: do nothing, and the audit catches it", async () => {
 		const processor = new SessionProcessor("m1", {
 			clock: clock(),
 			cleanup: false,
@@ -254,7 +254,7 @@ describe("收尾（Lesson 28）", () => {
 			diff: () => ["a.ts"],
 		});
 		await processor.handle({ type: "text_start", id: "x1" });
-		await processor.handle({ type: "text_delta", id: "x1", delta: "半截" });
+		await processor.handle({ type: "text_delta", id: "x1", delta: "half a senten" });
 		await processor.handle({ type: "tool_call", id: "t1", name: "write_file", args: { path: "a.ts" } });
 		await processor.cleanup("interrupted");
 
@@ -265,7 +265,7 @@ describe("收尾（Lesson 28）", () => {
 		assert.ok(kinds.includes("unrecorded-patch"));
 	});
 
-	test("存檔再載回來，四種 state 的形狀不變", async () => {
+	test("saving and reloading preserves the shape of all four states", async () => {
 		const processor = new SessionProcessor("m1", { clock: clock(), execute: async () => "ok" });
 		await processor.handle({ type: "tool_input_delta", id: "t1", name: "write_file", chunk: '{"a' });
 		await processor.cleanup("interrupted");

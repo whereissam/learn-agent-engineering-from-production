@@ -27,8 +27,8 @@ const URL_PATTERN = /https?:\/\/[^\s,)）、]+/g;
 function isStructural(line: string): boolean {
 	const trimmed = line.trim();
 	if (trimmed.length === 0) return true;
-	if (/^#{1,6}\s/.test(trimmed)) return true; // 標題
-	if (/^[-*_]{3,}$/.test(trimmed)) return true; // 分隔線
+	if (/^#{1,6}\s/.test(trimmed)) return true; // headings
+	if (/^[-*_]{3,}$/.test(trimmed)) return true; // horizontal rules
 	if (/^```/.test(trimmed)) return true;
 	// A pure lead-in ("the following are…:") is usually short and ends with a colon
 	if (trimmed.length < 12 && /[:：]$/.test(trimmed)) return true;

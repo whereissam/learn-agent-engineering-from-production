@@ -29,8 +29,8 @@ function action(overrides: Partial<Extract<TrajectoryEvent, { kind: "action" }>>
 	};
 }
 
-describe("trajectory 查詢（Lesson 37）", () => {
-	test("agent 宣稱成功、環境說失敗 → 查得出衝突", () => {
+describe("trajectory queries (Lesson 37)", () => {
+	test("the agent claims success and the environment says failure → the conflict is queryable", () => {
 		const trajectory = new Trajectory();
 		const act = action({ id: "a1" });
 		trajectory.add(act);
@@ -40,16 +40,16 @@ describe("trajectory 查詢（Lesson 37）", () => {
 			content: "2 failing", exitCode: 1,
 		});
 		trajectory.add({
-			kind: "message", id: "m1", timestamp: 3, source: "agent", text: "測試都過了。",
+			kind: "message", id: "m1", timestamp: 3, source: "agent", text: "All tests passed.",
 		});
 
 		const conflicts = trajectory.conflicts();
 		assert.equal(conflicts.length, 1);
 		assert.equal(conflicts[0]?.exitCode, 1);
-		assert.match(conflicts[0]?.claim ?? "", /都過/);
+		assert.match(conflicts[0]?.claim ?? "", /passed/);
 	});
 
-	test("環境成功的時候不報衝突", () => {
+	test("no conflict is reported when the environment succeeded", () => {
 		const trajectory = new Trajectory();
 		trajectory.add(action({ id: "a2" }));
 		trajectory.add({
@@ -57,11 +57,11 @@ describe("trajectory 查詢（Lesson 37）", () => {
 			toolName: "run_command", toolCallId: "c1", actionId: "a2",
 			content: "12 passing", exitCode: 0,
 		});
-		trajectory.add({ kind: "message", id: "m2", timestamp: 3, source: "agent", text: "都過了。" });
+		trajectory.add({ kind: "message", id: "m2", timestamp: 3, source: "agent", text: "They all passed." });
 		assert.deepEqual(trajectory.conflicts(), []);
 	});
 
-	test("同一個問題在聊天記錄上答不出來", () => {
+	test("the same question is unanswerable on a chat log", () => {
 			// This is not testing how well `conflictsFromChat` is written but testing
 			// **that data structure's ceiling**: it can only match keywords, and it is never confident.
 		const trajectory = new Trajectory();
@@ -71,18 +71,18 @@ describe("trajectory 查詢（Lesson 37）", () => {
 			toolName: "run_command", toolCallId: "c1", actionId: "a3",
 			content: "2 failing", exitCode: 1,
 		});
-		trajectory.add({ kind: "message", id: "m3", timestamp: 3, source: "agent", text: "全部綠燈。" });
+		trajectory.add({ kind: "message", id: "m3", timestamp: 3, source: "agent", text: "Everything is green." });
 
 			// The trajectory still finds it (it looks at exitCode, not at wording)
 		assert.equal(trajectory.conflicts().length, 1);
 
 			// The chat log: rephrase it and the detection misses
 		const chat = conflictsFromChat(trajectory.toChatHistory());
-		assert.equal(chat.claimSeen, false, "「全部綠燈」不在關鍵字表裡");
+		assert.equal(chat.claimSeen, false, '"everything is green" is not in the keyword list');
 		assert.equal(chat.confident, false);
 	});
 
-	test("三種失敗分得開", () => {
+	test("the three kinds of failure are distinguishable", () => {
 		const trajectory = new Trajectory();
 		trajectory.add({
 			kind: "observation", id: "x1", timestamp: 1, source: "environment",
@@ -90,7 +90,7 @@ describe("trajectory 查詢（Lesson 37）", () => {
 		});
 		trajectory.add({
 			kind: "user-reject", id: "x2", timestamp: 2, source: "environment",
-			toolName: "run_command", toolCallId: "c2", actionId: "a2", rejectionReason: "不要跑 rm",
+			toolName: "run_command", toolCallId: "c2", actionId: "a2", rejectionReason: "do not run rm",
 		});
 		trajectory.add({
 			kind: "agent-error", id: "x3", timestamp: 3, source: "agent",
@@ -104,7 +104,7 @@ describe("trajectory 查詢（Lesson 37）", () => {
 		assert.equal(results.length, 3);
 	});
 
-	test("agent-error 的 source 是 agent，不是 environment", () => {
+	test("an agent-error has source agent, not environment", () => {
 		const scaffold: TrajectoryEvent = {
 			kind: "agent-error", id: "x4", timestamp: 1, source: "agent",
 			toolName: "read_file", toolCallId: "c1", error: "our bug",
@@ -113,11 +113,11 @@ describe("trajectory 查詢（Lesson 37）", () => {
 			kind: "observation", id: "x5", timestamp: 2, source: "environment",
 			toolName: "read_file", toolCallId: "c2", actionId: "a1", content: "ENOENT", exitCode: 1,
 		};
-		assert.equal(isFromEnvironment(scaffold), false, "我們的 bug 不是世界說的");
+		assert.equal(isFromEnvironment(scaffold), false, "our own bug is not the world speaking");
 		assert.equal(isFromEnvironment(fromWorld), true);
 	});
 
-	test("llmResponseId 分得出平行與循序", () => {
+	test("llmResponseId separates parallel from sequential", () => {
 		const parallel = new Trajectory();
 		for (let i = 0; i < 3; i++) parallel.add(action({ llmResponseId: "same" }));
 		assert.equal(parallel.batches().size, 1);
@@ -127,7 +127,7 @@ describe("trajectory 查詢（Lesson 37）", () => {
 		assert.equal(sequential.batches().size, 3);
 	});
 
-	test("沒有 observation 的 action 抓得出來（Lesson 3 的硬規則）", () => {
+	test("an action with no observation is caught (Lesson 3's hard rule)", () => {
 		const trajectory = new Trajectory();
 		trajectory.add(action({ id: "a9" }));
 		assert.equal(trajectory.danglingActions().length, 1);
@@ -136,27 +136,27 @@ describe("trajectory 查詢（Lesson 37）", () => {
 			kind: "user-reject", id: "o9", timestamp: 2, source: "environment",
 			toolName: "run_command", toolCallId: "c1", actionId: "a9", rejectionReason: "no",
 		});
-		assert.deepEqual(trajectory.danglingActions(), [], "拒絕也算一種回應");
+		assert.deepEqual(trajectory.danglingActions(), [], "a rejection counts as a response");
 	});
 
-	test("view 套用壓縮，trajectory 保留全部", () => {
+	test("the view applies compaction while the trajectory keeps everything", () => {
 		const trajectory = new Trajectory();
-		trajectory.add({ kind: "message", id: "v1", timestamp: 1, source: "user", text: "一" });
-		trajectory.add({ kind: "message", id: "v2", timestamp: 2, source: "agent", text: "二" });
+		trajectory.add({ kind: "message", id: "v1", timestamp: 1, source: "user", text: "one" });
+		trajectory.add({ kind: "message", id: "v2", timestamp: 2, source: "agent", text: "two" });
 		trajectory.add({
 			kind: "condensation", id: "vc", timestamp: 3, source: "environment",
-			forgottenIds: ["v1"], summary: "摘要",
+			forgottenIds: ["v1"], summary: "a summary",
 		});
 
 		assert.equal(trajectory.all().length, 3);
-		assert.equal(trajectory.view().length, 2, "v1 被移出 LLM view");
+		assert.equal(trajectory.view().length, 2, "v1 is removed from the LLM view");
 		assert.ok(
 			trajectory.all().some((event) => event.id === "v1"),
-			"但它還在 trajectory 裡 —— append-only",
+			"but it is still in the trajectory — append-only",
 		);
 	});
 
-	test("JSONL 存檔再載回來，形狀不變", () => {
+	test("saving to JSONL and reloading preserves the shape", () => {
 		const trajectory = new Trajectory();
 		trajectory.add(action({ id: "j1" }));
 		trajectory.add({

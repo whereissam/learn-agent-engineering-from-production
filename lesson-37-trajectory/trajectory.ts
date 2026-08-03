@@ -192,7 +192,7 @@ export class Trajectory {
 export function conflictsFromChat(
 	history: { role: string; content: string }[],
 	failureMarkers = ["exit code 1", "FAIL", "error:"],
-	successMarkers = ["都過", "通過", "all pass", "passing", "成功"],
+	successMarkers = ["all pass", "passing", "passed", "no failures", "succeeded"],
 ): { failureSeen: boolean; claimSeen: boolean; confident: boolean } {
 	const failureSeen = history.some(
 		(message) =>

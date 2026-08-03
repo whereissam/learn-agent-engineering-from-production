@@ -132,13 +132,13 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 
 		if (streamError) {
 			if (verbose) {
-				console.log(red(`\n[${streamError.aborted ? "已中斷" : "串流失敗"}] ${streamError.message}`));
+				console.log(red(`\n[${streamError.aborted ? "interrupted" : "stream failed"}] ${streamError.message}`));
 			}
 			exhausted = false;
 			break;
 		}
 		if (!response) {
-			if (verbose) console.log(red("\n[串流沒有正常結束]"));
+			if (verbose) console.log(red("\n[the stream did not end cleanly]"));
 			exhausted = false;
 			break;
 		}
@@ -178,7 +178,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 					isError: true,
 				});
 				toolRecords.push({ name: call.name, path, mutating, ok: false, summary: firstLine(denial) });
-				if (verbose) console.log(`  ${red("✗ 擋下來了")} ${dim(decision.reason)}`);
+				if (verbose) console.log(`  ${red("✗ blocked")} ${dim(decision.reason)}`);
 				continue;
 			}
 
@@ -196,7 +196,7 @@ export async function runTurn(options: RunOptions): Promise<TurnOutcome> {
 					isError: true,
 				});
 				toolRecords.push({ name: call.name, path, mutating, ok: false, summary: firstLine(message) });
-				if (verbose) console.log(`  ${red("✗ 執行失敗")} ${red(firstLine(message))}`);
+				if (verbose) console.log(`  ${red("✗ execution failed")} ${red(firstLine(message))}`);
 			}
 		}
 
@@ -235,7 +235,7 @@ async function gate(
 	if (decision.needsUser) {
 		const approved = await ask(decision, toolName, args);
 		if (!approved) {
-			return `Denied by the permission engine: 使用者拒絕了。（${decision.reason}）`;
+			return `Denied by the permission engine: the user declined. (${decision.reason})`;
 		}
 	}
 

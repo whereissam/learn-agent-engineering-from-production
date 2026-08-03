@@ -50,7 +50,7 @@ function loadCorpus(): Map<string, string> {
 	try {
 		pages = JSON.parse(readFileSync(resolve(CORPUS, "index.json"), "utf8")) as IndexedPage[];
 	} catch {
-		throw new Error("找不到 Lesson 20 的語料。先產生：bun run lesson-20:corpus");
+		throw new Error("Lesson 20's corpus not found. Generate it first: bun run lesson-20:corpus");
 	}
 
 	const corpus = new Map<string, string>();
@@ -117,7 +117,7 @@ const args = process.argv.slice(2);
 if (args.includes("--show")) {
 	const id = args[args.indexOf("--show") + 1] ?? "real";
 	const fixture = FIXTURES.find((f) => f.id === id);
-	if (!fixture) throw new Error(`找不到 ${id}。可用：${FIXTURES.map((f) => f.id).join(", ")}`);
+	if (!fixture) throw new Error(`${id} not found. Available: ${FIXTURES.map((f) => f.id).join(", ")}`);
 
 	const { verdicts } = score(fixture.report, corpus);
 	console.log(bold(`\n${fixture.label}\n`));
@@ -129,18 +129,18 @@ if (args.includes("--show")) {
 
 		for (const source of verdict.sources) {
 			const tag = !source.known
-				? red("網址不在語料裡")
+				? red("that URL is not in the corpus")
 				: source.supported === 0
-					? red("嫁接：這一頁沒有支持這句話的任何內容")
-					: green(`支持 ${source.supported} 個原子`);
+					? red("grafted: this page contains nothing supporting the sentence")
+					: green(`supports ${source.supported} atoms`);
 			console.log(dim(`    ${source.url.slice(0, 62)}  ${tag}`));
 		}
 		if (verdict.sources.length === 0 && verdict.atoms.length > 0) {
-			console.log(dim(`    ${yellow("沒有引用")}`));
+			console.log(dim(`    ${yellow("no citation")}`));
 		}
 		if (verdict.unsupportedAtoms.length > 0) {
 			console.log(
-				dim(`    ${yellow(`查無來源：${verdict.unsupportedAtoms.map((a) => a.raw).join(", ")}`)}`),
+				dim(`    ${yellow(`no source found: ${verdict.unsupportedAtoms.map((a) => a.raw).join(", ")}`)}`),
 			);
 		}
 	}
@@ -150,8 +150,8 @@ if (args.includes("--show")) {
 const cards: Scorecard[] = [];
 let failures = 0;
 
-console.log(dim("claims=有內容的句子  uncited=講了具體的事卻沒附來源"));
-console.log(dim("grafted=引用了但完全不支持  unsupported=找不到任何來源的原子\n"));
+console.log(dim("claims=sentences with content  uncited=states something specific with no source"));
+console.log(dim("grafted=cited but wholly unsupported  unsupported=atoms with no source anywhere\n"));
 
 for (const fixture of FIXTURES) {
 	const { card } = score(fixture.report, corpus);
@@ -159,7 +159,7 @@ for (const fixture of FIXTURES) {
 	cards.push(card);
 
 	console.log(bold(fixture.label));
-	if (fixture.injected) console.log(dim(`  埋的錯：${fixture.injected}`));
+	if (fixture.injected) console.log(dim(`  planted: ${fixture.injected}`));
 	console.log(
 		`  claims ${card.claims}  uncited ${card.uncited}  atoms ${card.atoms}  ` +
 			`unsupported ${card.unsupportedAtoms}  grafted ${card.grafted}  unknown ${card.unknownSources}`,
@@ -177,7 +177,7 @@ for (const fixture of FIXTURES) {
 			console.log(`  ${green("✓")} ${name} ${actual} ≥ ${expected}`);
 		} else {
 			failures++;
-			console.log(`  ${red("✗")} ${name} ${actual} < ${expected}  ${red("檢查器漏抓了")}`);
+			console.log(`  ${red("✗")} ${name} ${actual} < ${expected}  ${red("the checker missed it")}`);
 		}
 	}
 	console.log();
@@ -185,21 +185,21 @@ for (const fixture of FIXTURES) {
 
 if (args.includes("--save")) {
 	writeFileSync(BASELINE, `${JSON.stringify(cards, null, 2)}\n`, "utf8");
-	console.log(dim(`基準已存到 ${BASELINE}`));
+	console.log(dim(`baseline saved to ${BASELINE}`));
 } else if (args.includes("--compare")) {
 	let baseline: Scorecard[];
 	try {
 		baseline = JSON.parse(readFileSync(BASELINE, "utf8")) as Scorecard[];
 	} catch {
-		throw new Error("還沒有基準。先跑 bun run lesson-25 -- --save");
+		throw new Error("No baseline yet. Run bun run lesson-25 -- --save first");
 	}
 
-	console.log(bold("跟基準比較"));
+	console.log(bold("compared against the baseline"));
 	let changed = 0;
 	for (const card of cards) {
 		const before = baseline.find((b) => b.id === card.id);
 		if (!before) {
-			console.log(`  ${yellow("+")} ${card.id} 是新的`);
+			console.log(`  ${yellow("+")} ${card.id} is new`);
 			continue;
 		}
 		for (const key of ["claims", "uncited", "atoms", "unsupportedAtoms", "grafted"] as const) {
@@ -212,10 +212,10 @@ if (args.includes("--save")) {
 			}
 		}
 	}
-	if (changed === 0) console.log(`  ${green("✓")} 所有指標跟基準一致`);
+	if (changed === 0) console.log(`  ${green("✓")} every metric matches the baseline`);
 }
 
 if (failures > 0) {
-	console.log(red(`\n${failures} 項沒通過：檢查器沒抓到我故意埋的錯。`));
+	console.log(red(`\n${failures} failed: the checker missed errors that were planted deliberately.`));
 	process.exit(1);
 }

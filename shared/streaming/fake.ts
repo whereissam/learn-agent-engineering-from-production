@@ -24,10 +24,10 @@ export function fakeStreamingProvider(): StreamingProvider {
 				// or the fake provider's canned long passage becomes the summary and compaction makes things bigger.
 			if (request.tools.length === 0 && request.system.includes("summarizing")) {
 				const summary =
-					"- 使用者請 agent 檢查一個 URL 短網址服務的專案\n" +
-					"- 已讀取 src/store.ts 與 src/config.ts\n" +
-					"- 發現 config.ts 的 ALPHABET 含大寫字母，但 store.ts 的 lookup() 會先 toLowerCase()\n" +
-					"- 尚未修正，測試仍為 2 fail / 3 pass";
+					"- The user asked the agent to look over a URL shortener project\n" +
+					"- Read src/store.ts and src/config.ts\n" +
+					"- Found that ALPHABET in config.ts contains uppercase letters, but lookup() in store.ts calls toLowerCase() first\n" +
+					"- Not fixed yet; tests still 2 fail / 3 pass";
 				yield* say(summary, signal);
 				if (signal?.aborted) return yield aborted();
 				yield {
@@ -46,14 +46,14 @@ export function fakeStreamingProvider(): StreamingProvider {
 
 				// Call tools for the first two turns, then say a long passage (so you can test interruption)
 			if (hasTools && turn === 0) {
-				yield* say("我先看一下專案結構。", signal);
+				yield* say("Let me look at the project structure first.", signal);
 				if (signal?.aborted) return yield aborted();
 				yield { type: "tool_call", id: "s1", name: "list_files", args: {} };
 				yield {
 					type: "done",
 					response: {
 						blocks: [
-							{ type: "text", text: "我先看一下專案結構。" },
+							{ type: "text", text: "Let me look at the project structure first." },
 							{ type: "toolCall", id: "s1", name: "list_files", args: {} },
 						],
 						raw: null,
@@ -64,7 +64,7 @@ export function fakeStreamingProvider(): StreamingProvider {
 			}
 
 			if (hasTools && turn === 1) {
-				yield* say("接著讀 store.ts。", signal);
+				yield* say("Now reading store.ts.", signal);
 				if (signal?.aborted) return yield aborted();
 				yield {
 					type: "tool_call",
@@ -76,7 +76,7 @@ export function fakeStreamingProvider(): StreamingProvider {
 					type: "done",
 					response: {
 						blocks: [
-							{ type: "text", text: "接著讀 store.ts。" },
+							{ type: "text", text: "Now reading store.ts." },
 							{ type: "toolCall", id: "s2", name: "read_file", args: { path: "src/store.ts" } },
 						],
 						raw: null,
@@ -88,12 +88,12 @@ export function fakeStreamingProvider(): StreamingProvider {
 
 				// A deliberately long reply, giving you time to press Ctrl+C
 			const long =
-				"這是一段刻意寫得很長的回覆，目的是讓你有足夠的時間按下 Ctrl+C 試試看中斷。\n\n" +
-				"當你按下去的時候，注意三件事：\n" +
-				"第一，文字會立刻停在某個字的中間，不會等整段講完。\n" +
-				"第二，已經印出來的文字不會消失，它是有效的資料，會被保存進對話歷史。\n" +
-				"第三，程式不會崩潰，你會回到提示符號，而且可以繼續對話。\n\n" +
-				"這三件事都需要刻意設計才會發生。詳細原理請看 Lesson 3 的 README。\n";
+				"This reply is deliberately long, to give you enough time to press Ctrl+C and try interrupting it.\n\n" +
+				"When you do, watch for three things:\n" +
+				"First, the text stops immediately, mid-word, instead of finishing the sentence.\n" +
+				"Second, the text already printed does not vanish. It is valid data, and it is kept in the conversation history.\n" +
+				"Third, the program does not crash. You land back at the prompt and can keep talking.\n\n" +
+				"None of those three happen by accident. Lesson 3's README explains how each one is arranged.\n";
 
 			yield* say(long, signal);
 			if (signal?.aborted) return yield aborted();

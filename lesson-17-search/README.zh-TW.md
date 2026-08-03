@@ -93,9 +93,9 @@ DEMOTE=off PROVIDER=gemini bun run lesson-17:agent
 Hermes 的 `session_search` **沒有 mode 參數**，從引數推斷：
 
 ```
-① DISCOVERY  給 query                          → 找相關的 session
-② SCROLL     給 session_id + around_message_id → 在已知位置前後翻
-③ BROWSE     什麼都不給                          → 列最近的 session
+① DISCOVERY  you give a query                          → find relevant sessions
+② SCROLL     you give session_id + around_message_id   → page around a known position
+③ BROWSE     you give nothing                          → list the most recent sessions
 ```
 
 為什麼不做成三個工具？因為它們回傳的是同一種東西（session 裡的訊息），
@@ -140,17 +140,17 @@ BM25 的分數 = IDF（詞多罕見）× TF（在這篇出現幾次）。
 實測（12 個排程 session + 1 個真實對話）：
 
 ```
-❌ 所有來源同權：
-  1. cron         每日 telemetry 摘要 1        score=5.8
-  2. cron         每日 telemetry 摘要 2        score=5.8
-  3. cron         每日 telemetry 摘要 3        score=5.8
-  → 第一名是 cron（recall blindness）✗
+❌ every source weighted equally:
+  1. cron         daily telemetry summary 1              score=4.3
+  2. cron         daily telemetry summary 2              score=4.3
+  3. cron         daily telemetry summary 3              score=4.3
+  → the top hit is cron (recall blindness) ✗
 
-✅ cron 降權到 0.25：
-  1. interactive  修 telemetry 取樣率的 bug     score=3.9
-  2. interactive  很長的除錯對話                 score=3.1
-  3. cron         每日 telemetry 摘要 1        score=1.5
-  → 第一名是 interactive ✓
+✅ cron down-weighted to 0.25:
+  1. interactive  fixing the telemetry sample-rate bug   score=2.9
+  2. interactive  a very long debugging conversation     score=2.0
+  3. cron         daily telemetry summary 1              score=1.1
+  → the top hit is interactive ✓
 ```
 
 ### 降權，不是排除
@@ -158,7 +158,7 @@ BM25 的分數 = IDF（詞多罕見）× TF（在這篇出現幾次）。
 ```ts
 const SOURCE_WEIGHT: Record<SessionSource, number> = {
   interactive: 1.0,
-  cron: 0.25,      // ← 降權，不排除
+  cron: 0.25,      // ← down-weighted, not excluded
   subagent: 0,
   tool: 0,
 };
@@ -202,8 +202,8 @@ Step 3 用確定性的分數證明了排序會壞。但排序只是中間產物�
 > agent 拿到一堆 cron 摘要之後，會怎樣？
 
 ```bash
-PROVIDER=gemini bun run lesson-17:agent              # 有降權
-DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # 沒降權
+PROVIDER=gemini bun run lesson-17:agent              # with demotion
+DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # without it
 ```
 
 問題是「我之前有查過 telemetry 取樣率的問題嗎？結論是什麼？」
@@ -233,12 +233,23 @@ DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # 沒降權
 不是「對 vs 錯」，是**可靠度和成本**：
 
 ```
-DEMOTE=on   搜尋 2-5 次（多數 3 次左右），8/8 都答對
-DEMOTE=off  搜尋 4-6 次，而且結果分成三種，其中兩種是壞的
+DEMOTE=on   2-5 searches (usually about 3), 8/8 answered correctly
+DEMOTE=off  4-6 searches, and three different outcomes, two of them bad
 ```
 
+後來在同一個模型上重測，各三次，穩定重現的是成本那一半：
+
+```
+DEMOTE=on   2 / 2 / 2 searches   3/3 found the real conversation
+DEMOTE=off  3 / 4 / 4 searches   3/3 found the real conversation
+```
+
+**降權讓搜尋次數少了一半。** 那一輪重測裡兩組都沒有答錯，
+所以上面那個「其中兩種是壞的」要當成當初九次跑出來的結果，
+不是今天該預期的比率。
+
 沒有降權時，agent 會靠**反覆換關鍵字硬撈**來補救排序的問題。
-它撈的詞越來越具體：`telemetry` → `取樣` → `sampling` → `50Hz`
+它撈的詞越來越具體：`telemetry` → `sample rate` → `sampling` → `50Hz`
 → `go2-c` → `meta.sample_rate_hz`。大部分時候真的被它撈到了。
 
 > 模型會替你的爛基礎設施擦屁股，但要付錢，而且不保證每次都成功。
@@ -274,10 +285,10 @@ Lesson 5 的壓縮會產生一段摘要，而那段摘要是以**普通訊息**�
 所以搜尋會搜到它。後果：
 
 ```
-1. 舊 session 被壓縮，產生一大段摘要
-2. 新 session 搜尋歷史，搜到那段摘要
-3. 摘要被塞進新 session 的 context
-4. 新 session 變大，又被壓縮…
+1. an old session is compacted, producing a long summary
+2. a new session searches history and finds that summary
+3. the summary is pushed into the new session's context
+4. the new session grows and is compacted in turn…
 ```
 
 搜尋把 Lesson 5 好不容易壓縮掉的東西又搬回來了。
@@ -293,7 +304,7 @@ Hermes 的原話：
 const COMPACTION_PREFIXES = [
   "[CONTEXT COMPACTION",
   "[CONTEXT SUMMARY]:",
-  "[以下是這次對話較早部分的摘要",   // ← 我們 Lesson 5 用的前綴
+  "[The following is a summary of the earlier part of this conversation",   // ← the prefix Lesson 5 uses
 ];
 ```
 
@@ -313,18 +324,18 @@ const COMPACTION_PREFIXES = [
 所以每個結果帶三段：
 
 ```
-session 開頭（這個對話本來在幹嘛）：
-  [user] 我們的 telemetry 取樣率設定好像有問題
-  [assistant] 我看一下 config。目前 sample_rate_hz 寫死 50Hz。
+the start of the session (what this conversation was about):
+  [user] something looks wrong with our telemetry sample-rate setting
+  [assistant] Let me look at the config. sample_rate_hz is hardcoded to 50
 
-命中處前後（實際發生了什麼）：
-  [user] 對，但 go2-c 那台實際是 100Hz
-  [assistant] 找到了。config.ts 把取樣率寫死了…    ← 命中
-  [user] 測試過了嗎
+around the hit (what actually happened):
+  [user] right, but the go2-c unit actually runs at 100Hz
+  [assistant] Found it. config.ts hardcodes the sample rate…    ← the hit
+  [user] did you test it
 
-session 結尾（最後結論是什麼）：
-  [user] 測試過了嗎
-  [assistant] 跑了 bun test，5 pass 0 fail。
+the end of the session (what the conclusion was):
+  [user] did you test it
+  [assistant] Ran bun test: 5 pass, 0 fail.
 ```
 
 三段合起來，模型不用再翻就知道上次發生了什麼。

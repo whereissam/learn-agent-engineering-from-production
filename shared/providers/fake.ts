@@ -65,8 +65,8 @@ function lesson1Script(turn: number, request: ModelRequest): ModelResponse {
 		// Call 4: state the conclusion with no tool call → the loop ends.
 	const readCount = request.messages.filter((m) => m.role === "toolResult").length;
 	return text(
-		`[fake provider] 我跑完了 ${readCount} 輪工具呼叫。\n\n` +
-			`真正的模型會在這裡給出答案。想看真的推理，設一把 API key 再跑一次。`,
+		`[fake provider] I ran ${readCount} rounds of tool calls.\n\n` +
+			`A real model would give you an answer here. Set an API key and run it again to see real reasoning.`,
 	);
 }
 
@@ -113,10 +113,10 @@ function lesson2Script(turn: number, _request: ModelRequest): ModelResponse {
 
 		default:
 			return text(
-				"[fake provider] 腳本跑完了。\n\n" +
-					"剛剛你看到的流程是：探索 → 讀檔 → 跑測試 → 改檔 → 再跑測試驗證。\n" +
-					"其中 run_command 和 edit_file 都需要你批准，read_file 和 list_files 不用。\n\n" +
-					"想看真的推理，設一把 API key 再跑一次。",
+				"[fake provider] The script is done.\n\n" +
+					"What you just watched was: explore → read → run the tests → edit → run them again to verify.\n" +
+					"run_command and edit_file both needed your approval; read_file and list_files did not.\n\n" +
+					"Set an API key and run it again to see real reasoning.",
 			);
 	}
 }

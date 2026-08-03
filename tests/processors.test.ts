@@ -15,7 +15,7 @@ const empty = () => new ProcessorPipeline();
 const guarded = () => new ProcessorPipeline([new SecretRedactor()]);
 
 describe("processor pipeline（Lesson 31）", () => {
-	test("secret redactor 遮住 secret，但保留非敏感內容", async () => {
+	test("the secret redactor masks secrets and keeps everything else", async () => {
 		const result = await guarded().run({
 			content: TOOL_RESULT,
 			kind: "tool-result",
@@ -29,7 +29,7 @@ describe("processor pipeline（Lesson 31）", () => {
 		assert.equal(result.findings[0]?.count, 1);
 	});
 
-	test("pipeline 不會就地修改呼叫端的 payload", async () => {
+	test("the pipeline does not mutate the caller's payload in place", async () => {
 		const input: Payload = {
 			content: TOOL_RESULT,
 			kind: "tool-result",
@@ -39,7 +39,7 @@ describe("processor pipeline（Lesson 31）", () => {
 		assert.equal(input.content, TOOL_RESULT);
 	});
 
-	test("只保護 model，trace 和 memory 仍然會漏", async () => {
+	test("protecting only model still leaks through trace and memory", async () => {
 		const results = await fanOutToolResult(TOOL_RESULT, {
 			model: guarded(),
 			trace: empty(),
@@ -51,7 +51,7 @@ describe("processor pipeline（Lesson 31）", () => {
 		assert.ok(results.memory.payload.content.includes(SECRET));
 	});
 
-	test("三個邊界要各自處理", async () => {
+	test("all three boundaries must be handled separately", async () => {
 		const pipelines: Record<Boundary, ProcessorPipeline> = {
 			model: guarded(),
 			trace: guarded(),
@@ -64,7 +64,7 @@ describe("processor pipeline（Lesson 31）", () => {
 		}
 	});
 
-	test("processor 不能偷偷改變 boundary", async () => {
+	test("a processor must not quietly change the boundary", async () => {
 		const bad: Processor = {
 			id: "bad",
 			process(payload) {
@@ -81,7 +81,7 @@ describe("processor pipeline（Lesson 31）", () => {
 				kind: "user-input",
 				boundary: "model",
 			}),
-			/不可以把 boundary/,
+			/must not change the boundary/,
 		);
 	});
 });

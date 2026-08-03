@@ -97,9 +97,9 @@ The test is:
 Hermes's `session_search` has no mode parameter and infers from the arguments:
 
 ```
-① DISCOVERY  給 query                          → 找相關的 session
-② SCROLL     給 session_id + around_message_id → 在已知位置前後翻
-③ BROWSE     什麼都不給                          → 列最近的 session
+① DISCOVERY  you give a query                          → find relevant sessions
+② SCROLL     you give session_id + around_message_id   → page around a known position
+③ BROWSE     you give nothing                          → list the most recent sessions
 ```
 
 Why not three tools? Because they return the same kind of thing (messages
@@ -149,17 +149,17 @@ all the robot's daily reports.
 Measured, with 12 scheduled sessions and 1 real conversation:
 
 ```
-❌ 所有來源同權：
-  1. cron         每日 telemetry 摘要 1        score=5.8
-  2. cron         每日 telemetry 摘要 2        score=5.8
-  3. cron         每日 telemetry 摘要 3        score=5.8
-  → 第一名是 cron（recall blindness）✗
+❌ every source weighted equally:
+  1. cron         daily telemetry summary 1              score=4.3
+  2. cron         daily telemetry summary 2              score=4.3
+  3. cron         daily telemetry summary 3              score=4.3
+  → the top hit is cron (recall blindness) ✗
 
-✅ cron 降權到 0.25：
-  1. interactive  修 telemetry 取樣率的 bug     score=3.9
-  2. interactive  很長的除錯對話                 score=3.1
-  3. cron         每日 telemetry 摘要 1        score=1.5
-  → 第一名是 interactive ✓
+✅ cron down-weighted to 0.25:
+  1. interactive  fixing the telemetry sample-rate bug   score=2.9
+  2. interactive  a very long debugging conversation     score=2.0
+  3. cron         daily telemetry summary 1              score=1.1
+  → the top hit is interactive ✓
 ```
 
 ### Demote, do not exclude
@@ -167,7 +167,7 @@ Measured, with 12 scheduled sessions and 1 real conversation:
 ```ts
 const SOURCE_WEIGHT: Record<SessionSource, number> = {
   interactive: 1.0,
-  cron: 0.25,      // ← 降權，不排除
+  cron: 0.25,      // ← down-weighted, not excluded
   subagent: 0,
   tool: 0,
 };
@@ -214,8 +214,8 @@ intermediate product, and the real question is what comes next:
 > What does an agent do once it has a pile of cron summaries?
 
 ```bash
-PROVIDER=gemini bun run lesson-17:agent              # 有降權
-DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # 沒降權
+PROVIDER=gemini bun run lesson-17:agent              # with demotion
+DEMOTE=off PROVIDER=gemini bun run lesson-17:agent   # without it
 ```
 
 The question is "have I looked into the telemetry sample rate problem before,
@@ -248,12 +248,24 @@ Then more runs changed the picture completely.
 Not right versus wrong, but reliability and cost:
 
 ```
-DEMOTE=on   搜尋 2-5 次（多數 3 次左右），8/8 都答對
-DEMOTE=off  搜尋 4-6 次，而且結果分成三種，其中兩種是壞的
+DEMOTE=on   2-5 searches (usually about 3), 8/8 answered correctly
+DEMOTE=off  4-6 searches, and three different outcomes, two of them bad
 ```
 
+Re-measured later on the same model, three runs each, the cost gap is the part
+that reproduces cleanly:
+
+```
+DEMOTE=on   2 / 2 / 2 searches   3/3 found the real conversation
+DEMOTE=off  3 / 4 / 4 searches   3/3 found the real conversation
+```
+
+**Demotion halved the number of searches.** In that later sample neither arm
+answered wrongly, so treat the "two of them bad" row above as what nine runs
+found once, not as a rate you should expect today.
+
 Without demotion the agent compensates for the ranking by brute-forcing
-keywords, getting steadily more specific: `telemetry` → `取樣` → `sampling` →
+keywords, getting steadily more specific: `telemetry` → `sample rate` → `sampling` →
 `50Hz` → `go2-c` → `meta.sample_rate_hz`. Most of the time it does find it.
 
 > The model will paper over your bad infrastructure, and you pay for it, and it
@@ -292,10 +304,10 @@ as an ordinary message (our `compact()` pushes a user message).
 So search finds it. The consequence:
 
 ```
-1. 舊 session 被壓縮，產生一大段摘要
-2. 新 session 搜尋歷史，搜到那段摘要
-3. 摘要被塞進新 session 的 context
-4. 新 session 變大，又被壓縮…
+1. an old session is compacted, producing a long summary
+2. a new session searches history and finds that summary
+3. the summary is pushed into the new session's context
+4. the new session grows and is compacted in turn…
 ```
 
 Search dragged back exactly what Lesson 5 worked to remove.
@@ -311,7 +323,7 @@ The fix is recognising and excluding them:
 const COMPACTION_PREFIXES = [
   "[CONTEXT COMPACTION",
   "[CONTEXT SUMMARY]:",
-  "[以下是這次對話較早部分的摘要",   // ← 我們 Lesson 5 用的前綴
+  "[The following is a summary of the earlier part of this conversation",   // ← the prefix Lesson 5 uses
 ];
 ```
 
@@ -331,18 +343,18 @@ session was about or how it concluded.
 So every result carries three sections:
 
 ```
-session 開頭（這個對話本來在幹嘛）：
-  [user] 我們的 telemetry 取樣率設定好像有問題
-  [assistant] 我看一下 config。目前 sample_rate_hz 寫死 50Hz。
+the start of the session (what this conversation was about):
+  [user] something looks wrong with our telemetry sample-rate setting
+  [assistant] Let me look at the config. sample_rate_hz is hardcoded to 50
 
-命中處前後（實際發生了什麼）：
-  [user] 對，但 go2-c 那台實際是 100Hz
-  [assistant] 找到了。config.ts 把取樣率寫死了…    ← 命中
-  [user] 測試過了嗎
+around the hit (what actually happened):
+  [user] right, but the go2-c unit actually runs at 100Hz
+  [assistant] Found it. config.ts hardcodes the sample rate…    ← the hit
+  [user] did you test it
 
-session 結尾（最後結論是什麼）：
-  [user] 測試過了嗎
-  [assistant] 跑了 bun test，5 pass 0 fail。
+the end of the session (what the conclusion was):
+  [user] did you test it
+  [assistant] Ran bun test: 5 pass, 0 fail.
 ```
 
 Together, the model knows what happened last time without paging through

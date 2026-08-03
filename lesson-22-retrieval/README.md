@@ -33,7 +33,7 @@ bun run lesson-22:eval
 ```
 
 ```
-query               BM25 only    Dense only    + RRF 融合      + 去重     + 品質訊號   + 來源多樣性
+query               BM25 (L20)  Dense only       + RRF     + dedup   + quality + diversity
 q1-main                  0.233       0.212       0.318       0.318       0.705       0.705
 q2-chinese               0.000       0.598       0.598       0.598       0.774       0.774
 q3-deprecated            0.920       0.834       0.920       0.704       0.784       0.784
@@ -43,9 +43,9 @@ q6-license               0.932       0.956       0.956       0.956       0.932  
 q7-foot-sliding          1.000       0.877       0.920       0.920       1.000       1.000
 q8-dataset               1.000       1.000       1.000       1.000       1.000       1.000
 ──────────────────────────────────────────────────────────────────────────────────────────
-平均 nDCG@5              0.655       0.689       0.720       0.693       0.845       0.845
-平均 recall@5            0.675       0.775       0.775       0.744       0.919       0.919
-平均 novelty@5           0.950       0.975       0.975       1.000       1.000       1.000
+mean nDCG@5              0.655       0.689       0.720       0.693       0.845       0.845
+mean recall@5            0.675       0.775       0.775       0.744       0.919       0.919
+mean novelty@5           0.950       0.975       0.975       1.000       1.000       1.000
 ```
 
 0.655 → 0.845. But the most valuable thing in that table is not the last number;
@@ -104,8 +104,8 @@ space.
 ones. Measured:
 
 ```
-dims=256    cos(英文, 中文)=0.861    cos(英文, 烹飪文)=0.569    差距 0.29
-dims=768    cos(英文, 中文)=0.817    cos(英文, 烹飪文)=0.449    差距 0.37
+dims=256    cos(en, zh)=0.861    cos(en, cooking)=0.569    gap 0.29
+dims=768    cos(en, zh)=0.817    cos(en, cooking)=0.449    gap 0.37
 ```
 
 What matters is not "how similar to the Chinese" but **the gap between the two**.
@@ -126,8 +126,8 @@ terminology). Dense dilutes those into "roughly about this topic", and every pag
 on a nearby topic crowds in.
 
 ```text
-BM25   認得罕見的專有名詞，看不懂同義詞和其他語言
-Dense  抓得到意思，精確字串反而會被稀釋
+BM25   recognises rare proper nouns; blind to synonyms and other languages
+Dense  catches meaning; exact strings get diluted instead
 ```
 
 **Their failure modes are complementary**, so the answer is not to pick one.
@@ -172,7 +172,7 @@ So all three signals use only things computable from the page itself:
 ### Freshness: exponential decay, not a threshold
 
 ```ts
-freshness = exp(-ln2 * days / 540)    // 半衰期 18 個月
+freshness = exp(-ln2 * days / 540)    // an 18-month half-life
 ```
 
 Why not "discard anything over a year old"? Because **old is not wrong**. An
@@ -193,16 +193,16 @@ not a verdict: an irrelevant page on a high-authority domain still does not rank
 ### Keyword stuffing: the only one genuinely computed
 
 ```ts
-最高頻的詞出現幾次 / 總詞數
+the most frequent term's count / total terms
 ```
 
 The measured distribution over the corpus:
 
 ```
- 60 字   "retargeting" × 12  = 20.0%   ← SEO 農場
- 73 字   "retargeting" ×  6  =  8.2%   ← 2025 年的懶人包
-122 字   "profile"     ×  5  =  4.1%   ← 正常的 repo README
- 96 字   "profile"     ×  3  =  3.1%   ← 正常
+ 60 words   "retargeting" × 12  = 20.0%   ← the SEO farm
+ 73 words   "retargeting" ×  6  =  8.2%   ← the 2025 round-up
+122 words   "profile"     ×  5  =  4.1%   ← a normal repo README
+ 96 words   "profile"     ×  3  =  3.1%   ← normal
 ```
 
 Normal articles sit at 3-4%, farms at 8% and above. The threshold ramps linearly
@@ -222,7 +222,7 @@ evaluation, the average rose from 0.720 to 0.768, which looks like a success. Bu
 per query:
 
 ```
-q8-dataset      1.000  →  0.131      ← 崩了
+q8-dataset      1.000  →  0.131      ← collapsed
 ```
 
 Looking only at the average, that collapse is buried under the other queries'
@@ -238,10 +238,10 @@ That dataset page ranked **first in both BM25 and dense**, and after the signals
 were added it fell out of the top five. Printing every page's stuffing score:
 
 ```
- 60 字   "retargeting" × 12  = 20.0%  → stuff 1.00   SEO 農場      ✓ 該罰
- 28 字   "clips"       ×  3  = 10.7%  → stuff 1.00   資料集頁面    ✗ 冤枉
- 25 字   "license"     ×  4  = 16.0%  → stuff 1.00   LICENSE 檔    ✗ 冤枉
- 25 字   "food"        ×  2  =  8.0%  → stuff 0.67   烹飪文章      ✗ 冤枉
+ 60 words   "retargeting" × 12  = 20.0%  → stuff 1.00   the SEO farm     ✓ deserved
+ 28 words   "clips"       ×  3  = 10.7%  → stuff 1.00   a dataset page   ✗ unfair
+ 25 words   "license"     ×  4  = 16.0%  → stuff 1.00   a LICENSE file   ✗ unfair
+ 25 words   "food"        ×  2  =  8.0%  → stuff 0.67   a cooking piece  ✗ unfair
 ```
 
 A ratio is systematically biased against short documents. A 25-word licence file
@@ -260,7 +260,7 @@ if (top < MIN_REPEATS) return 0;
 All three false positives go to zero, and the farm (12 repeats) is still caught.
 
 ```
-平均 nDCG@5   0.768（有 bug）  →  0.845（修好）
+mean nDCG@5   0.768 (with the bug)  →  0.845 (fixed)
 q8-dataset    0.131            →  1.000
 q7            0.920            →  1.000
 ```
@@ -284,7 +284,7 @@ broke.
 The moment the dedup stage is enabled, nDCG drops:
 
 ```
-+ RRF  0.720   →   + 去重  0.693
++ RRF  0.720   →   + dedup  0.693
 q3-deprecated  0.920  →  0.704
 ```
 
@@ -302,14 +302,14 @@ metric for this is α-nDCG (already-seen information gets discounted); here it i
 a more legible version, counting how many of the top five are new:
 
 ```
-平均 novelty@5    0.975（RRF）  →  1.000（去重後）
+mean novelty@5    0.975 (RRF)  →  1.000 (after dedup)
 ```
 
 Which makes the accounting for this stage explicit:
 
 ```text
-nDCG@5     0.720 → 0.693    （-0.027，因為評估集把鏡像也算相關）
-novelty@5  0.975 → 1.000    （+0.025，前五名不再有重複內容）
+nDCG@5     0.720 → 0.693    (-0.027, because the evaluation set counts the mirror as relevant too)
+novelty@5  0.975 → 1.000    (+0.025, no duplicate content left in the top five)
 ```
 
 **Dedup stays**, for a reason that is not in nDCG: to an agent, a duplicate page
@@ -325,7 +325,7 @@ The near-duplicate threshold was initially set to 0.5 from intuition — surely 
 mirror site is at least half identical. Measured:
 
 ```
-shingle 長度   鏡像對   第二相似的一對   差距
+shingle length   mirror pair   second-closest pair   gap
      2         0.346       0.118       0.228
      3         0.266       0.065       0.201
      4         0.215       0.048       0.167
@@ -348,7 +348,7 @@ look identical in an average. The final choice is n=3 with a threshold of 0.15
 ### Source diversity: no effect whatsoever
 
 ```
-+ 品質訊號 0.845   →   + 來源多樣性 0.845
++ quality 0.845   →   + diversity 0.845
 ```
 
 Identical. Because this corpus has at most 3 pages per domain, and none of the
@@ -368,7 +368,7 @@ bun run lesson-22:eval --rerank
 ```
 
 ```
-+ 來源多樣性 0.845   →   + LLM rerank 0.858
++ diversity 0.845   →   + LLM rerank 0.858
 ```
 
 Only one of the eight queries improved (q2, the Chinese one, 0.774 → 0.876); the
@@ -400,7 +400,7 @@ Lesson 20's question:
 
 ```bash
 bun run lesson-22
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
 Two runs, both:
@@ -408,7 +408,7 @@ Two runs, both:
 ```
 web_search × 14
 fetch_page × 2
-[已達 16 步上限]        ← 沒有答案
+[hit the 16-step cap]        ← no answer
 ```
 
 Control: Lesson 21 (same question, same model, worse ranking) took 11 searches
@@ -435,8 +435,8 @@ The very first search already had the right answer near the top, but the model d
 not stop, because nothing told it "you have found it, you can stop".
 
 ```text
-排序解決的是：「回來的東西好不好」
-排序不解決的是：「要搜幾次、什麼時候停、已經搜過什麼」
+ranking solves: "is what came back any good"
+ranking does not solve: "how many searches, when to stop, what has already been searched"
 ```
 
 The second is entirely on the agent's side and has nothing to do with retrieval.
@@ -444,10 +444,10 @@ The second is entirely on the agent's side and has nothing to do with retrieval.
 
 ```ts
 type ResearchState = {
-  visitedUrls: Set<string>       // 已經讀過什麼
-  evidence: Evidence[]           // 哪些證據支持哪個 claim
-  unresolvedQuestions: string[]  // 還缺什麼
-  iteration: number              // 該不該停
+  visitedUrls: Set<string>       // what has already been read
+  evidence: Evidence[]           // which evidence supports which claim
+  unresolvedQuestions: string[]  // what is still missing
+  iteration: number              // whether to stop
 }
 ```
 
@@ -465,8 +465,8 @@ type ResearchState = {
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `這段文字不在 embedding 快取裡` | a new query and no key | `bun run lesson-22:embed`, or use a query from the evaluation set |
-| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| `This text is not in the embedding cache` | a new query and no key | `bun run lesson-22:embed`, or use a query from the evaluation set |
+| `Lesson 20's corpus not found` | the corpus is not generated | `bun run lesson-20:corpus` |
 | the scores differ from the README | the embedding model changed | the cache has a model field; check it is `gemini-embedding-001` |
 | `--rerank` errors | that stage needs a key | leave `--rerank` off; it is off by default |
 | the freshness scores look odd | "today" is hardcoded to 2026-07-27 | see `TODAY` in `rank.ts`; it is there for reproducibility |

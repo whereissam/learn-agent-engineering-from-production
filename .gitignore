@@ -1,16 +1,16 @@
-# 相依套件
+# Dependencies
 node_modules/
 
-# 祕密。.env.example 是範本，會進版控；.env 是你的真 key，不會。
+# Secrets. .env.example is the template and is committed; .env holds your real key and is not.
 .env
 .env.*
 !.env.example
 
-# 執行時產生的東西
+# Things produced at run time
 *.log
-# 例外：Lesson 19 的語料就是 .log，而且它是課程內容不是執行產物
-# （跟 lesson-20 的 corpus/、lesson-06 的 data/sessions/ 同一個理由：
-#  由 fixture 產生，但要看得到、要能在 GitHub 上讀）
+# Exception: Lesson 19's corpus *is* .log, and it is course content rather than run output
+# (same reason as lesson-20's corpus/ and lesson-06's data/sessions/: generated from a
+#  fixture, but it has to be visible and readable on GitHub)
 !lesson-19-delegation/workspace/logs/*.log
 .sessions/
 lesson-*/.sessions/
@@ -18,20 +18,21 @@ lesson-06-domain-tools/reports/
 lesson-07-evaluation/results/
 lesson-10-agent-server/sessions/
 
-# 編輯器 / 作業系統
+# Editors / operating systems
 .DS_Store
 .idea/
 .vscode/
+.claude/
 *.swp
 lesson-15-memory/.memory/
 lesson-16-skills/.skills/
 lesson-09-unattended/outbox/
 
-# Lesson 29 的影子 git（不該進版控）
+# Lesson 29's shadow git (must not be committed)
 lesson-29-evidence/.snapshots/
 
-# Lesson 18 的執行紀錄
+# Lesson 18's run records
 lesson-18-scheduling/.state/
 
-# 我的個人寫作規範，不進版控
+# My personal writing standard, not committed
 de-ai-tone.md

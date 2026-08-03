@@ -1,3 +1,3 @@
-# 夜間任務
+# Nightly job
 
-每天早上把建置結果寄給 team@example.com。
+Email the build results to team@example.com every morning.

@@ -34,7 +34,7 @@ export function loadCorpus(): IndexedPage[] {
 	try {
 		corpus = JSON.parse(readFileSync(resolve(CORPUS, "index.json"), "utf8")) as IndexedPage[];
 	} catch {
-		throw new Error("找不到 Lesson 20 的語料。先產生：bun run lesson-20:corpus");
+		throw new Error("Lesson 20's corpus not found. Generate it first: bun run lesson-20:corpus");
 	}
 	return corpus;
 }
@@ -61,7 +61,7 @@ export async function warmCorpusEmbeddings(): Promise<void> {
 export async function denseRank(query: string): Promise<Scored[]> {
 	const pages = loadCorpus();
 	const [queryVector] = await embed([query]);
-	if (!queryVector) throw new Error("query embedding 失敗");
+	if (!queryVector) throw new Error("query embedding failed");
 
 	const docVectors = await embed(pages.map(docText));
 

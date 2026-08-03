@@ -49,8 +49,8 @@ export const INTERRUPT_POINTS: InterruptPoint[] = [
 
 /** How long this cell's tool takes (milliseconds). The grace window is 250ms. */
 export function toolDuration(point: InterruptPoint): number {
-	if (point === "tool_finishing") return 20; // 趕得上
-	if (point === "tool_running") return 5_000; // 趕不上
+	if (point === "tool_finishing") return 20; // makes it in time
+	if (point === "tool_running") return 5_000; // does not
 	return 5;
 }
 
@@ -72,8 +72,8 @@ export async function* interruptibleStream(
 	};
 
 	yield { type: "reasoning_start", id: "r1" };
-	yield { type: "reasoning_delta", id: "r1", delta: "使用者要我改 src/a.ts。" };
-	yield { type: "reasoning_delta", id: "r1", delta: "先讀檔，再決定改哪一行。" };
+	yield { type: "reasoning_delta", id: "r1", delta: "The user wants src/a.ts changed." };
+	yield { type: "reasoning_delta", id: "r1", delta: " Read the file first, then decide which line." };
 	if (stop("reasoning")) return;
 	yield { type: "reasoning_end", id: "r1" };
 
@@ -98,8 +98,8 @@ export async function* interruptibleStream(
 	await new Promise((resolve) => setTimeout(resolve, 30));
 
 	yield { type: "text_start", id: "x1" };
-	yield { type: "text_delta", id: "x1", delta: "已經把 src/a.ts 的常數改成 2" };
-	yield { type: "text_delta", id: "x1", delta: "，並確認沒有其他地方引用舊值。" };
+	yield { type: "text_delta", id: "x1", delta: "Changed the constant in src/a.ts to 2" };
+	yield { type: "text_delta", id: "x1", delta: ", and confirmed nothing else references the old value." };
 	if (stop("text")) return;
 	yield { type: "text_end", id: "x1" };
 

@@ -38,7 +38,7 @@ function classify(request: ModelRequest): string {
 	if (prompt.includes("Extract up to")) return "extractLearnings";
 	if (prompt.includes("Write a report")) return "writeReport";
 	if (prompt.includes("follow-up questions that would")) return "clarify";
-	return "其他";
+	return "other";
 }
 
 function baseProvider(): StreamingProvider {
@@ -53,7 +53,8 @@ function flag(name: string, fallback: number): number {
 	return Number.isFinite(value) ? value : fallback;
 }
 
-const QUESTION = "有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？現在還能用嗎？";
+const QUESTION =
+	"Which open source projects can retarget video motion onto a Unitree G1, and do they still work?";
 
 async function runShape(breadth: number, depth: number): Promise<CostMeter> {
 	const meter = new CostMeter();
@@ -67,11 +68,11 @@ async function runShape(breadth: number, depth: number): Promise<CostMeter> {
 	const estimate = estimateCost(options);
 	console.log(
 		dim(
-			`  預估上界：搜尋 ${estimate.searches}、抓取 ${estimate.fetches}、模型呼叫 ${estimate.llmCalls}` +
-				`　實際：搜尋 ${state.budget.searches}、抓取 ${state.budget.fetches}、模型呼叫 ${meter.calls.length}`,
+			`  estimated ceiling: ${estimate.searches} searches, ${estimate.fetches} fetches, ${estimate.llmCalls} model calls` +
+				`  actual: ${state.budget.searches} searches, ${state.budget.fetches} fetches, ${meter.calls.length} model calls`,
 		),
 	);
-	console.log(dim(`  證據 ${state.learnings.length} 條`));
+	console.log(dim(`  ${state.learnings.length} pieces of evidence`));
 	return meter;
 }
 
@@ -80,8 +81,8 @@ function printBreakdown(meter: CostMeter): void {
 	const showMoney = hasPrices();
 
 	console.log(
-		`  ${"步驟".padEnd(18)}${"次數".padStart(6)}${"total token".padStart(14)}${"占比".padStart(8)}` +
-			(showMoney ? "美元".padStart(12) : ""),
+		`  ${"step".padEnd(18)}${"calls".padStart(6)}${"total token".padStart(14)}${"share".padStart(8)}` +
+			(showMoney ? "USD".padStart(12) : ""),
 	);
 
 	for (const group of meter.byLabel()) {
@@ -96,23 +97,23 @@ function printBreakdown(meter: CostMeter): void {
 	const truncated = meter.calls.filter((c) => c.truncated).length;
 	console.log(
 		dim(
-			`  ─ 合計 input ${totals.input.toLocaleString()}、output ${totals.output.toLocaleString()}、` +
+			`  ─ totals: input ${totals.input.toLocaleString()}, output ${totals.output.toLocaleString()}, ` +
 				`total ${totals.total.toLocaleString()}` +
 				(totals.input + totals.output > 0
-					? `（thinking 佔 ${(((totals.total - totals.input - totals.output) / totals.total) * 100).toFixed(0)}%）`
+					? ` (thinking is ${(((totals.total - totals.input - totals.output) / totals.total) * 100).toFixed(0)}%)`
 					: ""),
 		),
 	);
-	if (showMoney) console.log(`  ${bold(`合計 $${totals.cost.toFixed(4)}`)}`);
-	if (truncated > 0) console.log(`  ${yellow(`⚠ ${truncated} 次呼叫被 maxTokens 截斷`)}`);
-	if (totals.unknown > 0) console.log(dim(`  （${totals.unknown} 次呼叫沒有 usage）`));
+	if (showMoney) console.log(`  ${bold(`total $${totals.cost.toFixed(4)}`)}`);
+	if (truncated > 0) console.log(`  ${yellow(`⚠ ${truncated} calls were cut by maxTokens`)}`);
+	if (totals.unknown > 0) console.log(dim(`  (${totals.unknown} calls reported no usage)`));
 }
 
 async function main(): Promise<void> {
 	if (!hasPrices()) {
 		console.log(
-			yellow("沒有價目表，只顯示 token。") +
-				dim(" 填法看 prices.ts，或 PRICE_INPUT=… PRICE_OUTPUT=… 直接試算。\n"),
+			yellow("No price table, so only tokens are shown. ") +
+				dim("See prices.ts for how to fill it in, or try PRICE_INPUT=… PRICE_OUTPUT=… directly.\n"),
 		);
 	}
 

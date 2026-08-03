@@ -37,7 +37,7 @@ This lesson has a rare luxury: **the right answer is known**. Lesson 20's
 from that text in the first place. So it can be scored directly:
 
 ```
-recall = 正文抽到多少   noise = 抽出來的東西有多少不是正文
+recall = how much of the body was extracted   noise = how much of the extract is not body
 
                                           stripTags        extractMain
                                         recall  noise    recall  noise
@@ -47,11 +47,11 @@ top-robotics-tools-example-net-unitr  100.0% 52.1%   100.0%  0.0%
 huggingface-co-datasets-openmotion-h  100.0% 65.8%   100.0%  0.0%
 cookingwith-example-com-sous-vide-gu  100.0% 68.3%   100.0%  0.0%
 ──────────────────────────────────────────────────────────────────────
-平均                                    100.0% 51.0%   100.0%  0.0%
+average                               100.0% 51.0%   100.0%  0.0%
 
-正文實際大小        8688 字元
-stripTags 抽出來    17403 字元  (2.00x)
-extractMain 抽出來  8688 字元  (1.00x)
+actual body size        8688 characters
+stripTags extracted     17403 characters  (2.00x)
+extractMain extracted   8688 characters  (1.00x)
 ```
 
 `stripTags` is the version everybody writes the first time they write a crawler:
@@ -70,7 +70,7 @@ bun run lesson-21:measure --show retarget-anything
 ```
 
 ```
-【stripTags】把標籤拿掉就好了吧？
+[stripTags] just remove the tags, surely?
 
 We use cookies to improve your experience. Accept all Reject github.com Home Docs Blog
 Pricing Sign in openmotion/retarget-anything: … Never miss an update Join 24,000 engineers
@@ -88,9 +88,9 @@ RoboOps Cloud", this is where it came from.
 `extractMain` has no magic in it, just three steps:
 
 ```text
-1. 整塊丟掉：script / style / nav / header / footer / aside / form
-2. class 或 id 命中黑名單的區塊也丟掉（cookie / newsletter / sidebar / ad / related …）
-3. 挑正文容器：<article> 優先，其次 <main>，都沒有才退回 <body>
+1. drop whole elements: script / style / nav / header / footer / aside / form
+2. drop blocks whose class or id hits a blocklist (cookie / newsletter / sidebar / ad / related …)
+3. pick the body container: <article> first, then <main>, falling back to <body>
 ```
 
 > The 0% noise is fake. The corpus HTML was generated from one template, and the
@@ -142,38 +142,42 @@ bun run lesson-21
 ```
 
 ```
-> retarget-anything 現在還能用在 2026 SDK 的 G1 上嗎？如果不行，替代方案是什麼？
+> Does retarget-anything still work with the G1 on the 2026 SDK? If not, what is the alternative?
 ```
 
-The real trajectory (Gemini 3.6 Flash, 7 tool calls):
+The real trajectory (Gemini 3.6 Flash, 6 tool calls):
 
 ```
-→ web_search(retarget-anything Unitree G1)
-→ web_search("retarget-anything" "G1" "SDK" OR "humanoid-mimic" OR "unitree_sdk2" …)
+→ web_search("retarget-anything" OR "retarget_anything" G1 unitree)
 → fetch_page(https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)
-→ web_search("humanoid-mimic" Unitree G1 SDK 2026)
+→ web_search("retarget-anything" "2026 SDK" OR "joint ordering" OR "G1")
 → fetch_page(https://github.com/openmotion/retarget-anything)
 → fetch_page(https://github.com/kinelabs/humanoid-mimic)
-→ web_search(Unitree G1 retargeting tools alternative 2026 …)
+→ fetch_page(https://www.unitree.com/g1/developer)
 ```
 
 The answer (excerpted):
 
 ```markdown
-**直接回答：無法直接開箱使用（預設 G1 Profile 已失效/官方已棄用）。**
+**No, `retarget-anything` does not work out-of-the-box with the Unitree G1 on the 2026 SDK.**
 
-1. 關節順序不匹配：retarget-anything 內建的 G1 Profile 是基於 2024 年舊版的 G1 URDF…
-   機器人會立刻觸發保護性停機 [CONFIRMED: https://discourse.ros.org/t/…/45211]
-2. 官方公告放棄維護 G1：v2.0 公告明確指出 G1 Profile 已被棄用且不再維護
-   [CONFIRMED: https://github.com/openmotion/retarget-anything]
+### Why It Fails
+* Deprecated G1 Profile: in v2.0 (March 2026) the maintainers deprecated the G1
+  profile. It was originally created against the 2024 G1 URDF and joint layout
+  (CONFIRMED: github.com/openmotion/retarget-anything).
+* 2026 SDK Joint Index Revision: left_hip_pitch changed from index 7 to 1, and
+  waist_yaw from 1 to 13 (CONFIRMED: unitree.com/g1/developer).
+* Protective Stop: the index shift makes trajectories target the wrong actuators,
+  which the controller detects as a joint tracking error
+  (CONFIRMED: discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
 
-#### 方案 1：改用 humanoid-mimic（主要推薦）
-* v0.7（2026-06）已建立支援 2026 SDK 關節順序的 G1 Profile，且在實體機器人上驗證
-  [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
-* 專案 MIT 授權，但預設下載的姿態估計模型權重帶有非商業條款
-  [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
-* 快速步態下可能出現腳步滑行，社群暫時做法是把播放速率調到 0.8x
-  [CONFIRMED: https://discourse.ros.org/t/…/45211]
+### Recommended Alternative: `humanoid-mimic`
+* 2026 SDK Support: v0.7 (June 2026) added a native G1 profile built against the
+  2026 SDK joint ordering and verified on physical hardware.
+* Real-time Pipeline: ~50 Hz control loop, ~18 ms latency on an RTX 4070 class GPU.
+* Known Limitation & Workaround: foot sliding on fast movements; slowing to ~0.8x
+  playback makes it stable on hardware
+  (CONFIRMED: discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
 ```
 
 Every `CONFIRMED` now really did read the page. The last one, "0.8x", is
@@ -274,7 +278,7 @@ Three design decisions (`extract/chunk.ts`):
 This section came out of measurement, running the same question three times.
 
 ```
-> G1 的 waist_yaw 關節在 2026 SDK 裡是第幾號？
+> What index is the G1's waist_yaw joint in the 2026 SDK?
 ```
 
 The answer sits in an HTML `<table>` in that migration document:
@@ -287,10 +291,10 @@ model's trajectory:
 
 ```
 web_search × 6
-fetch_page(unitree.com/g1/developer) chunk 1,2,3,4,5,6,7   ← 整份文件讀完
+fetch_page(unitree.com/g1/developer) chunk 1,2,3,4,5,6,7   ← the whole document read
 fetch_page(blog.kinelabs.dev) / (openmotion.dev) / (humanoid-mimic)
 web_search × 2
-[已達 16 步上限]
+[hit the 16-step cap]
 ```
 
 16 tool calls, no answer, and not one sentence saying "I cannot find it". It read
@@ -320,7 +324,7 @@ Do NOT conclude that the page does not contain it, and do not guess the value.
 The tool dutifully printed that warning on every chunk. Result:
 
 ```
-[已達 16 步上限]
+[hit the 16-step cap]
 ```
 
 It still did not stop. It read all seven chunks and searched six more times,
@@ -355,9 +359,9 @@ Run again:
 → fetch_page(unitree.com/g1/developer) chunk 1,2,3,4
 → fetch_page(blog.kinelabs.dev/humanoid-mimic-0-7)
 
-根據 Unitree G1 官方 SDK 遷移指南文件，waist_yaw 關節在 2026 SDK 裡的編號是 13。
-* 2026 SDK 關節索引：13 [CONFIRMED: https://www.unitree.com/g1/developer]
-* 2024 SDK 舊版索引：1  [CONFIRMED: https://www.unitree.com/g1/developer]
+According to Unitree's official G1 SDK migration guide, the waist_yaw joint is index 13 in the 2026 SDK.
+* 2026 SDK joint index: 13 [CONFIRMED: https://www.unitree.com/g1/developer]
+* 2024 SDK old index:   1  [CONFIRMED: https://www.unitree.com/g1/developer]
 ```
 
 Eight steps, correct answer, correct citation.
@@ -365,7 +369,7 @@ Eight steps, correct answer, correct citation.
 ### What this section is actually teaching
 
 ```text
-16 步（沒答案）→ 加警告 → 16 步（還是沒答案）→ 改抽取器 → 8 步（答對）
+16 steps (no answer) → add a warning → 16 steps (still no answer) → fix the extractor → 8 steps (correct)
 ```
 
 Lesson 6 has a principle: what the harness can guarantee should not be left to
@@ -390,11 +394,11 @@ Do not assume `fetch_page` settles everything. On another run of "which projects
 support the G1", the model added a whole section beyond the two correct repos:
 
 ```markdown
-### 二、社群常用的「兩階段自訂重定向工具鏈」
+### 2. The community's usual "two-stage custom retargeting toolchain"
 * WHAM / GVHMR / HMR 2.0 [SNIPPET-ONLY: https://arxiv.org/abs/2603.04417]
 * MediaPipe / OpenPose / MMPose [SNIPPET-ONLY: https://robotblog.example.com/…]
-* Pink (Python IK based on Pinocchio) [UNVERIFIED]，可以直接載入 Unitree G1 的
-  URDF 檔案（23 DoF 配置）[CONFIRMED: https://www.unitree.com/g1/developer]
+* Pink (Python IK based on Pinocchio) [UNVERIFIED] can load the Unitree G1's
+  URDF directly (the 23-DoF configuration) [CONFIRMED: https://www.unitree.com/g1/developer]
 * DexRetargeting [UNVERIFIED]
 ```
 
@@ -410,8 +414,9 @@ tagged `CONFIRMED` and attached to unitree.com — but that page only says the G
 is 23 DoF and never mentions Pink. The citation was grafted on.
 
 ```text
-fetch_page 解決的是「模型漏讀」。
-它不解決「模型多寫」，也不保證引用真的支持那句話。
+fetch_page fixes "the model did not read enough".
+It does not fix "the model wrote more than it read", and it does not guarantee
+a citation actually supports the sentence attached to it.
 ```
 
 Catching that kind of error means going back and verifying every citation: does
@@ -425,7 +430,7 @@ check rather than another model handing out scores.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| `Lesson 20's corpus not found` | the corpus is not generated | `bun run lesson-20:corpus` |
 | `robots.txt disallows` | by design | see Step 3; that page should not be crawled |
 | `found no readable text` | a JS-rendered page | see Step 3. **It does not mean the page is empty** |
 | the model concludes from chunk 1 alone | the "how many chunks remain" note is not emphatic enough | see the footer in `tools/fetch.ts` |
@@ -529,11 +534,11 @@ whole pages, that problem is more visible rather than less — every page it rea
 was chosen by the ranking.
 
 ```text
-BM25 + dense retrieval + RRF 融合 + cross-encoder rerank
-去重（同一份內容兩個網址）
-新鮮度（2025 年的懶人包）
-權威度（官方 repo vs 內容農場）
-來源多樣性
+BM25 + dense retrieval + RRF fusion + cross-encoder rerank
+deduplication (the same content at two URLs)
+freshness (a 2025 round-up)
+authority (an official repo vs a content farm)
+source diversity
 ```
 
 That pair of near-duplicate pages in the corpus (the GitHub README and the docs

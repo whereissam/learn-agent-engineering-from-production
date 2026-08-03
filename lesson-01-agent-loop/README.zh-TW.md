@@ -30,17 +30,18 @@ PROVIDER=fake bun run lesson-01
 
 ```
 provider: fake  model: scripted
-輸入問題，/exit 或 Ctrl+C 離開
+Ask a question. /exit or Ctrl+C to leave
 
-> 這個專案有什麼 bug？
+> What bugs does this project have?
   → read_file({"path":"README.md"})
   → read_file({"path":"src/store.ts"})
   → read_file({"path":"src/config.ts"})
   → read_file({"path":"src/does-not-exist.ts"})
   ✗ ENOENT: no such file or directory, open '.../src/does-not-exist.ts'
 
-[fake provider] 我跑完了 3 輪工具呼叫。
-真正的模型會在這裡給出答案。想看真的推理，設一把 API key 再跑一次。
+[fake provider] I ran 3 rounds of tool calls.
+
+A real model would give you an answer here. Set an API key and run it again to see real reasoning.
 ```
 
 停下來，看懂這幾行輸出。每一個 `→` 就是迴圈跑了一圈：模型說它想讀某個
@@ -64,32 +65,40 @@ bun run lesson-01
 下面是**實際跑出來的輸出**（Gemini 3.6 Flash，節錄）：
 
 ```
-> 為什麼有些短網址會回 404？
+> Why do some short URLs return 404?
 
   → read_file({"path":"README.md"})
   → read_file({"path":"src/server.ts"})
   → read_file({"path":"src/store.ts"})
   → read_file({"path":"src/config.ts"})
 
-短網址會回傳 404 的原因主要有以下幾個，其中最關鍵的核心 Bug 是「大小寫不一致問題」：
+The 404 errors occur primarily due to a **case sensitivity mismatch** between how short codes are saved and how they are looked up:
 
-### 1. 核心 Bug：短碼大小寫不匹配（主要原因）
+### 1. Root Cause: Case-Sensitivity Mismatch
 
-- 產生與儲存：config.ts 的 ALPHABET 包含大寫字母。當 save() 產生一個含有
-  大寫字母的短碼（例如 aB3XyZ），會以原大小寫存入 entries Map。
-- 查詢：store.ts 的 lookup() 查詢時先將短碼轉為全小寫（變成 ab3xyz）再索取。
+* **Code Generation**: ALPHABET includes both lowercase and uppercase letters.
+  generateCode() can create codes with uppercase letters (e.g. "aB3xYz").
+* **Saving**: save(url) stores the code in the entries Map with its original casing.
+* **Lookup**: lookup(code) converts the code to lowercase before querying the Map.
 
-結果：Map 的 Key 是 "aB3XyZ"，查詢用的 Key 卻是 "ab3xyz"，找不到而回傳 404。
-只要產生的短碼含有任何一個大寫字母，剛建立的短網址就會立刻 404。
+Because JavaScript Map keys are case-sensitive, looking up "ab3xyz" fails to match
+"aB3xYz". As a result, lookup() returns undefined, and the server sends a 404.
 
-### 2. 記憶體數量上限被擠掉（MAX_ENTRIES）
-### 3. 服務重啟導致資料遺失
-### 4. 短碼碰撞覆蓋（generateCode 沒檢查重複）
-### 5. 其它 GET 請求（如 /favicon.ico）也被當成短碼處理
+Since 26 out of the 62 characters in ALPHABET are uppercase, ~98% of freshly
+generated 6-character codes contain at least one uppercase letter and fail
+immediately upon creation.
+
+### 2. Secondary Cause: Eviction (MAX_ENTRIES)
+
+… once a link is evicted, subsequent lookup requests for that code also return 404.
 ```
 
 這就是 agent。它沒有「看過」這個專案，是自己一步步讀出來的。這一課只埋了
-第 1 個 bug，另外四個是它自己額外發現的。
+第 1 個 bug，eviction 那條是它自己發現的，而 ~98% 那個數字是它從字母表算出來
+的，不是在哪裡讀到的。
+
+> 同樣的問題連跑三次會得到三種答案：有時候只講大小寫，有時候大小寫加 eviction。
+> 推理是穩定的，呈現方式不是——這件事值得在 Lesson 7 想替它打分數之前先看一次。
 
 > 這一輪大約 4 次工具呼叫、花了十幾秒。同樣的問題換一個 provider 再問一次，
 > 可以比較不同模型挖得多深。

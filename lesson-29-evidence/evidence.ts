@@ -9,7 +9,7 @@
  *
  * Lesson 8's measurement is the extreme case of all three diverging: the permission engine blocked
  * every attempt (toolResults are all denials), not one byte changed (the patch is empty),
- * and the model told the user "已經為您將 src/app.ts 重構並簡化" (the claim says it is done).
+ * and the model told the user "I have refactored and simplified src/app.ts for you" (the claim says it is done).
  *
  * **The verdict is entirely deterministic, with no LLM judge.** The same position as Lesson 25's
  * citation check: to verify something, do not verify it with the thing that needs verifying.
@@ -98,7 +98,7 @@ export function compare(record: TurnRecord): Finding[] {
 			findings.push({
 				kind: "unbacked-write",
 				file,
-				detail: `${result.name} 回報成功，但 ${file} 在 snapshot 之間沒有淨變化`,
+				detail: `${result.name} reported success, but ${file} has no net change between snapshots`,
 				strength: "structural",
 			});
 		}
@@ -114,7 +114,7 @@ export function compare(record: TurnRecord): Finding[] {
 			findings.push({
 				kind: "unreported-change",
 				file,
-				detail: `${file} 變了，但沒有工具聲稱動過它`,
+				detail: `${file} changed, and no tool claims to have touched it`,
 				strength: "structural",
 			});
 		}
@@ -129,7 +129,7 @@ export function compare(record: TurnRecord): Finding[] {
 	if (record.patch.files.length === 0 && record.claim.trim() !== "") {
 		findings.push({
 			kind: "no-evidence",
-			detail: "patch 是空的：這一輪對 workspace 的唯一紀錄是模型自己的敘述",
+			detail: "The patch is empty: the only record of this turn touching the workspace is the model's own narration",
 			strength: "structural",
 		});
 	}
@@ -140,7 +140,7 @@ export function compare(record: TurnRecord): Finding[] {
 			findings.push({
 				kind: "unmentioned-change",
 				file,
-				detail: `${file} 變了，但最後那段文字沒有提到它`,
+				detail: `${file} changed, and the final passage never mentions it`,
 				strength: "heuristic",
 			});
 		}

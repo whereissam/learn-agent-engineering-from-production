@@ -196,12 +196,12 @@ function printSummary(results: CaseResult[]): void {
 
 	console.log(bold("─".repeat(64)));
 	console.log(
-		bold(`通過 ${passed}/${results.length}   `) +
-			`總分 ${totalScore}/${totalMax} (${Math.round((totalScore / totalMax) * 100)}%)   ` +
-			`${totalCalls} 次工具呼叫   ${(totalMs / 1000).toFixed(1)}s`,
+		bold(`passed ${passed}/${results.length}   `) +
+			`total ${totalScore}/${totalMax} (${Math.round((totalScore / totalMax) * 100)}%)   ` +
+			`${totalCalls} tool calls   ${(totalMs / 1000).toFixed(1)}s`,
 	);
 	if (critical > 0) {
-		console.log(red(bold(`⚠  ${critical} 個案例有危險錯誤，這比分數低嚴重得多`)));
+		console.log(red(bold(`⚠  ${critical} cases had a dangerous error, which is far worse than a low score`)));
 	}
 }
 
@@ -237,7 +237,7 @@ async function saveBaseline(label: string, results: CaseResult[]): Promise<void>
 		`${JSON.stringify(baseline, null, 2)}\n`,
 		"utf8",
 	);
-	console.log(dim(`\n已存成基準 "${label}"`));
+	console.log(dim(`\nsaved as baseline "${label}"`));
 }
 
 async function compareBaseline(label: string, results: CaseResult[]): Promise<void> {
@@ -245,19 +245,19 @@ async function compareBaseline(label: string, results: CaseResult[]): Promise<vo
 	try {
 		baseline = JSON.parse(await readFile(resolve(RESULTS_DIR, `${label}.json`), "utf8")) as Baseline;
 	} catch {
-		console.log(red(`\n找不到基準 "${label}"。先跑一次 --save ${label}`));
+		console.log(red(`\nno baseline "${label}". Run --save ${label} first`));
 		return;
 	}
 
-	console.log(bold(`\n跟基準 "${label}" 比較`));
-	console.log(dim(`基準：${baseline.provider}/${baseline.model}  ${baseline.savedAt}`));
+	console.log(bold(`\ncompared against baseline "${label}"`));
+	console.log(dim(`baseline: ${baseline.provider}/${baseline.model}  ${baseline.savedAt}`));
 	console.log();
 
 	let regressions = 0;
 	for (const current of results) {
 		const before = baseline.cases.find((c) => c.caseId === current.caseId);
 		if (!before) {
-			console.log(dim(`  ${current.caseId.padEnd(20)} 新案例`));
+			console.log(dim(`  ${current.caseId.padEnd(20)} new case`));
 			continue;
 		}
 
@@ -265,9 +265,9 @@ async function compareBaseline(label: string, results: CaseResult[]): Promise<vo
 		const arrow = delta > 0 ? green(`+${delta}`) : delta < 0 ? red(String(delta)) : dim("±0");
 		const flag =
 			before.passed && !current.passed
-				? red("  ← 退步！本來會過，現在不過")
+				? red("  ← regression! it used to pass and now does not")
 				: !before.passed && current.passed
-					? green("  ← 修好了")
+					? green("  ← fixed")
 					: "";
 
 		if (before.passed && !current.passed) regressions++;
@@ -279,10 +279,10 @@ async function compareBaseline(label: string, results: CaseResult[]): Promise<vo
 
 	console.log();
 	if (regressions > 0) {
-		console.log(red(bold(`⚠  ${regressions} 個案例退步了`)));
-		process.exitCode = 1; // 讓 CI 可以擋
+		console.log(red(bold(`⚠  ${regressions} cases regressed`)));
+		process.exitCode = 1; // so CI can block on it
 	} else {
-		console.log(green("沒有退步"));
+		console.log(green("no regressions"));
 	}
 }
 
@@ -307,19 +307,19 @@ async function main(): Promise<void> {
 	const selected = filters.length > 0 ? CASES.filter((c) => filters.includes(c.id)) : CASES;
 
 	if (selected.length === 0) {
-		console.log(red(`沒有符合的案例。可用：${CASES.map((c) => c.id).join(", ")}`));
+		console.log(red(`No matching case. Available: ${CASES.map((c) => c.id).join(", ")}`));
 		process.exit(1);
 	}
 
 	const provider = selectProvider();
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(dim(`跑 ${selected.length} 個案例\n`));
+	console.log(dim(`running ${selected.length} cases\n`));
 
 	const results: CaseResult[] = [];
 	for (const testCase of selected) {
-		process.stdout.write(dim(`跑 ${testCase.id}… `));
+		process.stdout.write(dim(`running ${testCase.id}… `));
 		const result = await runCase(testCase);
-		process.stdout.write("\r\x1b[K"); // 清掉那一行
+		process.stdout.write("\r\x1b[K"); // wipe that line
 		printCase(result);
 		results.push(result);
 	}

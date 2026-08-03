@@ -22,21 +22,21 @@
 ## Step 0：跑起來
 
 ```bash
-bun run lesson-27:ingest    # 掃描 → 切塊 → 建索引
-bun run lesson-27           # 三個示範查詢
+bun run lesson-27:ingest    # scan → chunk → index
+bun run lesson-27           # three demo queries
 ```
 
 ```
-索引：22 個檔案、214 個 chunk
-  沿用 0、重切 22、移除 0
-  正文共 230,931 字元
-  最大的檔案：docs/TODO.md (25 塊)、lesson-23-real-world/README.md (15 塊)
+indexed: 33 files, 746 chunks
+  reused 0, rebuilt 33, removed 0
+  802,521 characters of body text
+  largest files: docs/TODO.md (165 chunks), docs/TODO.zh-TW.md (83 chunks)
 ```
 
 再跑一次：
 
 ```
-  沿用 22、重切 0、移除 0
+  reused 33, rebuilt 0, removed 0
 ```
 
 這一行就是這一課跟前面所有課最大的差別。
@@ -51,9 +51,9 @@ Lesson 20-26 的語料產生一次就不動了。本地文件不是——你今�
 `ingest.ts` 用內容雜湊決定要不要重切：
 
 ```text
-雜湊沒變  → 沿用舊 chunk（連帶沿用它們的 embedding）
-雜湊變了  → 只重切這一個檔案
-檔案不見  → 移除它的 chunk
+hash unchanged  → reuse the old chunks (and their embeddings with them)
+hash changed    → re-chunk only that one file
+file gone       → remove its chunks
 ```
 
 這是本地 RAG 真正的工程量所在。很多教學跳過它，
@@ -84,7 +84,7 @@ lesson-21-crawl/README.md#L477-L501
 但 **RRF 只看名次**：
 
 ```ts
-rrf([localIds, webIds])   // 本地第 1 名 + 網頁第 3 名 → 1/61 + 1/63
+rrf([localIds, webIds])   // local rank 1 + web rank 3 → 1/61 + 1/63
 ```
 
 Lesson 22 當初選 RRF 的理由是「BM25 的 2.771 和 cosine 的 0.83 不在同一個
@@ -101,10 +101,10 @@ Lesson 22 當初選 RRF 的理由是「BM25 的 2.771 和 cosine 的 0.83 不在
 「chunk 大小要怎麼選」：
 
 ```
-1. [本地] 對照原始碼             lesson-21-crawl/README.md#L477-L501
-2. [本地] 下一課                 lesson-21-crawl/README.md#L501
-3. [網頁] retarget-anything/LICENSE
-4. [網頁] A practical guide to sous vide cooking times     ← ???
+1. [local] Against the source          lesson-21-crawl/README.md#L477-L501
+2. [local] Next lesson                 lesson-21-crawl/README.md#L501
+3. [web]   retarget-anything/LICENSE
+4. [web]   A practical guide to sous vide cooking times     ← ???
 ```
 
 一篇 sous vide 烹飪指南排到第 4 名。
@@ -114,8 +114,8 @@ Lesson 22 當初選 RRF 的理由是「BM25 的 2.771 和 cosine 的 0.83 不在
 相關性的絕對高低在融合的時候被丟掉了。
 
 ```text
-單一來源  top-k 沒事：爛結果排在後面，使用者自己會忽略
-跨來源    top-k 有害：爛來源的第 1 名會被當成「第 1 名」對待
+one source     top-k is fine: bad results sit at the bottom and the user ignores them
+across sources top-k is harmful: the bad source's rank 1 gets treated as a rank 1
 ```
 
 這正好是 Lesson 23 Step 3 讀到、當時只是「記下來」的那個差異：
@@ -141,10 +141,10 @@ gpt-researcher 用**相似度門檻**過濾，而不是取 top-k。
 量一下才知道為什麼：
 
 ```text
-query                          web 結果的 cosine 範圍
-"unitree g1 retargeting…"      0.70 - 0.79    ← 真的相關
-"chunk 大小要怎麼選"            0.45 - 0.50    ← 完全不相關
-"BM25 RRF 融合 排序"            0.47 - 0.52    ← 完全不相關
+query                          cosine range of the web results
+"unitree g1 retargeting…"      0.70 - 0.79    ← genuinely relevant
+"how to choose a chunk size"   0.45 - 0.50    ← wholly irrelevant
+"BM25 RRF fusion ranking"      0.47 - 0.52    ← wholly irrelevant
 ```
 
 `gemini-embedding-001` 的無關基線就有 0.45-0.52。
@@ -161,8 +161,8 @@ gpt-researcher 那個 0.35 是配 OpenAI embedding 的，換一個模型直接�
 ### 修好之後
 
 ```
-chunk 大小要怎麼選
-  本地 6 筆、網頁 0 筆（門檻擋掉 本地 0、網頁 6）
+how to choose a chunk size
+  6 local, 0 web (the floor blocked 0 local, 6 web)
 ```
 
 烹飪指南消失了，六筆全是這個 repo 自己寫過 chunk 的段落。
@@ -175,8 +175,8 @@ chunk 大小要怎麼選
 > 會不會真的引用它們？
 
 ```bash
-PROVIDER=gemini bun run lesson-27:agent            # 有門檻
-FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
+PROVIDER=gemini bun run lesson-27:agent            # with the floor
+FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # without it
 ```
 
 判定是確定性的：網頁語料對「chunk 大小」一律不相關，
@@ -196,9 +196,9 @@ FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
 它擋的不是「會被引用的垃圾」，是**位置**：
 
 ```
-有門檻    8 個位置：本地 8 筆
-沒門檻    8 個位置：本地 4 筆 + 不相關的網頁 4 筆
-                    ↑ 4 筆相關的本地文件被擠掉了
+floor on    8 slots: 8 local
+floor off   8 slots: 4 local + 4 irrelevant web
+                     ↑ 4 relevant local documents were pushed out
 ```
 
 > 真正的傷害是排擠，不是幻覺。
@@ -213,8 +213,8 @@ FLOOR=off PROVIDER=gemini bun run lesson-27:agent  # 沒門檻
 ### 不要把這次的 0/5 當成安全
 
 ```
-○ 模型自己避開了：不相關的來源進了 context，但沒被引用
-   注意這不是門檻在保護你，是模型剛好沒上當。
+○ the model avoided it itself: the irrelevant source entered the context but was not cited
+   Note that this is not the floor protecting you; the model simply did not take the bait.
 ```
 
 程式碼裡刻意用 `○` 而不是 `✓`，因為這兩件事完全不同：
@@ -234,9 +234,9 @@ Lesson 17 Step 3.5 才剛示範過同一種東西：模型會替爛基礎設施�
 
 | query | 本地 | 網頁 | 意思 |
 |---|---|---|---|
-| `chunk 大小要怎麼選` | 6 | 0 | 網頁索引沒涵蓋這個主題 |
+| `how to choose a chunk size` | 6 | 0 | 網頁索引沒涵蓋這個主題 |
 | `unitree g1 retargeting deprecated` | 3 | 3 | 兩邊都有——而且它們**互相補充** |
-| `BM25 RRF 融合 排序` | 6 | 0 | 同上，這是這個 repo 自己的領域 |
+| `BM25 RRF fusion ranking` | 6 | 0 | 同上，這是這個 repo 自己的領域 |
 
 第二列最有意思。本地那三筆是 Lesson 20 的 README（在講這個語料裡的陷阱），
 網頁那三筆是語料本身。**一個是「這邊對這件事的理解」，
@@ -245,8 +245,8 @@ Lesson 17 Step 3.5 才剛示範過同一種東西：模型會替爛基礎設施�
 實務上這正是混合檢索最有價值的形狀：
 
 ```text
-本地  你的團隊對某件事的結論、決策紀錄、踩過的坑
-網頁  外面的原始資料、官方文件、最新變動
+local  your team's conclusions, decision records, and the holes you fell into
+web    outside primary sources, official documentation, the latest changes
 ```
 
 而「只回本地」和「只回網頁」都是有用的資訊：前者代表外部索引沒涵蓋，
@@ -270,9 +270,9 @@ Lesson 17 Step 3.5 才剛示範過同一種東西：模型會替爛基礎設施�
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `本地索引是空的` | 還沒 ingest | `bun run lesson-27:ingest` |
+| `The local index is empty` | 還沒 ingest | `bun run lesson-27:ingest` |
 | 改了檔案但結果沒變 | 索引沒更新 | 重跑 ingest（它會告訴你重切了幾個） |
-| `dense 不可用` | 沒金鑰且 query 不在快取裡 | 正常，會自動退化成純關鍵字。要完整功能就設金鑰 |
+| `dense is unavailable` | 沒金鑰且 query 不在快取裡 | 正常，會自動退化成純關鍵字。要完整功能就設金鑰 |
 | 網頁結果全被擋掉 | 門檻 0.6 對你的 embedding 太高 | **量自己的分佈**再調，見 Step 3 |
 | 掃到 clone 下來的參考專案 | `SKIP_DIRS` 沒涵蓋 | 在 `ingest.ts` 加進去 |
 
@@ -284,7 +284,7 @@ Lesson 17 Step 3.5 才剛示範過同一種東西：模型會替爛基礎設施�
 
 隨便改一行 `docs/TODO.md`，重跑 `bun run lesson-27:ingest`。
 
-應該看到「沿用 21、重切 1」。這一步是本地 RAG 能不能上線的分水嶺。
+應該看到「reused 32, rebuilt 1」。這一步是本地 RAG 能不能上線的分水嶺。
 
 ### 練習 2：量出你自己模型的門檻 ⭐⭐
 
@@ -340,14 +340,14 @@ Step 3 的 0.60 是量 `gemini-embedding-001` 得到的。換一個 embedding �
 ## AI Search 篇（Lesson 20-27）到這裡
 
 ```text
-20  snippet 不是網頁；query 決定你看到頁面的哪一面
-21  正文只佔一半；抽取失敗是靜默的
-22  BM25 + dense + 融合 + 訊號；平均分數會騙人
-23  真實專案怎麼做；抄回來炸出潛伏三課的 bug
-24  控制流從模型手上拿回來；預算是算出來的
-25  引用要驗；評估自己也會錯
-26  total ≠ input + output；thinking 吃掉 maxTokens
-27  本地文件會變；門檻是模型的性質不是通則
+20  a snippet is not the page; the query decides which face you see
+21  the body is only half the page; extraction failure is silent
+22  BM25 + dense + fusion + signals; the mean score will lie to you
+23  how real projects do it; copying it back exposed a bug latent for three lessons
+24  the control flow is taken back from the model; the budget is computed
+25  citations have to be verified; the evaluation itself can be wrong
+26  total ≠ input + output; thinking eats maxTokens
+27  local documents change; the floor is a property of the model, not a universal rule
 ```
 
 八課裡有六課的結論跟開工前的預期不一樣。那些差異才是內容。

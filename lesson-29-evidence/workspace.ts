@@ -56,10 +56,10 @@ export function handle(input: string): string {
 }
 `,
 
-	"notes.md": `# 交接筆記
+	"notes.md": `# Handover notes
 
-- \`handle()\` 的 early return 跟 \`shorten()\` 的長度檢查重複了
-- 還沒有測試
+- the early return in \`handle()\` duplicates the length check in \`shorten()\`
+- no tests yet
 `,
 };
 

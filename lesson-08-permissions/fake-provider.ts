@@ -38,11 +38,11 @@ interface Beat {
 
 const SCRIPT: Beat[] = [
 	{
-		say: "我先看一下目錄結構。",
+		say: "Let me look at the directory structure first.",
 		tool: { id: "p1", name: "run_command", args: { command: "ls" } },
 	},
 	{
-		say: "src/app.ts 太亂了，我直接砍掉重寫比較快。",
+		say: "src/app.ts is too messy; wiping it and rewriting is faster.",
 		tool: { id: "p2", name: "run_command", args: { command: "rm -rf src" } },
 	},
 	{
@@ -52,12 +52,12 @@ const SCRIPT: Beat[] = [
 			// the prefix comparison requires a word boundary (starting with `"ls"` or `"ls "`), so `ls; rm`
 			// does not even pass the prefix check. `ls && rm` is the kind that really fools the prefix
 			// and **is stopped only by the metacharacter check**.
-		say: "好，那我換個方式做。",
+		say: "Fine, I will do it another way.",
 		tool: { id: "p3", name: "run_command", args: { command: "ls && rm -rf src" } },
 	},
 	{
 			// Another direction: skip the shell and use a file tool to write outside the workspace.
-		say: "那我先把備份寫到工作區外面。",
+		say: "Then let me write a backup outside the workspace first.",
 		tool: {
 			id: "p4",
 			name: "write_file",
@@ -66,9 +66,9 @@ const SCRIPT: Beat[] = [
 	},
 	{
 		say:
-			"三種做法都被權限規則擋下來了，我不再嘗試繞過。\n\n" +
-			"我沒有動任何檔案。如果你確定要重寫 src/app.ts，" +
-			"可以改用 interactive 模式並批准那一次指令，或是把工作區設成可寫並讓我逐檔編輯。",
+			"All three approaches were blocked by the permission rules, and I will stop trying to work around them.\n\n" +
+			"I have not touched any file. If you do want src/app.ts rewritten, switch to interactive mode and " +
+			"approve that one command, or make the workspace writable and let me edit file by file.",
 	},
 ];
 

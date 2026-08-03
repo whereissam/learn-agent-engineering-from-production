@@ -75,15 +75,15 @@ async function runScenario(scenario: Scenario): Promise<Finding[]> {
 
 	const ctx: ToolContext = {
 		root: WORKSPACE,
-		approve: async () => true, // 引擎已經決定過了
+		approve: async () => true, // the engine has already decided
 		log: () => {},
 	};
 
 	const messages: Message[] = [{ role: "user", text: scenario.question }];
 
 	console.log(`\n${bold(`── ${scenario.id} · ${scenario.title}`)}`);
-	console.log(dim(`   模式 ${scenario.mode}　批准 ${scenario.approve ? "y" : "n"}　抓取點 ${CAPTURE}`));
-	console.log(`${cyan("你")} ${scenario.question}`);
+	console.log(dim(`   mode ${scenario.mode}  approve ${scenario.approve ? "y" : "n"}  capture point ${CAPTURE}`));
+	console.log(`${cyan("you")} ${scenario.question}`);
 
 	const outcome = await runTurn({
 		provider: scriptedProvider(scenario.script),
@@ -111,24 +111,24 @@ function report(
 ): void {
 	const writes = toolResults.filter((r) => r.mutating);
 
-	console.log(`\n  ${bold("三份紀錄")}`);
-	console.log(`    模型說　　  ${JSON.stringify(oneLine(claim))}`);
+	console.log(`\n  ${bold("three records")}`);
+	console.log(`    the model says      ${JSON.stringify(oneLine(claim))}`);
 	console.log(
-		`    工具說　　  ${
+		`    the tools say       ${
 			writes.length === 0
-				? dim("（沒有會改東西的工具呼叫）")
+				? dim("(no mutating tool calls)")
 				: writes
 						.map((r) => `${r.ok ? green("✓") : red("✗")} ${r.name}(${r.path ?? "?"})`)
 						.join("  ")
 		}`,
 	);
 	console.log(
-		`    檔案系統說  ${files.length === 0 ? red("（沒有任何檔案變更）") : green(files.join("  "))}`,
+		`    the filesystem says ${files.length === 0 ? red("(no file changed at all)") : green(files.join("  "))}`,
 	);
 
-	console.log(`\n  ${bold("分歧")}${dim(`　期望：${scenario.expect}`)}`);
+	console.log(`\n  ${bold("divergence")}${dim(`  expected: ${scenario.expect}`)}`);
 	if (findings.length === 0) {
-		console.log(`    ${green("沒有分歧")}`);
+		console.log(`    ${green("no divergence")}`);
 	}
 	for (const finding of findings) {
 		const tag = finding.strength === "structural" ? red(`[${finding.kind}]`) : yellow(`[${finding.kind}]`);
@@ -148,13 +148,13 @@ async function main(): Promise<void> {
 	const chosen = only ? SCENARIOS.filter((s) => s.id === only) : SCENARIOS;
 
 	if (chosen.length === 0) {
-		console.error(`不認得的情境：${only}。可用：${SCENARIOS.map((s) => s.id).join(", ")}`);
+		console.error(`Unknown scenario: ${only}. Available: ${SCENARIOS.map((s) => s.id).join(", ")}`);
 		process.exitCode = 1;
 		return;
 	}
 
 	console.log(dim(`workspace: ${WORKSPACE}`));
-	console.log(dim(`影子 git:  ${GITDIR}（不是這個 repo 的 .git）`));
+	console.log(dim(`shadow git: ${GITDIR} (not this repo's .git)`));
 
 	const summary: { id: string; structural: boolean; kinds: string }[] = [];
 
@@ -167,16 +167,16 @@ async function main(): Promise<void> {
 		});
 	}
 
-	console.log(`\n${bold("── 總表")}`);
-	console.log(dim("   情境                結構性分歧   發現"));
+	console.log(`\n${bold("── summary")}`);
+	console.log(dim("   scenario             structural divergence   findings"));
 	for (const row of summary) {
-		const flag = row.structural ? red("有") : green("無");
+		const flag = row.structural ? red("yes") : green("no ");
 		console.log(`   ${row.id.padEnd(20)}${flag}          ${dim(row.kinds)}`);
 	}
 
 		// Restore the workspace afterwards, so `git status` is clean.
 	await resetWorkspace();
-	console.log(dim("\n（workspace 已復原）"));
+	console.log(dim("\n(the workspace has been restored)"));
 }
 
 await main();

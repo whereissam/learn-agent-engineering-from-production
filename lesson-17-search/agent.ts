@@ -43,12 +43,12 @@ const DEMOTE = (process.env.DEMOTE ?? "on").toLowerCase() !== "off";
  * So whatever the model answers directly reflects which side it retrieved.
  */
 const QUESTION =
-	"我之前有查過 telemetry 取樣率的問題嗎？如果有，當時的結論是什麼？";
+	"Did I look into a telemetry sample-rate problem before? If so, what was the conclusion?";
 
 /** Words only obtainable by reading that real conversation. */
-const CORRECT_SIGNALS = ["metadata", "寫死", "sample_rate_hz", "meta."];
+const CORRECT_SIGNALS = ["metadata", "hardcode", "sample_rate_hz", "meta."];
 /** Words that only appear if it read the cron summaries. */
-const BLIND_SIGNALS = ["正常", "無異常", "沒有問題", "沒有異常"];
+const BLIND_SIGNALS = ["normal", "nothing anomalous", "no problem", "no anomal"];
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
@@ -70,21 +70,21 @@ function build(): SessionSearchIndex {
 	index.addSession(
 		{
 			sessionId: "sess_real",
-			title: "修 telemetry 取樣率的 bug",
+			title: "fixing the telemetry sample-rate bug",
 			source: "interactive",
 			startedAt: "2026-07-20T10:00:00Z",
 			messageCount: 6,
 		},
 		[
-			user("我們的 telemetry 取樣率設定好像有問題"),
-			assistant("我看一下 config。目前 sample_rate_hz 寫死 50Hz。"),
-			user("對，但 go2-c 那台實際是 100Hz"),
+			user("something looks wrong with our telemetry sample-rate setting"),
+			assistant("Let me look at the config. sample_rate_hz is hardcoded to 50Hz right now."),
+			user("right, but the go2-c unit actually runs at 100Hz"),
 			assistant(
-				"找到了。config.ts 把取樣率寫死了，應該從 session metadata 讀。" +
-					"我改成 meta.sample_rate_hz，並在缺值時 fallback 到 50。",
+				"Found it. config.ts hardcodes the sample rate; it should read it from the session metadata. " +
+					"I changed it to meta.sample_rate_hz, falling back to 50 when the value is missing.",
 			),
-			user("測試過了嗎"),
-			assistant("跑了 bun test，5 pass 0 fail。"),
+			user("did you test it"),
+			assistant("Ran bun test: 5 pass, 0 fail."),
 		],
 	);
 
@@ -92,16 +92,16 @@ function build(): SessionSearchIndex {
 		index.addSession(
 			{
 				sessionId: `sess_cron_${day}`,
-				title: `每日 telemetry 摘要 ${day}`,
+				title: `daily telemetry summary ${day}`,
 				source: "cron",
 				startedAt: `2026-07-${String(day).padStart(2, "0")}T03:00:00Z`,
 				messageCount: 2,
 			},
 			[
-				user("產生每日 telemetry 摘要"),
+				user("generate the daily telemetry summary"),
 				assistant(
-					"今日 telemetry 摘要：取樣率正常，session 數量 14，" +
-						"telemetry 取樣率 50Hz，無異常。telemetry 資料完整。",
+					"Today's telemetry summary: sample rate normal, 14 sessions, " +
+						"telemetry sample rate 50Hz, nothing anomalous. Telemetry data complete.",
 				),
 			],
 		);
@@ -129,10 +129,12 @@ async function main(): Promise<void> {
 		? selectStreamingProvider()
 		: scriptedProvider();
 
-	console.log(bold(`\nrecall blindness 的下游傷害   來源降權 ${DEMOTE ? green("開啟") : red("關閉")}`));
-	console.log(dim(`語料：1 篇使用者的真實對話 + 12 篇 cron 摘要`));
+	console.log(
+		bold(`\nthe downstream damage of recall blindness   source demotion ${DEMOTE ? green("on") : red("off")}`),
+	);
+	console.log(dim(`corpus: 1 real user conversation + 12 cron summaries`));
 	console.log(dim("─".repeat(66)));
-	console.log(`${bold("問：")}${QUESTION}\n`);
+	console.log(`${bold("Q: ")}${QUESTION}\n`);
 
 	const messages: Message[] = [{ role: "user", text: QUESTION }];
 	let answer = "";
@@ -184,7 +186,7 @@ async function main(): Promise<void> {
 									`[${h.hit.source}] ${h.hit.sessionTitle} (score ${h.hit.score.toFixed(2)})\n` +
 									h.window.map((m) => `  ${m.role}: ${m.text}`).join("\n"),
 							)
-							.join("\n\n") || "(沒有結果)",
+							.join("\n\n") || "(no results)",
 				};
 			}),
 		});
@@ -194,36 +196,36 @@ async function main(): Promise<void> {
 	const correct = CORRECT_SIGNALS.filter((s) => answer.includes(s));
 	const blind = BLIND_SIGNALS.filter((s) => answer.includes(s));
 
-	console.log(bold("\n\n判定"));
-	console.log(dim(`  模型搜了 ${searched.length} 次：${searched.join(" / ")}`));
+	console.log(bold("\n\nVerdict"));
+	console.log(dim(`  the model searched ${searched.length} times: ${searched.join(" / ")}`));
 	console.log(
-		dim(`  最終回答 ${answer.trim().length} 字`) +
-			(answer.trim() ? "" : red("（撞到步數上限，一直在搜，沒有給答案）")),
+		dim(`  final answer: ${answer.trim().length} characters`) +
+			(answer.trim() ? "" : red(" (hit the step cap: it kept searching and never answered)")),
 	);
-	console.log(`  只有讀到真實對話才講得出的詞：${correct.length ? green(correct.join(", ")) : dim("無")}`);
-	console.log(`  只有讀到 cron 摘要才會講的詞：${blind.length ? red(blind.join(", ")) : dim("無")}`);
+	console.log(`  words only reachable from the real conversation: ${correct.length ? green(correct.join(", ")) : dim("none")}`);
+	console.log(`  words that only come from the cron summaries: ${blind.length ? red(blind.join(", ")) : dim("none")}`);
 
 	if (correct.length > 0) {
-		console.log(`  ${green("✓ 找到了真正那次對話")}`);
+		console.log(`  ${green("✓ it found the real conversation")}`);
 	} else {
-		console.log(`  ${red("✗ recall blindness")}：模型沒有撈到使用者真正問過的那次`);
-		console.log(dim("     注意它多有自信。它不知道自己漏了什麼。"));
+		console.log(`  ${red("✗ recall blindness")}: the model never retrieved the conversation the user actually had`);
+		console.log(dim("     Note how confident it sounds. It does not know what it missed."));
 	}
 	console.log(dim(`  provider: ${model.name} / ${model.model}  stopReason=${stopReason}`));
 
 	// Lesson 15's lesson: a negative result must first rule out "the reply never finished".
 	if (correct.length === 0 && stopReason !== "end") {
-		console.log(yellow(`  ⚠ 回覆不是正常結束（${stopReason}），這個結果不可信，請重跑`));
+		console.log(yellow(`  ⚠ the reply did not end cleanly (${stopReason}), so this result is not trustworthy; run it again`));
 	}
 }
 
 /** The scripted provider used without a key: it shows what the output looks like and is not evidence. */
 function scriptedProvider(): StreamingProvider {
-	const call = { id: "s1", name: "search_sessions", args: { query: "telemetry 取樣率" } };
+	const call = { id: "s1", name: "search_sessions", args: { query: "telemetry sample rate" } };
 	let step = 0;
 	const provider: StreamingProvider = {
 		name: "fake",
-		model: "scripted-recall（不能當證據）",
+		model: "scripted-recall (not evidence)",
 		async *stream() {
 			if (step++ === 0) {
 				yield { type: "tool_call", ...call };
@@ -238,8 +240,8 @@ function scriptedProvider(): StreamingProvider {
 				return;
 			}
 			const text = DEMOTE
-				? "有。你發現 config.ts 把取樣率寫死了，結論是應該從 session metadata 讀。"
-				: "有查過，當時的結論是取樣率正常、無異常。";
+				? "Yes. You found that config.ts hardcodes the sample rate, and concluded it should be read from the session metadata."
+				: "Yes, and the conclusion at the time was that the sample rate was normal, nothing anomalous.";
 			yield { type: "text_start" };
 			yield { type: "text_delta", delta: text };
 			yield { type: "text_end" };

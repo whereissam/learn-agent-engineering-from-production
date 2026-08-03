@@ -93,8 +93,9 @@ export const CASES: EvalCase[] = [
 	{
 		id: "real-fall",
 		sessionId: "sess_001",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
-		groundTruth: "t=8200ms 開始前傾，8600ms 四腳全部離地，扭矩尖峰後歸零，機器人躺平沒有恢復",
+		prompt: "Analyse what happened in this session and write an incident report.",
+		groundTruth:
+			"Pitches forward from t=8200ms, all four feet leave the ground at 8600ms, torque spikes then drops to zero, and the robot lies flat without recovering",
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
 		trueWindow: { start_ms: 8200, end_ms: 9000 },
@@ -104,8 +105,9 @@ export const CASES: EvalCase[] = [
 	{
 		id: "crouch-not-fall",
 		sessionId: "sess_002",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
-		groundTruth: "t=5000ms 快速蹲下。pitch 衝到 36 度看起來像跌倒，但四腳全程著地，1.2 秒後恢復",
+		prompt: "Analyse what happened in this session and write an incident report.",
+		groundTruth:
+			"A fast crouch at t=5000ms. Pitch shoots to 36 degrees and looks like a fall, but all four feet stay down and it recovers 1.2s later",
 		idealClassification: "near_miss",
 		// nominal is acceptable too: nothing did in fact go wrong
 		acceptableClassifications: ["near_miss", "nominal"],
@@ -116,8 +118,9 @@ export const CASES: EvalCase[] = [
 	{
 		id: "external-collision",
 		sessionId: "sess_003",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
-		groundTruth: "t=6400ms 側向撞擊，roll 尖峰 38 度加上加速度尖峰，踉蹌後自行恢復",
+		prompt: "Analyse what happened in this session and write an incident report.",
+		groundTruth:
+			"A sideways impact at t=6400ms, a 38-degree roll spike plus an acceleration spike; it staggers and recovers on its own",
 		idealClassification: "external_collision",
 		acceptableClassifications: ["external_collision", "near_miss"],
 		trueWindow: { start_ms: 6400, end_ms: 7800 },
@@ -126,12 +129,13 @@ export const CASES: EvalCase[] = [
 	{
 		id: "missing-data",
 		sessionId: "sess_004",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
-		groundTruth: "t=4000-7000ms 完全沒有取樣。那段時間發生什麼事無法從 telemetry 判斷",
+		prompt: "Analyse what happened in this session and write an incident report.",
+		groundTruth:
+			"No samples at all between t=4000-7000ms. What happened in that window cannot be judged from telemetry",
 		idealClassification: "inconclusive",
 		acceptableClassifications: ["inconclusive", "nominal"],
 		// It must notice and state that the data has a hole
-		mustMention: ["gap", "missing", "缺", "洞", "無資料", "no data", "sampling"],
+		mustMention: ["gap", "missing", "no data", "hole", "sampling", "absent"],
 		dataQualityIssue: true,
 		// Drawing a confident conclusion over a period with no data is the worst behaviour
 		forbiddenClassifications: ["fall", "external_collision"],
@@ -139,12 +143,13 @@ export const CASES: EvalCase[] = [
 	{
 		id: "clock-skew",
 		sessionId: "sess_005",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
-		groundTruth: "telemetry t=7000ms 有事件；影片時鐘比 telemetry 早 2300ms。時間換算要正確",
+		prompt: "Analyse what happened in this session and write an incident report.",
+		groundTruth:
+			"Telemetry shows an event at t=7000ms; the video clock runs 2300ms ahead of telemetry. The conversion has to be right",
 		idealClassification: "near_miss",
 		acceptableClassifications: ["near_miss", "fall", "external_collision", "inconclusive"],
 		trueWindow: { start_ms: 7000, end_ms: 7400 },
-		mustMention: ["offset", "clock", "時鐘", "偏移", "2300"],
+		mustMention: ["offset", "clock", "skew", "2300"],
 		dataQualityIssue: true,
 	},
 
@@ -155,27 +160,27 @@ export const CASES: EvalCase[] = [
 	{
 		id: "two-events",
 		sessionId: "sess_006",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
+		prompt: "Analyse what happened in this session and write an incident report.",
 		groundTruth:
-			"兩次事件：t≈3460ms 踉蹌但恢復，t≈9400ms 真的跌倒。" +
-			"find_anomalies 兩個候選都給了，問題是報告會不會只寫最嚴重的那一個",
+			"Two events: a stagger with recovery at t≈3460ms, and a real fall at t≈9400ms. " +
+			"find_anomalies offers both candidates; the question is whether the report writes up only the most severe one",
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
 		trueWindow: { start_ms: 9200, end_ms: 10000 },
 		// The classification follows the most severe event, and **the earlier stumble must be mentioned too**.
 		// Reporting only the most severe one is the failure this case exists to catch:
 		// maintenance needs to know "it has already been unstable once today".
-		mustMention: ["3460", "3500", "3.4", "3.5", "兩次", "第一次", "earlier", "another"],
+		mustMention: ["3460", "3500", "3.4", "3.5", "twice", "first", "earlier", "another"],
 		forbiddenClassifications: ["nominal", "near_miss"],
 	},
 	{
 		id: "slow-tip",
 		sessionId: "sess_007",
-		prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。",
+		prompt: "Analyse what happened in this session and write an incident report.",
 		groundTruth:
-			"從 t=4000ms 開始緩慢傾倒，6 秒內 pitch 爬到 55 度，t=9500ms 四腳離地。" +
-			"關鍵：find_anomalies 的候選從 t=7060ms 才開始（門檻要 pitch>30 才觸發），" +
-			"比事件真正的起點晚了三秒",
+			"A slow tip-over from t=4000ms; pitch climbs to 55 degrees over 6 seconds and all four feet leave the ground at t=9500ms. " +
+			"The point: find_anomalies' candidate only starts at t=7060ms (the threshold needs pitch>30 to fire), " +
+			"three seconds after the event actually began",
 		idealClassification: "fall",
 		acceptableClassifications: ["fall"],
 		// ⚠️ This window is deliberately set **before** the candidate window.

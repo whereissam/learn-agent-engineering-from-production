@@ -60,7 +60,7 @@ function fakeClock(start: number) {
 
 function job(overrides: Partial<Job> & Pick<Job, "id" | "name" | "everySeconds">): Job {
 	return {
-		prompt: "整理今天的收件匣",
+		prompt: "tidy up today's inbox",
 		catchUp: "one",
 		enabled: true,
 		createdAt: 0,
@@ -99,39 +99,39 @@ function fakeProbe(live: Map<number, number>): OwnerProbe {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioCatchup(): Promise<void> {
-	console.log(`\n${bold("── catchup · 筆電闔了三小時")}`);
+	console.log(`\n${bold("── catchup · the laptop was shut for three hours")}`);
 
 	const clock = fakeClock(0);
 	const every5min = job({
 		id: "sync",
-		name: "同步收件匣",
+		name: "sync inbox",
 		everySeconds: 300,
 		lastScheduledAt: 0,
 	});
 
 	clock.advance(3 * HOUR);
 	const missed = missedRuns(every5min, clock.now());
-	console.log(dim(`  每 5 分鐘一次，停機 3 小時 → 錯過 ${missed.length} 次`));
+	console.log(dim(`  every 5 minutes, 3 hours down → ${missed.length} runs missed`));
 
 	for (const policy of ["all", "one", "skip"] as const) {
 		const { runs, dropped } = applyCatchUp(policy, missed);
 		const tag = policy === "one" ? green("one ") : dim(`${policy.padEnd(4)}`);
 		console.log(
-			`    ${tag} 執行 ${String(runs.length).padStart(2)} 次　丟掉 ${String(dropped).padStart(2)} 次　${dim(describe(policy))}`,
+			`    ${tag} ran ${String(runs.length).padStart(2)}  dropped ${String(dropped).padStart(2)}  ${dim(describe(policy))}`,
 		);
 	}
 
-	console.log(dim("\n  三個都對，但對不同的工作。沒有安全的預設值，只有安全的預設方向。"));
+	console.log(dim("\n  All three are right, for different jobs. There is no safe default value, only a safe default direction."));
 }
 
 function describe(policy: string): string {
 	switch (policy) {
 		case "all":
-			return "每一次都要做（逐筆處理佇列）";
+			return "every occurrence matters (working through a queue)";
 		case "one":
-			return "只要最新狀態（同步、健康檢查）";
+			return "only the latest state matters (syncing, health checks)";
 		default:
-			return "過期就沒意義（早上七點的提醒）";
+			return "worthless once stale (a 7am reminder)";
 	}
 }
 
@@ -140,7 +140,7 @@ function describe(policy: string): string {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioOverlap(): Promise<void> {
-	console.log(`\n${bold("── overlap · 上一輪還沒跑完，下一輪到了")}`);
+	console.log(`\n${bold("── overlap · the previous run is not done and the next one is due")}`);
 	console.log(dim(`  OVERLAP=${OVERLAP}`));
 	await resetState();
 
@@ -172,27 +172,27 @@ async function scenarioOverlap(): Promise<void> {
 		},
 	});
 
-	scheduler.add(job({ id: "slow", name: "慢工作", everySeconds: 60, lastScheduledAt: 0 }));
+	scheduler.add(job({ id: "slow", name: "slow job", everySeconds: 60, lastScheduledAt: 0 }));
 
 	// Manufacture a "still running" execution by hand, simulating a stuck previous round.
 	const stuck = await ledger.claim("slow", 0);
 	await ledger.markRunning(stuck.id);
-	console.log(dim(`  ${stuck.id} 仍然是 running（模擬上一輪卡住）`));
+	console.log(dim(`  ${stuck.id} is still running (simulating a stuck previous run)`));
 
 	clock.advance(3 * MINUTE);
 	const report = await scheduler.tick();
 
 	console.log(
-		`  本輪執行 ${report.ran.length} 次　跳過 ${report.skipped.length} 次　副作用 ${countRuns()} 筆`,
+		`  this tick ran ${report.ran.length}  skipped ${report.skipped.length}  side effects ${countRuns()}`,
 	);
 	for (const skip of report.skipped) console.log(dim(`    ⏭ ${skip.reason}`));
 
 	if (OVERLAP === "allow") {
 		console.log(
-			red("  ⚠ 同一個工作同時有多個執行在跑。如果它會寄信、扣款、寫檔，那就是重複的副作用。"),
+			red("  ⚠ One job has several runs going at once. If it sends mail, charges a card or writes a file, those side effects are duplicated."),
 		);
 	} else {
-		console.log(green("  ✓ 卡住的那一輪還在，新的一輪不會疊上去"));
+		console.log(green("  ✓ the stuck run stays, and no new run piles on top of it"));
 	}
 }
 
@@ -201,8 +201,8 @@ async function scenarioOverlap(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioCrash(): Promise<void> {
-	console.log(`\n${bold("── crash · 跑到一半進程被殺掉")}`);
-	console.log(dim(`  PROVE=${PROVE_DEATH ? "on" : "off"}　RETRY=${RETRY_UNKNOWN ? "1" : "0"}`));
+	console.log(`\n${bold("── crash · the process is killed mid-run")}`);
+	console.log(dim(`  PROVE=${PROVE_DEATH ? "on" : "off"}  RETRY=${RETRY_UNKNOWN ? "1" : "0"}`));
 	await resetState();
 
 	const clock = fakeClock(0);
@@ -210,7 +210,7 @@ async function scenarioCrash(): Promise<void> {
 	const live = new Map<number, number>([[4242, 1000]]);
 
 	// ── A. It really died ───────────────────────────────────
-	console.log(`\n  ${bold("A. owner 真的死了")}`);
+	console.log(`\n  ${bold("A. the owner really did die")}`);
 
 	const first = new Ledger({
 		ownerId: "sched-1",
@@ -223,16 +223,16 @@ async function scenarioCrash(): Promise<void> {
 
 	const exec = await first.claim("digest", 0);
 	await first.markRunning(exec.id);
-	await sideEffect("digest@0 (信寄出去了)");
-	console.log(dim(`    ${exec.id} running → 副作用已經發生（${countRuns()} 筆）`));
-	console.log(red("    💀 進程在寫終局狀態之前被 kill"));
+	await sideEffect("digest@0 (the message went out)");
+	console.log(dim(`    ${exec.id} running → the side effect already happened (${countRuns()} of them)`));
+	console.log(red("    💀 the process is killed before it writes the final state"));
 
 	// ⚠️ The pid was recycled to somebody else: 4242 still exists with a different start time.
 	// Comparing only "does this pid exist" concludes "still alive" and leaves that record
 	// in running forever. Comparing start times asks the real question:
 	// **is it the same process.**
 	live.set(4242, 2000);
-	console.log(dim("    （pid 4242 被回收給另一個進程了：存在，但啟動時間不同）"));
+	console.log(dim("    (pid 4242 was recycled to another process: it exists, but its start time differs)"));
 
 	const second = await Ledger.load({
 		ownerId: "sched-2",
@@ -246,28 +246,28 @@ async function scenarioCrash(): Promise<void> {
 
 	const { recovered } = await second.recoverInterrupted();
 	for (const item of recovered) {
-		console.log(`    ${item.id} → ${yellow(item.status)}　${dim(item.error?.slice(0, 52) ?? "")}…`);
+		console.log(`    ${item.id} → ${yellow(item.status)}  ${dim(item.error?.slice(0, 52) ?? "")}…`);
 	}
 
 	if (RETRY_UNKNOWN) {
 		for (const item of recovered) {
-			await sideEffect(`${item.jobId}@${item.scheduledFor} (重試)`);
+			await sideEffect(`${item.jobId}@${item.scheduledFor} (retry)`);
 		}
-		console.log(red(`    ⚠ 自動重試 unknown → 副作用 ${countRuns()} 筆。那封信寄了兩次。`));
+		console.log(red(`    ⚠ auto-retrying unknown → ${countRuns()} side effects. That message was sent twice.`));
 	} else {
 		console.log(
-			green(`    ✓ 不自動重試 → 副作用維持 ${countRuns()} 筆`) +
-				dim("（要不要重跑是工作的性質決定的）"),
+			green(`    ✓ no auto-retry → side effects stay at ${countRuns()}`) +
+				dim(" (whether to re-run is decided by the nature of the job)"),
 		);
 	}
 
 	// ── B. Not dead, you just do not know ────────────────────
 	//
 	// This section is what the PROVE switch really demonstrates.
-	console.log(`\n  ${bold("B. owner 其實還活著（另一台 scheduler 正在跑同一個工作）")}`);
+	console.log(`\n  ${bold("B. the owner is actually alive (another scheduler is running the same job)")}`);
 	await resetState();
 
-	live.set(7777, 5000); // sched-3 活得好好的
+	live.set(7777, 5000); // sched-3 is perfectly alive
 	const busy = new Ledger({
 		ownerId: "sched-3",
 		pid: 7777,
@@ -278,8 +278,8 @@ async function scenarioCrash(): Promise<void> {
 	});
 	const inflight = await busy.claim("digest", 0);
 	await busy.markRunning(inflight.id);
-	await sideEffect("digest@0 (sched-3 正在寄)");
-	console.log(dim(`    ${inflight.id} running，pid 7777 仍然活著（${countRuns()} 筆副作用）`));
+	await sideEffect("digest@0 (sched-3 is sending it)");
+	console.log(dim(`    ${inflight.id} running, pid 7777 still alive (${countRuns()} side effects)`));
 
 	const newcomer = await Ledger.load({
 		ownerId: "sched-4",
@@ -292,7 +292,7 @@ async function scenarioCrash(): Promise<void> {
 	});
 	const outcome = await newcomer.recoverInterrupted();
 	console.log(
-		`    sched-4 啟動：標成 unknown ${outcome.recovered.length} 筆，維持原狀 ${outcome.leftAlone.length} 筆`,
+		`    sched-4 starts: marked ${outcome.recovered.length} as unknown, left ${outcome.leftAlone.length} alone`,
 	);
 
 	// Then it ticks once. The overlap check looks at "is there a non-terminal execution".
@@ -300,32 +300,32 @@ async function scenarioCrash(): Promise<void> {
 		ledger: newcomer,
 		clock: clock.now,
 		runner: async ({ job: j, scheduledFor }) => {
-			await sideEffect(`${j.id}@${scheduledFor} (sched-4 也寄了)`);
+			await sideEffect(`${j.id}@${scheduledFor} (sched-4 sent it too)`);
 			return "sent";
 		},
 	});
-	scheduler.add(job({ id: "digest", name: "每日摘要", everySeconds: 60, lastScheduledAt: 0 }));
+	scheduler.add(job({ id: "digest", name: "daily digest", everySeconds: 60, lastScheduledAt: 0 }));
 	clock.advance(2 * MINUTE);
 	const report = await scheduler.tick();
 
 	if (PROVE_DEATH) {
 		console.log(
-			green(`    ✓ sched-3 的執行沒被動 → sched-4 跳過（${report.skipped.length} 次），副作用維持 ${countRuns()} 筆`),
+			green(`    ✓ sched-3's run was untouched → sched-4 skipped (${report.skipped.length}), side effects stay at ${countRuns()}`),
 		);
 	} else {
 		console.log(
 			red(
-				`    ⚠ 活著的執行被標成 unknown → 重疊檢查看不到它 → sched-4 照跑（${report.ran.length} 次）\n` +
-					`      副作用 ${countRuns()} 筆。同一封信，兩台 scheduler 各寄一次。`,
+				`    ⚠ a live run was marked unknown → the overlap check cannot see it → sched-4 runs anyway (${report.ran.length})\n` +
+					`      ${countRuns()} side effects. The same message, sent once by each scheduler.`,
 			),
 		);
 	}
 
 	console.log(
 		dim(
-			"\n  unknown 不是 failed。failed 是「跑完了，沒成功」，\n" +
-				"  unknown 是「不知道副作用有沒有發生」——把後者記成前者就是在說謊。\n" +
-				"  而「不能證明它死了就當它活著」是另一半：猜錯的代價是重複的副作用。",
+			'\n  unknown is not failed. failed means "it finished and did not succeed";\n' +
+				'  unknown means "nobody knows whether the side effect happened". Recording the latter as the former is a lie.\n' +
+				'  And "if you cannot prove it died, assume it lives" is the other half: guessing wrong costs you duplicated side effects.',
 		),
 	);
 }
@@ -335,32 +335,32 @@ async function scenarioCrash(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioRespawn(): Promise<void> {
-	console.log(`\n${bold("── respawn · 工作重啟了跑排程的那個東西")}`);
+	console.log(`\n${bold("── respawn · the job restarts the thing that runs the schedule")}`);
 	console.log(dim(`  GUARD=${GUARD_ON ? "on" : "off"}`));
 
 	const spec = {
-		name: "每天清理暫存檔",
-		prompt: "清掉 /tmp/agentd-cache 底下的舊檔案，然後 agentd restart 讓設定生效",
+		name: "daily temp-file cleanup",
+		prompt: "clear old files under /tmp/agentd-cache, then agentd restart so the config takes effect",
 	};
 
 	if (GUARD_ON) {
 		try {
 			checkLifecycle(spec.prompt);
-			console.log(red("  守衛沒擋住（不該發生）"));
+			console.log(red("  the guard did not block it (should not happen)"));
 		} catch (error) {
 			if (!(error instanceof LifecycleBlocked)) throw error;
-			console.log(green("  ✓ 建立時就被擋下來"));
-			console.log(dim(`    ${error.message.split(". ").slice(0, 2).join("。\n    ")}`));
+			console.log(green("  ✓ blocked at creation time"));
+			console.log(dim(`    ${error.message.split(". ").slice(0, 2).join(". \n    ")}`));
 			console.log(
-				dim("\n  注意它是在**建立**時擋，不是在**執行**時擋。\n" +
-					"  執行時擋的話，那個工作會每天安靜地失敗一次。"),
+				dim("\n  Note it blocks at **creation**, not at **execution**.\n" +
+					"  Blocking at execution would make that job fail silently once a day."),
 			);
 		}
 		return;
 	}
 
 	// The guard off: run the causal chain out.
-	console.log(dim("  排程建立成功。以下是那條因果鏈：\n"));
+	console.log(dim("  The job was created. Here is the causal chain:\n"));
 
 	let daemonAlive = true;
 	let restarts = 0;
@@ -369,8 +369,8 @@ async function scenarioRespawn(): Promise<void> {
 
 	for (let i = 0; i < LIMIT; i++) {
 		console.log(
-			`    ${dim(`[${String(i + 1).padStart(2)}]`)} 工作觸發 → agentd 被 restart` +
-				dim("　→ 監管者救活 → auto-resume 撿回同一個 session → 那一輪重跑"),
+			`    ${dim(`[${String(i + 1).padStart(2)}]`)} the job fires → agentd is restarted` +
+				dim("  → the supervisor revives it → auto-resume picks up the same session → that turn runs again"),
 		);
 		daemonAlive = false;
 		restarts++;
@@ -381,15 +381,15 @@ async function scenarioRespawn(): Promise<void> {
 	}
 
 	console.log(
-		red(`\n  ${LIMIT} 輪之後：重啟 ${restarts} 次、重跑 ${resumedTurns} 輪，daemon ${daemonAlive ? "活著" : "死著"}`),
+		red(`\n  after ${LIMIT} rounds: ${restarts} restarts, ${resumedTurns} re-run turns, daemon ${daemonAlive ? "alive" : "dead"}`),
 	);
 	console.log(
-		dim("  這裡設了 8 次上限，真實情況是每 ~10 秒一輪直到有人手動介入（Hermes #30719）。"),
+		dim("  The cap here is 8; in reality it is one round every ~10 seconds until somebody intervenes by hand (Hermes #30719)."),
 	);
 	console.log(
 		yellow(
-			"\n  ⚠ 每一個環節單獨看都是對的設計：排程、監管者自動重啟、中斷後自動恢復。\n" +
-				"    迴圈是它們相乘出來的。",
+			"\n  ⚠ Each piece is a correct design on its own: scheduling, supervisor auto-restart, resume-after-interrupt.\n" +
+				"    The loop is what they multiply into.",
 		),
 	);
 }
@@ -399,7 +399,7 @@ async function scenarioRespawn(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioApproval(): Promise<void> {
-	console.log(`\n${bold("── approval · 半夜三點需要批准")}`);
+	console.log(`\n${bold("── approval · approval needed at 3am")}`);
 	await resetState();
 
 	const inbox = new InboxStore();
@@ -424,21 +424,21 @@ async function scenarioApproval(): Promise<void> {
 				sessionId: `cron:${j.id}`,
 				kind: "approval",
 				visibility: "inbox",
-				title: "執行 send_email？",
-				body: "收件人 team@example.com，主旨「每日摘要」",
+				title: "Run send_email?",
+				body: 'to team@example.com, subject "Daily digest"',
 			});
 			parkedItemId = item.id;
-			console.log(dim(`    ${j.name} → inbox ${item.id}（pending），執行停在這裡`));
+			console.log(dim(`    ${j.name} → inbox ${item.id} (pending); the run stops here`));
 
 			const resolution = await inbox.wait(item.id);
-			if (resolution !== "allow") return "使用者拒絕，沒有寄出";
+			if (resolution !== "allow") return "the user declined; nothing was sent";
 			await sideEffect("email@3am");
-			return "已寄出";
+			return "sent";
 		},
 	});
 
 	scheduler.add(
-		job({ id: "digest", name: "每日摘要", everySeconds: 3600, lastScheduledAt: 2 * HOUR }),
+		job({ id: "digest", name: "daily digest", everySeconds: 3600, lastScheduledAt: 2 * HOUR }),
 	);
 
 	// tick never returns, because that job is stopped in inbox.wait().
@@ -446,24 +446,24 @@ async function scenarioApproval(): Promise<void> {
 	await new Promise((r) => setTimeout(r, 20));
 
 	const pending = inbox.pending();
-	console.log(`  inbox 待辦 ${pending.length} 筆　副作用 ${countRuns()} 筆　${dim("（你還在睡）")}`);
+	console.log(`  inbox pending ${pending.length}  side effects ${countRuns()}  ${dim("(you are still asleep)")}`);
 	const active = ledger.activeFor("digest");
-	console.log(dim(`    ledger：${active?.id} 仍然是 ${active?.status} —— 這不是失敗，是還沒結束`));
+	console.log(dim(`    ledger: ${active?.id} is still ${active?.status} — that is not a failure, it is unfinished`));
 
-	console.log(dim("\n  ☀️  早上起來，按下允許："));
+	console.log(dim("\n  ☀️  morning: you wake up and tap allow:"));
 	await inbox.resolve(parkedItemId as string, "allow");
 	const report = await ticking;
 
 	console.log(
-		green(`  ✓ 執行繼續並完成`) +
-			dim(`　ledger：${ledger.list("digest")[0]?.status}　副作用 ${countRuns()} 筆`),
+		green(`  ✓ the run continued and finished`) +
+			dim(`  ledger: ${ledger.list("digest")[0]?.status}  side effects ${countRuns()}`),
 	);
-	console.log(dim(`    輸出：${report.ran[0]?.output}`));
+	console.log(dim(`    output: ${report.ran[0]?.output}`));
 
 	console.log(
 		dim(
-			"\n  排程 + 無人值守是同一個問題的兩半：**排程跑起來一定是無人值守。**\n" +
-				"  Lesson 9 已經把 inbox 做好了，這裡一行都不用改，只是換一個 approver。",
+			"\n  Scheduling and unattended operation are two halves of one problem: **anything on a schedule runs unattended.**\n" +
+				"  Lesson 9 already built the inbox, so nothing here changes; only the approver is swapped.",
 		),
 	);
 }
@@ -485,7 +485,7 @@ async function main(): Promise<void> {
 	for (const name of names) {
 		const scenario = SCENARIOS[name];
 		if (!scenario) {
-			console.error(`不認得的情境：${name}。可用：${Object.keys(SCENARIOS).join(", ")}`);
+			console.error(`Unknown scenario: ${name}. Available: ${Object.keys(SCENARIOS).join(", ")}`);
 			process.exitCode = 1;
 			return;
 		}
@@ -493,7 +493,7 @@ async function main(): Promise<void> {
 	}
 
 	await resetState();
-	console.log(dim("\n（.state 已清掉）"));
+	console.log(dim("\n(.state cleared)"));
 }
 
 await main();

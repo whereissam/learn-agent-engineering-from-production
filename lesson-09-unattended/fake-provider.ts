@@ -36,15 +36,15 @@ export function unattendedFakeProvider(): StreamingProvider {
 			const turn = step++;
 
 			if (turn === 0) {
-				const text = "好，我來寄這封每日摘要。";
+				const text = "Right, I will send that daily summary.";
 				yield* say(text, signal);
 				const call = {
 					id: "e1",
 					name: "send_email",
 					args: {
 						to: "team@example.com",
-						subject: "每日摘要",
-						body: "今天的建置全部通過，沒有需要注意的事項。",
+						subject: "Daily summary",
+						body: "Today's builds all passed. Nothing needs attention.",
 					},
 				};
 				yield { type: "tool_call", ...call };
@@ -72,8 +72,8 @@ export function unattendedFakeProvider(): StreamingProvider {
 				last?.role === "toolResult" && last.results.some((r) => r.isError);
 
 			const text = denied
-				? "那封信沒有寄出去（批准被拒絕了）。內容我留著，你要的話再說一聲。"
-				: "已經寄出去了，收件人 team@example.com。";
+				? "That message was not sent (approval was declined). I still have the text; say the word if you want it."
+				: "Sent, to team@example.com.";
 
 			yield* say(text, signal);
 			yield {

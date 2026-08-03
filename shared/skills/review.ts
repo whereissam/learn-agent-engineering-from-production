@@ -121,12 +121,12 @@ export class SkillReviewQueue {
 		try {
 			raw = await readFile(src, "utf8");
 		} catch {
-			throw new Error(`找不到待審的 skill "${name}"`);
+			throw new Error(`No pending skill named "${name}"`);
 		}
 
 		if (decision.action === "revise") {
 				// Left in place with the comment recorded. The agent can revise and propose again.
-			return `已要求修改 "${name}"：${decision.note}`;
+			return `Requested changes to "${name}": ${decision.note}`;
 		}
 
 		if (decision.action === "reject") {
@@ -135,7 +135,7 @@ export class SkillReviewQueue {
 				// A rejected proposal is useful data in itself: it tells you what the agent wanted to learn,
 				// and why you did not want it.
 			await rename(src, join(this.archiveDir, `rejected-${Date.now()}-${name}.md`));
-			return `已拒絕並封存 "${name}"：${decision.note}`;
+			return `Rejected and archived "${name}": ${decision.note}`;
 		}
 
 		// approve
@@ -151,7 +151,7 @@ export class SkillReviewQueue {
 				await rename(src, join(this.archiveDir, `approved-${Date.now()}-${name}.md`));
 			},
 		);
-		return `已核准並啟用 "${name}"`;
+		return `Approved and enabled "${name}"`;
 	}
 }
 

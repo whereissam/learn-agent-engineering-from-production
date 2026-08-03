@@ -126,7 +126,7 @@ async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: st
 		}
 
 		const { connection, list } = result.value;
-		report.push(`  ${green("✓")} ${def.name}  ${dim(`${list.length} 個工具`)}`);
+		report.push(`  ${green("✓")} ${def.name}  ${dim(`${list.length} tools`)}`);
 
 		for (const tool of list) {
 			const name = toolName(def.name, tool.name);
@@ -136,10 +136,10 @@ async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: st
 			const existing = tools.get(name);
 			if (existing) {
 				report.push(
-					`    ${red("⚠ 名稱碰撞")} ${name}`,
+					`    ${red("⚠ name collision")} ${name}`,
 				);
 				report.push(
-					dim(`      ${existing.server}/${existing.remoteName} 會被 ${def.name}/${tool.name} 蓋掉`),
+					dim(`      ${existing.server}/${existing.remoteName} would be shadowed by ${def.name}/${tool.name}`),
 				);
 			}
 
@@ -166,14 +166,14 @@ async function loadTools(): Promise<{ tools: Map<string, LoadedTool>; report: st
 // ─────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-	console.log(bold("\n連線 MCP server"));
+	console.log(bold("\nConnecting to MCP servers"));
 	const started = Date.now();
 	const { tools, report } = await loadTools();
 	for (const line of report) console.log(line);
-	console.log(dim(`  （${Date.now() - started}ms，壞掉的兩台沒有拖垮啟動）`));
+	console.log(dim(`  (${Date.now() - started}ms; the two broken ones did not hold up startup)`));
 
 	if (tools.size === 0) {
-		console.log(red("\n一個工具都沒載到，結束。"));
+		console.log(red("\nNot a single tool loaded. Stopping."));
 		return;
 	}
 
@@ -198,7 +198,7 @@ async function main(): Promise<void> {
 		mode: MODE,
 	});
 
-	console.log(bold("\n載到的工具"));
+	console.log(bold("\nTools loaded"));
 	for (const [name, tool] of tools) {
 		const risk = classify(name, metadata);
 		console.log(
@@ -211,7 +211,7 @@ async function main(): Promise<void> {
 	const reader = new LineReader();
 	const messages: Message[] = [];
 
-	console.log(dim(`\nprovider: ${provider.name}  模式: ${engine.mode}\n`));
+	console.log(dim(`\nprovider: ${provider.name}  mode: ${engine.mode}\n`));
 
 	const runTurn = async (): Promise<void> => {
 		for (let step = 0; step < 10; step++) {
@@ -240,7 +240,7 @@ async function main(): Promise<void> {
 			}
 
 			if (failure || !response) {
-				console.log(red(`\n[串流失敗] ${failure ?? "沒有正常結束"}`));
+				console.log(red(`\n[stream failed] ${failure ?? "did not end cleanly"}`));
 				return;
 			}
 
@@ -271,7 +271,7 @@ async function main(): Promise<void> {
 					if (!decision.allowed && !decision.needsUser) {
 						denial = decision.reason;
 					} else if (decision.needsUser) {
-						console.log(`\n${yellow("┌ 需要批准")}`);
+						console.log(`\n${yellow("┌ approval needed")}`);
 						console.log(`${yellow("│")} ${tool.server}/${tool.remoteName}`);
 						console.log(`${yellow("│")} ${dim(JSON.stringify(call.args))}`);
 						console.log(`${yellow("│")} ${dim(decision.reason)}`);
@@ -279,15 +279,15 @@ async function main(): Promise<void> {
 
 						let approved: boolean;
 						if (ANSWER) {
-							console.log(dim(`  （ANSWER=${ANSWER}，自動回答）`));
+							console.log(dim(`  (ANSWER=${ANSWER}, answered automatically)`));
 							approved = ANSWER.startsWith("y");
 						} else {
 							const line = await reader.next(
-								`  ${yellow("[y]")} 允許  ${yellow("[n]")} 拒絕 › `,
+								`  ${yellow("[y]")} allow  ${yellow("[n]")} deny › `,
 							);
 							approved = line !== null && line.trim().toLowerCase().startsWith("y");
 						}
-						if (!approved) denial = `使用者拒絕了。（${decision.reason}）`;
+						if (!approved) denial = `The user declined. (${decision.reason})`;
 					}
 				}
 
@@ -298,7 +298,7 @@ async function main(): Promise<void> {
 						content: `Denied by the permission engine: ${denial}`,
 						isError: true,
 					});
-					console.log(`  ${red("✗ 擋下來了")} ${dim(denial)}`);
+					console.log(`  ${red("✗ blocked")} ${dim(denial)}`);
 					continue;
 				}
 
@@ -326,8 +326,8 @@ async function main(): Promise<void> {
 
 	try {
 		if (!process.env.PROVIDER) {
-			const prompt = "哪些機器人在維修中？順便幫 R-204 排一個維修時段。";
-			console.log(`${cyan("你")} ${prompt}`);
+			const prompt = "Which robots are under maintenance? And book a maintenance slot for R-204 while you are at it.";
+			console.log(`${cyan("you")} ${prompt}`);
 			messages.push({ role: "user", text: prompt });
 			await runTurn();
 		} else {

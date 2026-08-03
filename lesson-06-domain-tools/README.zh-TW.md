@@ -71,21 +71,21 @@ bun run lesson-06
 ```
 
 ```
-> 分析 sess_002 發生了什麼事，寫報告
+> analyse what happened in sess_002 and write a report
 ```
 
 實際跑出來的軌跡（Gemini 3.6 Flash）：
 
 ```
-→ get_session(sess_002)            檢查資料品質
-→ find_anomalies(sess_002)         找候選區間
-→ query_telemetry(0..12000)        看全域
-→ query_telemetry(5000..6500)      放大異常區間
-→ query_telemetry(6500..12000)     看事後有沒有恢復
-→ query_telemetry(0..5000)         看事前的基準
-→ get_video_frame(5620)            交叉驗證
-→ list_sessions()
-→ compare_sessions(sess_001, sess_002)   跟真的跌倒比對
+→ get_session(sess_002)            check the data quality
+→ find_anomalies(sess_002)         find candidate windows
+→ query_telemetry(0..12000)        look at the whole run
+→ query_telemetry(0..5000)         get the baseline from before
+→ query_telemetry(5000..6500)      zoom into the odd stretch
+→ query_telemetry(6500..12000)     check whether it recovered afterwards
+→ get_video_frame(5620)            cross-check at the peak
+→ get_video_frame(2000)            cross-check before it
+→ get_video_frame(8000)            cross-check after it
 → create_incident_report(...)
 ```
 
@@ -96,12 +96,13 @@ bun run lesson-06
   "classification": "near_miss",
   "confidence": "high",
   "window_start_ms": 5360,
+  "window_end_ms": 5860,
   "evidence": [
-    "在 t=5620ms 處 imu_pitch_deg 達到峰值 37.70°（常規行走為 0-5°）",
-    "在 t=5580ms 處 joint_torque_max 達到峰值 51.36 Nm（常規行走為 15-25 Nm）",
-    "全過程無足部離地（airborne samples 為 0，視頻畫面 t=5620ms 確認 4/4 足部著地）",
-    "imu_accel_z 在 9.40..10.20 m/s² 之間，排除外部強衝擊碰撞",
-    "t>6500ms 後恢復正常行走"
+    "imu_pitch_deg reached a peak of 37.70° at t=5620ms (baseline mean is 1.98° during normal walking).",
+    "joint_torque_max peaked at 51.36 Nm at t=5580ms (baseline mean is 17.79 Nm).",
+    "imu_accel_z remained stable between 9.42 m/s² and 10.19 m/s² during t=5000..6500ms, indicating no hard vertical impact.",
+    "Foot contact was maintained throughout the entire event window; video at t=5620ms confirms 4/4 feet on the ground during peak forward pitch.",
+    "Post-event telemetry (t=6500..11980ms) confirms complete recovery: imu_pitch_deg mean returned to 1.98° (max 3.50°) …"
   ]
 }
 ```
@@ -142,10 +143,10 @@ bun run lesson-06
 假設只給模型 `read_file`，它要分析一個 session 就得：
 
 ```
-讀進 600 筆 JSON 樣本（100KB）
-→ 自己在腦內找最大值
-→ 自己算平均
-→ 自己判斷哪段異常
+read 600 JSON samples (100KB)
+→ find the maximum in its head
+→ compute the mean in its head
+→ decide in its head which stretch is anomalous
 ```
 
 三個問題：
@@ -194,8 +195,8 @@ to decide what actually happened.
 這個分工是刻意的：
 
 ```
-確定性的規則  →  負責 recall（不要漏掉任何可疑的地方）
-模型          →  負責 precision（判斷哪些是真的）
+deterministic rules  →  responsible for recall (miss nothing suspicious)
+the model            →  responsible for precision (decide which ones are real)
 ```
 
 反過來做（讓模型自己掃全部資料找異常）既貴又不穩定。
@@ -234,7 +235,7 @@ if (gaps.length > 0) {
 `sess_004` 就是為了這個做的：中間 3 秒完全沒有取樣。試試看：
 
 ```
-> 分析 sess_004
+> analyse sess_004
 ```
 
 好的行為是回報 `inconclusive` 並在 caveats 說明資料有洞。
@@ -257,10 +258,10 @@ const videoT = t + meta.video_offset_ms;
 比較這兩種寫法：
 
 ```ts
-// ✗ 沒用的錯誤
+// ✗ a useless error
 throw new Error("No data");
 
-// ✓ 模型可以據此行動的錯誤
+// ✓ an error the model can act on
 throw new Error(
   `No samples between t=${start}ms and t=${end}ms. ` +
   `This session has data from t=${first}ms to t=${last}ms. ` +
@@ -449,8 +450,8 @@ Pi 本身是 coding agent，沒有領域工具。但工具的**形狀**是共用
 
 ```ts
 export interface AgentToolResult<T> {
-  content: (TextContent | ImageContent)[];   // → 給模型看的
-  details: T;                                // → 給 UI / log 的，模型看不到
+  content: (TextContent | ImageContent)[];   // → what the model sees
+  details: T;                                // → for the UI / logs; the model never sees it
 }
 ```
 

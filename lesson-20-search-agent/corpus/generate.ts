@@ -156,8 +156,8 @@ async function main(): Promise<void> {
 	await writeFile(resolve(OUT, "index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
 
 	const bytes = index.reduce((sum, p) => sum + p.text.length, 0);
-	console.log(`已產生 ${index.length} 個頁面到 ${PAGES_DIR}`);
-	console.log(`索引：${resolve(OUT, "index.json")}（正文共 ${bytes} 字元）`);
+	console.log(`Generated ${index.length} pages into ${PAGES_DIR}`);
+	console.log(`Index: ${resolve(OUT, "index.json")} (${bytes} characters of body text)`);
 }
 
 if (import.meta.main) await main();

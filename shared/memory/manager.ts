@@ -136,14 +136,14 @@ export class MemoryManager {
 	 */
 	addProvider(provider: MemoryProvider, options: { external?: boolean } = {}): void {
 		if (!provider.isAvailable()) {
-			this.onWarning(`memory provider "${provider.name}" 不可用，略過`);
+			this.onWarning(`memory provider "${provider.name}" is unavailable, skipping`);
 			return;
 		}
 		if (options.external) {
 			if (this.hasExternal) {
 				throw new Error(
-					`已經有一個外部 memory provider 了，不能再加 "${provider.name}"。` +
-						"兩個記憶後端會互相衝突，而且工具清單會膨脹。",
+					`There is already an external memory provider; "${provider.name}" cannot be added too. ` +
+						"Two memory backends contradict each other, and the tool list bloats.",
 				);
 			}
 			this.hasExternal = true;
@@ -157,7 +157,7 @@ export class MemoryManager {
 				await p.initialize?.();
 			} catch (error) {
 					// One provider dying must not stop the whole agent from starting
-				this.onWarning(`provider "${p.name}" 初始化失敗：${(error as Error).message}`);
+				this.onWarning(`provider "${p.name}" failed to initialise: ${(error as Error).message}`);
 			}
 		}
 	}
@@ -184,8 +184,8 @@ export class MemoryManager {
 				try {
 					return await withTimeout(p.prefetch(query), this.prefetchTimeoutMs);
 				} catch (error) {
-					this.onWarning(`provider "${p.name}" prefetch 失敗：${(error as Error).message}`);
-					return ""; // 失敗就當作沒有記憶，不要讓整輪掛掉
+					this.onWarning(`provider "${p.name}" prefetch failed: ${(error as Error).message}`);
+					return ""; // on failure, act as if there were no memory rather than killing the turn
 				}
 			}),
 		);
@@ -194,7 +194,7 @@ export class MemoryManager {
 		if (!raw.trim()) return "";
 
 		if (raw.length > this.maxContextChars) {
-			raw = `${raw.slice(0, this.maxContextChars)}\n[... 記憶內容過長，已截斷]`;
+			raw = `${raw.slice(0, this.maxContextChars)}\n[... memory content too long, truncated]`;
 		}
 
 		const { block, tampered } = buildMemoryContextBlock(raw);
@@ -202,7 +202,7 @@ export class MemoryManager {
 				// This is a security event and must be recorded. Memory carrying its own fence tags
 				// almost always means somebody tried to forge a system message.
 			this.onWarning(
-				"memory provider 回傳的內容含有圍欄標籤，已剝除。這可能是注入攻擊的跡象。",
+				"The memory provider returned content containing fence markers; they were stripped. This can be a sign of an injection attempt.",
 			);
 		}
 		return block;
@@ -215,7 +215,7 @@ export class MemoryManager {
 				try {
 					await p.syncTurn(userMessage, assistantMessage);
 				} catch (error) {
-					this.onWarning(`provider "${p.name}" sync 失敗：${(error as Error).message}`);
+					this.onWarning(`provider "${p.name}" sync failed: ${(error as Error).message}`);
 				}
 			}),
 		);
@@ -233,7 +233,7 @@ export class MemoryManager {
 				return await p.handleToolCall(name, args);
 			}
 		}
-		throw new Error(`沒有 memory provider 處理工具 "${name}"`);
+		throw new Error(`No memory provider handles the tool "${name}"`);
 	}
 
 	async shutdown(): Promise<void> {
@@ -251,7 +251,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	return Promise.race([
 		promise,
 		new Promise<T>((_, reject) =>
-			setTimeout(() => reject(new Error(`逾時（${ms}ms）`)), ms),
+			setTimeout(() => reject(new Error(`Timed out (${ms}ms)`)), ms),
 		),
 	]);
 }

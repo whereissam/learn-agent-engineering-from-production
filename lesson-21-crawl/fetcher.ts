@@ -61,7 +61,7 @@ function loadCorpus(): IndexedPage[] {
 	try {
 		corpus = JSON.parse(readFileSync(resolve(CORPUS, "index.json"), "utf8")) as IndexedPage[];
 	} catch {
-		throw new Error("找不到 Lesson 20 的語料。先產生：bun run lesson-20:corpus");
+		throw new Error("Lesson 20's corpus not found. Generate it first: bun run lesson-20:corpus");
 	}
 	return corpus;
 }

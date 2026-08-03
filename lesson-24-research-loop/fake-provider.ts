@@ -25,14 +25,14 @@ import { drain } from "../shared/streaming/types.ts";
 const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 0);
 
 const QUERIES_LAYER_1 = [
-	{ query: "open source video to humanoid motion retargeting unitree g1", goal: "找出候選專案" },
-	{ query: "unitree g1 sdk joint ordering change 2026", goal: "確認相容性的根因" },
-	{ query: "humanoid motion imitation project license maintained", goal: "確認授權與維護狀態" },
+	{ query: "open source video to humanoid motion retargeting unitree g1", goal: "find candidate projects" },
+	{ query: "unitree g1 sdk joint ordering change 2026", goal: "confirm the root cause of the incompatibility" },
+	{ query: "humanoid motion imitation project license maintained", goal: "confirm licensing and maintenance status" },
 ];
 
 const QUERIES_LAYER_2 = [
-	{ query: "retarget-anything g1 profile deprecated replacement", goal: "確認棄用後的替代方案" },
-	{ query: "humanoid-mimic foot sliding contact solver workaround", goal: "確認已知限制" },
+	{ query: "retarget-anything g1 profile deprecated replacement", goal: "confirm the replacement after deprecation" },
+	{ query: "humanoid-mimic foot sliding contact solver workaround", goal: "confirm the known limitations" },
 ];
 
 export function fakeResearchProvider(): StreamingProvider {
@@ -49,9 +49,9 @@ export function fakeResearchProvider(): StreamingProvider {
 			if (prompt.includes("follow-up questions that would")) {
 				// clarify
 				text = JSON.stringify([
-					"你要的是可以直接跑在實體 G1 上的方案，還是模擬也可以？",
-					"商用嗎？（會影響能不能接受非商業授權的模型權重）",
-					"需要即時串流，還是離線批次處理就夠？",
+					"Do you need something that runs on a physical G1, or is simulation acceptable?",
+					"Is this commercial? (it decides whether non-commercially licensed model weights are acceptable)",
+					"Do you need real-time streaming, or is offline batch processing enough?",
 				]);
 			} else if (prompt.includes("web search queries")) {
 				// generateQueries
@@ -65,27 +65,28 @@ export function fakeResearchProvider(): StreamingProvider {
 					learnings: first
 						? [
 								{
-									text: `根據 ${first} 的正文，這一頁對應的專案狀態與 snippet 給的印象不同（這是假 provider 的罐頭結論）。`,
+									text: `According to the body of ${first}, this project's status differs from the impression the snippet gave (a canned conclusion from the fake provider).`,
 									sources: [first],
 								},
 								{
-									text: `${second} 提供了版本與授權資訊，可以用來判斷是否適合商用。`,
+									text: `${second} supplies version and licensing information, enough to judge commercial suitability.`,
 									sources: [second],
 								},
 							]
 						: [],
-					followUps: ["這個專案最後一次更新是什麼時候？", "有沒有實機驗證的紀錄？"],
+					followUps: ["When was this project last updated?", "Is there any record of hardware verification?"],
 				});
 			} else if (prompt.includes("Write a report")) {
 				text =
-					"（這是假 provider 產生的報告）\n\n" +
-					"上面的證據清單是真的跑完整條管線得到的：每一條都經過搜尋 → 排序 → 抓取 → 抽取 → 萃取，\n" +
-					"而且來源網址通過了「只能引用真的抓過的頁面」這個檢查。\n\n" +
-					"結論的文字是罐頭的，因為沒有真模型。想看真的報告：`bun run lesson-24`。\n\n" +
-					"這一課真正要看的不是報告內容，是上面那段「實際用掉」的數字——\n" +
-					"研究**跑完了**，而且花費在開跑前就算得出來。";
+					"(A report produced by the fake provider)\n\n" +
+					"The evidence list above came from a real run of the whole pipeline: every item went through\n" +
+					"search → rank → fetch → extract → distil, and every source URL passed the check that\n" +
+					"only pages actually fetched may be cited.\n\n" +
+					"The conclusion text is canned, because there is no real model. For a real report: `bun run lesson-24`.\n\n" +
+					'What this lesson is really about is not the report but the "Actually spent" numbers above —\n' +
+					"the research **finished**, and the cost was computable before it started.";
 			} else {
-				text = "(fake provider 不認得這個 prompt)";
+				text = "(the fake provider does not recognise this prompt)";
 			}
 
 			yield { type: "text_start" };

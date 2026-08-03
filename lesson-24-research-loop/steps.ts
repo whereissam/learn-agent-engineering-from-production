@@ -64,7 +64,7 @@ async function ask(
 		// Same disease as Lesson 21 Step 5: **a silent truncation is more dangerous than an
 		// obvious failure.** Lesson 2's tool output says "I truncated this", and so must this.
 	if (response.stopReason === "max_tokens") {
-		state.trace.push(`      ⚠ 輸出撞到 ${maxTokens} token 上限，內容不完整`);
+		state.trace.push(`      ⚠ output hit the ${maxTokens} token cap; the content is incomplete`);
 		state.budget.truncatedOutputs++;
 	}
 
@@ -160,7 +160,7 @@ export async function clarify(
 		`Given this research request, ask up to ${count} follow-up questions that would ` +
 			`most change how you research it. Return ONLY a JSON array of strings.\n\n` +
 			`<request>${state.question}</request>`,
-		800,
+		1600,
 	);
 	return toArray(parseJson(text), ["questions"])
 		.map((q) => String(q).trim())
@@ -212,7 +212,7 @@ export async function generateQueries(
 			"- Do not search for project names you remember from training; search by capability.\n" +
 			'- For each query state what you expect to learn from it.\n\n' +
 			'Return ONLY JSON: [{"query": "...", "goal": "..."}]',
-		1200,
+		2500,
 	);
 
 	return toArray(parseJson(text), ["queries"])
@@ -293,7 +293,7 @@ export async function extractLearnings(
 			'- list the url(s) it came from in "sources"\n\n' +
 			`Also list up to ${maxLearnings} follow-up questions that the pages did NOT answer.\n\n` +
 			'Return ONLY JSON: {"learnings": [{"text": "...", "sources": ["url"]}], "followUps": ["..."]}',
-		2000,
+		4000,
 	);
 
 	const parsed = parseJson(text);
@@ -361,7 +361,7 @@ export async function writeReport(
 	state: ResearchState,
 ): Promise<string> {
 	if (state.learnings.length === 0) {
-		return "研究沒有得到任何有來源支持的結論。這通常代表 query 的方向不對，或是語料裡真的沒有相關內容。";
+		return "The research produced no source-backed conclusion. That usually means the queries pointed the wrong way, or the corpus genuinely holds nothing relevant.";
 	}
 
 	const evidence = state.learnings

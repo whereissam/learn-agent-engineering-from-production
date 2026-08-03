@@ -28,7 +28,7 @@ bun run lesson-22:eval
 ```
 
 ```
-query               BM25 only    Dense only    + RRF 融合      + 去重     + 品質訊號   + 來源多樣性
+query               BM25 (L20)  Dense only       + RRF     + dedup   + quality + diversity
 q1-main                  0.233       0.212       0.318       0.318       0.705       0.705
 q2-chinese               0.000       0.598       0.598       0.598       0.774       0.774
 q3-deprecated            0.920       0.834       0.920       0.704       0.784       0.784
@@ -38,9 +38,9 @@ q6-license               0.932       0.956       0.956       0.956       0.932  
 q7-foot-sliding          1.000       0.877       0.920       0.920       1.000       1.000
 q8-dataset               1.000       1.000       1.000       1.000       1.000       1.000
 ──────────────────────────────────────────────────────────────────────────────────────────
-平均 nDCG@5              0.655       0.689       0.720       0.693       0.845       0.845
-平均 recall@5            0.675       0.775       0.775       0.744       0.919       0.919
-平均 novelty@5           0.950       0.975       0.975       1.000       1.000       1.000
+mean nDCG@5              0.655       0.689       0.720       0.693       0.845       0.845
+mean recall@5            0.675       0.775       0.775       0.744       0.919       0.919
+mean novelty@5           0.950       0.975       0.975       1.000       1.000       1.000
 ```
 
 0.655 → 0.845。但這張表最有價值的不是最後那個數字，是中間那些
@@ -93,8 +93,8 @@ cos("video to humanoid retargeting", "sous vide cooking times")  = 0.449
 `gemini-embedding-001` 預設 3072 維，API 可以指定較小的維度。實測：
 
 ```
-dims=256    cos(英文, 中文)=0.861    cos(英文, 烹飪文)=0.569    差距 0.29
-dims=768    cos(英文, 中文)=0.817    cos(英文, 烹飪文)=0.449    差距 0.37
+dims=256    cos(en, zh)=0.861    cos(en, cooking)=0.569    gap 0.29
+dims=768    cos(en, zh)=0.817    cos(en, cooking)=0.449    gap 0.37
 ```
 
 要看的不是「跟中文有多像」，是**兩者的差距**。256 維連完全無關的
@@ -113,8 +113,8 @@ q7 foot sliding contact solver flat sole humanoid      BM25 1.000  →  dense 0.
 dense 會把它們稀釋成「大概是講這個主題」，於是相近主題的頁面全都擠上來。
 
 ```text
-BM25   認得罕見的專有名詞，看不懂同義詞和其他語言
-Dense  抓得到意思，精確字串反而會被稀釋
+BM25   recognises rare proper nouns; blind to synonyms and other languages
+Dense  catches meaning; exact strings get diluted instead
 ```
 
 **兩者的失敗方式是互補的**，所以正解不是二選一。
@@ -158,7 +158,7 @@ BM25 0.655   Dense 0.689   →   RRF 0.720
 ### 新鮮度：指數衰減，不是門檻
 
 ```ts
-freshness = exp(-ln2 * days / 540)    // 半衰期 18 個月
+freshness = exp(-ln2 * days / 540)    // an 18-month half-life
 ```
 
 為什麼不是「一年以上就丟掉」？因為**舊不等於錯**。
@@ -179,16 +179,16 @@ arXiv 論文放三年還有用，SDK 文件三個月就可能過期。
 ### 關鍵字堆砌：唯一真正「算」出來的那個
 
 ```ts
-最高頻的詞出現幾次 / 總詞數
+the most frequent term's count / total terms
 ```
 
 實測語料的分佈：
 
 ```
- 60 字   "retargeting" × 12  = 20.0%   ← SEO 農場
- 73 字   "retargeting" ×  6  =  8.2%   ← 2025 年的懶人包
-122 字   "profile"     ×  5  =  4.1%   ← 正常的 repo README
- 96 字   "profile"     ×  3  =  3.1%   ← 正常
+ 60 words   "retargeting" × 12  = 20.0%   ← the SEO farm
+ 73 words   "retargeting" ×  6  =  8.2%   ← the 2025 round-up
+122 words   "profile"     ×  5  =  4.1%   ← a normal repo README
+ 96 words   "profile"     ×  3  =  3.1%   ← normal
 ```
 
 正常文章 3-4%，農場 8% 以上。門檻設在 4%-10% 之間線性。
@@ -206,7 +206,7 @@ q5 從 0.144 跳到 0.616。
 看起來很成功。但逐題看：
 
 ```
-q8-dataset      1.000  →  0.131      ← 崩了
+q8-dataset      1.000  →  0.131      ← collapsed
 ```
 
 如果只看平均分數，這個崩塌會被其他題的進步蓋掉。
@@ -221,10 +221,10 @@ bun run lesson-22:eval --show q8
 直接掉出前五名。把每一頁的堆砌分數印出來：
 
 ```
- 60 字   "retargeting" × 12  = 20.0%  → stuff 1.00   SEO 農場      ✓ 該罰
- 28 字   "clips"       ×  3  = 10.7%  → stuff 1.00   資料集頁面    ✗ 冤枉
- 25 字   "license"     ×  4  = 16.0%  → stuff 1.00   LICENSE 檔    ✗ 冤枉
- 25 字   "food"        ×  2  =  8.0%  → stuff 0.67   烹飪文章      ✗ 冤枉
+ 60 words   "retargeting" × 12  = 20.0%  → stuff 1.00   the SEO farm     ✓ deserved
+ 28 words   "clips"       ×  3  = 10.7%  → stuff 1.00   a dataset page   ✗ unfair
+ 25 words   "license"     ×  4  = 16.0%  → stuff 1.00   a LICENSE file   ✗ unfair
+ 25 words   "food"        ×  2  =  8.0%  → stuff 0.67   a cooking piece  ✗ unfair
 ```
 
 比例對短文件有系統性偏誤。一份 25 字的授權檔本來就會一直講
@@ -241,7 +241,7 @@ if (top < MIN_REPEATS) return 0;
 三個冤枉的全部歸零，農場（12 次）照樣被抓。
 
 ```
-平均 nDCG@5   0.768（有 bug）  →  0.845（修好）
+mean nDCG@5   0.768 (with the bug)  →  0.845 (fixed)
 q8-dataset    0.131            →  1.000
 q7            0.920            →  1.000
 ```
@@ -263,7 +263,7 @@ q7            0.920            →  1.000
 去重階段一開啟，nDCG 就掉：
 
 ```
-+ RRF  0.720   →   + 去重  0.693
++ RRF  0.720   →   + dedup  0.693
 q3-deprecated  0.920  →  0.704
 ```
 
@@ -281,14 +281,14 @@ q3-deprecated  0.920  →  0.704
 這裡用一個更好懂的版本，直接數前五名裡有幾筆是新的：
 
 ```
-平均 novelty@5    0.975（RRF）  →  1.000（去重後）
+mean novelty@5    0.975 (RRF)  →  1.000 (after dedup)
 ```
 
 於是這個階段的帳就算得清楚了：
 
 ```text
-nDCG@5     0.720 → 0.693    （-0.027，因為評估集把鏡像也算相關）
-novelty@5  0.975 → 1.000    （+0.025，前五名不再有重複內容）
+nDCG@5     0.720 → 0.693    (-0.027, because the evaluation set counts the mirror as relevant too)
+novelty@5  0.975 → 1.000    (+0.025, no duplicate content left in the top five)
 ```
 
 **去重留下來**，理由不在 nDCG 裡：對 agent 來說，
@@ -303,7 +303,7 @@ novelty@5  0.975 → 1.000    （+0.025，前五名不再有重複內容）
 近似重複的門檻一開始憑印象設 0.5，想說鏡像站總該有一半一樣吧。實測：
 
 ```
-shingle 長度   鏡像對   第二相似的一對   差距
+shingle length   mirror pair   second-closest pair   gap
      2         0.346       0.118       0.228
      3         0.266       0.065       0.201
      4         0.215       0.048       0.167
@@ -324,7 +324,7 @@ shingle 長度   鏡像對   第二相似的一對   差距
 ### 來源多樣性：完全沒有生效
 
 ```
-+ 品質訊號 0.845   →   + 來源多樣性 0.845
++ quality 0.845   →   + diversity 0.845
 ```
 
 一模一樣。因為這份語料每個網域最多只有 3 頁，
@@ -343,7 +343,7 @@ bun run lesson-22:eval --rerank
 ```
 
 ```
-+ 來源多樣性 0.845   →   + LLM rerank 0.858
++ diversity 0.845   →   + LLM rerank 0.858
 ```
 
 八題裡只有一題變好（q2 中文題 0.774 → 0.876），其他七題完全沒動。
@@ -371,7 +371,7 @@ rerank 沒有什麼可以修的。真實語料是**上百萬頁、候選品質�
 
 ```bash
 bun run lesson-22
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
 實測跑了兩次，兩次都是：
@@ -379,7 +379,7 @@ bun run lesson-22
 ```
 web_search × 14
 fetch_page × 2
-[已達 16 步上限]        ← 沒有答案
+[hit the 16-step cap]        ← no answer
 ```
 
 對照組：Lesson 21（同一個問題、同一個模型、比較差的排序）是
@@ -406,18 +406,18 @@ web_search("GMR" "General Motion Retargeting" humanoid github)
 因為沒有任何東西告訴它「你已經找到了，可以停了」。
 
 ```text
-排序解決的是：「回來的東西好不好」
-排序不解決的是：「要搜幾次、什麼時候停、已經搜過什麼」
+ranking solves: "is what came back any good"
+ranking does not solve: "how many searches, when to stop, what has already been searched"
 ```
 
 第二件事完全在 agent 這一側，跟檢索無關。**這就是 Lesson 24 的題目**：
 
 ```ts
 type ResearchState = {
-  visitedUrls: Set<string>       // 已經讀過什麼
-  evidence: Evidence[]           // 哪些證據支持哪個 claim
-  unresolvedQuestions: string[]  // 還缺什麼
-  iteration: number              // 該不該停
+  visitedUrls: Set<string>       // what has already been read
+  evidence: Evidence[]           // which evidence supports which claim
+  unresolvedQuestions: string[]  // what is still missing
+  iteration: number              // whether to stop
 }
 ```
 
@@ -433,8 +433,8 @@ type ResearchState = {
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `這段文字不在 embedding 快取裡` | 用了新的 query 而且沒有金鑰 | `bun run lesson-22:embed`，或改用評估集裡的 query |
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
+| `This text is not in the embedding cache` | 用了新的 query 而且沒有金鑰 | `bun run lesson-22:embed`，或改用評估集裡的 query |
+| `Lesson 20's corpus not found` | 語料還沒產生 | `bun run lesson-20:corpus` |
 | 分數跟 README 不一樣 | embedding 模型換了 | 快取裡有 model 欄位，確認是不是 `gemini-embedding-001` |
 | `--rerank` 報錯 | 這一階段要金鑰 | 不加 `--rerank` 就好，預設是關的 |
 | 新鮮度分數怪怪的 | 「今天」是寫死的 2026-07-27 | 見 `rank.ts` 的 `TODAY`，這是為了可重現 |

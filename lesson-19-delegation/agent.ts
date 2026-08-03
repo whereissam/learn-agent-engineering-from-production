@@ -32,8 +32,8 @@ const RUNS = Number(process.env.RUNS ?? 1);
 const MAX_STEPS = 12;
 
 const QUESTION =
-	"logs/ 底下有三個服務的錯誤日誌。" +
-	"幫我看一下每個服務**最常出現**的錯誤碼是哪一個，做成一份簡短的報告。";
+	"There are error logs for three services under logs/. " +
+	"Work out which error code appears **most often** for each service, and write it up as a short report.";
 
 const SOLO_SYSTEM = `You are an operations agent. Use the tools to inspect files under the
 workspace and answer the user's question. Be concrete: name the error codes.`;
@@ -127,7 +127,7 @@ async function runOnce(provider: StreamingProvider): Promise<RunResult> {
 		})) {
 			if (event.type === "done") response = event.response;
 			if (event.type === "error") {
-				console.log(red(`  [串流失敗] ${event.message}`));
+				console.log(red(`  [stream failed] ${event.message}`));
 				return out;
 			}
 		}
@@ -175,7 +175,7 @@ async function runOnce(provider: StreamingProvider): Promise<RunResult> {
 				out.usage.total += child.usage.total;
 				out.summaries.push(child.summary);
 
-				console.log(dim(`      ← 摘要 ${child.summary.length} 字，工具 ${child.toolCalls.length} 次`));
+				console.log(dim(`      ← summary ${child.summary.length} chars, ${child.toolCalls.length} tool calls`));
 				results.push({
 					toolCallId: call.id,
 					toolName: call.name,
@@ -211,21 +211,21 @@ async function runOnce(provider: StreamingProvider): Promise<RunResult> {
 async function main(): Promise<void> {
 	if (!process.env.PROVIDER) {
 		console.log(
-			yellow("這支程式量的是模型行為，需要 PROVIDER。") +
-				dim("\n離線的機制示範在 `bun run lesson-19`。"),
+			yellow("This program measures model behaviour and needs PROVIDER. ") +
+				dim("\nThe offline mechanics demo is `bun run lesson-19`."),
 		);
 		return;
 	}
 
 	const provider = selectStreamingProvider();
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}  MODE=${MODE}`));
-	console.log(`\n${cyan("你")} ${QUESTION}`);
+	console.log(`\n${cyan("you")} ${QUESTION}`);
 
 	const rows: (RunResult & { run: number; codes: ReturnType<typeof scoreCodes>; caveat: boolean })[] =
 		[];
 
 	for (let run = 1; run <= RUNS; run++) {
-		console.log(`\n${bold(`── 第 ${run} 次`)}`);
+		console.log(`\n${bold(`── run ${run}`)}`);
 		const result = await runOnce(provider);
 		rows.push({
 			...result,
@@ -233,37 +233,37 @@ async function main(): Promise<void> {
 			codes: scoreCodes(result.answer),
 			caveat: mentionsCaveat(result.answer),
 		});
-		console.log(dim(`\n  答案（${result.answer.length} 字）：${result.answer.slice(0, 160)}…`));
+		console.log(dim(`\n  answer (${result.answer.length} chars): ${result.answer.slice(0, 160)}…`));
 	}
 
-	console.log(`\n${bold("── 總表")}`);
-	console.log(dim("   次數  模型呼叫  子agent  token(total)  錯誤碼  但書"));
+	console.log(`\n${bold("── summary")}`);
+	console.log(dim("   run  model calls  subagents  token(total)  error codes  caveat"));
 	for (const row of rows) {
 		console.log(
 			`   ${String(row.run).padEnd(6)}${String(row.modelCalls).padEnd(10)}` +
 				`${String(row.children).padEnd(9)}${String(row.usage.total).padEnd(14)}` +
 				`${row.codes.missed.length === 0 ? green("3/3") : red(`${row.codes.hit.length}/3`)}     ` +
-				`${row.caveat ? green("有") : red("沒有")}`,
+				`${row.caveat ? green("yes") : red("no")}`,
 		);
 		if (row.codes.missed.length > 0) {
-			console.log(dim(`         漏掉：${row.codes.missed.join(", ")}`));
+			console.log(dim(`         missed: ${row.codes.missed.join(", ")}`));
 		}
 	}
 
 	if (MODE === "delegate" && rows.some((r) => r.summaries.length > 0)) {
-		console.log(`\n${bold("  子 agent 的摘要裡有沒有那個但書")}`);
+		console.log(`\n${bold("  did the caveat survive into the subagents' summaries")}`);
 		for (const row of rows) {
 			for (const [index, summary] of row.summaries.entries()) {
 				const has = mentionsCaveat(summary);
 				console.log(
-					`    第 ${row.run} 次 · 子 ${index + 1}　${has ? green("有") : dim("沒有")}　${dim(summary.slice(0, 64).replace(/\s+/g, " "))}…`,
+					`    run ${row.run} · sub ${index + 1}  ${has ? green("yes") : dim("no ")}  ${dim(summary.slice(0, 64).replace(/\s+/g, " "))}…`,
 				);
 			}
 		}
 		console.log(
 			dim(
-				"\n  但書在子 agent 的摘要裡就掉了的話，父 agent **沒有任何辦法**補回來——\n" +
-					"  它看不到原文。這就是那條資訊邊界的代價。",
+				"\n  If the caveat is lost in a subagent's summary, the parent has **no way at all** to recover it:\n" +
+					"  it never sees the original text. That is the price of the information boundary.",
 			),
 		);
 	}

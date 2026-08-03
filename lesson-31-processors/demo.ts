@@ -46,28 +46,28 @@ async function scenario(
 	}
 }
 
-console.log(bold("Lesson 31：Processor pipeline"));
+console.log(bold("Lesson 31: Processor pipeline"));
 console.log(dim("read_file(.env) → tool result → model / trace / memory"));
-console.log(dim("以下 token 是 DEMOONLY 假資料，不是從專案根目錄的 .env 讀取。"));
+console.log(dim("The tokens below are DEMOONLY fakes, not read from the project root's .env."));
 
-await scenario("情境 1：沒有 processor", {
+await scenario("Scenario 1: no processor", {
 	model: empty(),
 	trace: empty(),
 	memory: empty(),
 });
 
-await scenario("情境 2：只保護送進模型的 input", {
+await scenario("Scenario 2: only the model input is protected", {
 	model: protectedBoundary(),
 	trace: empty(),
 	memory: empty(),
 });
 
-await scenario("情境 3：三個邊界各自保護", {
+await scenario("Scenario 3: all three boundaries protected separately", {
 	model: protectedBoundary(),
 	trace: protectedBoundary(),
 	memory: protectedBoundary(),
 });
 
-console.log(bold("\n一句話總結"));
-console.log(dim("模型沒看到 secret，不代表系統沒保存 secret；每個持久化邊界都要自己守。\n"));
+console.log(bold("\nIn one sentence"));
+console.log(dim("The model not seeing a secret does not mean the system did not store one; every persistence boundary defends itself.\n"));
 

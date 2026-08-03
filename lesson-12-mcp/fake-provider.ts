@@ -37,7 +37,7 @@ export function mcpFakeProvider(): StreamingProvider {
 				"unknown";
 
 			if (turn === 0) {
-				const text = "我先看一下哪些機器人在維修中。";
+				const text = "Let me check which robots are under maintenance.";
 				yield* say(text, signal);
 				const call = {
 					id: "m1",
@@ -60,7 +60,7 @@ export function mcpFakeProvider(): StreamingProvider {
 			}
 
 			if (turn === 1) {
-				const text = "R-204 在維修中。我幫它排一個維修時段。";
+				const text = "R-204 is under maintenance. I will book a slot for it.";
 				yield* say(text, signal);
 				const call = {
 					id: "m2",
@@ -89,8 +89,8 @@ export function mcpFakeProvider(): StreamingProvider {
 			const last = request.messages[request.messages.length - 1];
 			const denied = last?.role === "toolResult" && last.results.some((r) => r.isError);
 			const text = denied
-				? "維修時段沒有排成（批准被拒絕了）。目前在維修中的是 R-204。"
-				: "排好了。目前在維修中的是 R-204，維修時段已通知現場人員。";
+				? "The maintenance slot was not booked (approval was declined). R-204 is the one under maintenance."
+				: "Booked. R-204 is the one under maintenance, and the on-site crew has been notified of the slot.";
 
 			yield* say(text, signal);
 			yield {

@@ -105,7 +105,8 @@ const SESSIONS: SessionSpec[] = [
 	{
 		id: "sess_001",
 		robot: "unitree-go2-a",
-		groundTruth: "真正的跌倒：t=8200ms 開始前傾，8600ms 觸地全失，扭矩尖峰，之後躺平不動",
+		groundTruth:
+			"A real fall: pitches forward from t=8200ms, all feet lose contact at 8600ms, torque spikes, then it lies flat and still",
 		durationMs: 14000,
 		seed: 1001,
 		build(t, r) {
@@ -118,7 +119,7 @@ const SESSIONS: SessionSpec[] = [
 			} else if (t >= 8600 && t < 9000) {
 					// Ground impact
 				s.imu_pitch_deg = round(62 + noise(r, 4));
-				s.imu_accel_z = round(24 + noise(r, 3)); // 撞擊
+				s.imu_accel_z = round(24 + noise(r, 3)); // impact
 				s.foot_contact = [false, false, false, false];
 				s.joint_torque_max = round(88 + noise(r, 8));
 			} else if (t >= 9000) {
@@ -134,7 +135,8 @@ const SESSIONS: SessionSpec[] = [
 	{
 		id: "sess_002",
 		robot: "unitree-go2-a",
-		groundTruth: "不是跌倒：t=5000ms 快速蹲下，pitch 有變化但腳一直著地，1.2 秒後恢復正常行走",
+		groundTruth:
+			"Not a fall: a fast crouch at t=5000ms; pitch moves but the feet stay down, and normal walking resumes 1.2s later",
 		durationMs: 12000,
 		seed: 1002,
 		build(t, r) {
@@ -144,7 +146,7 @@ const SESSIONS: SessionSpec[] = [
 				const p = Math.sin(((t - 5000) / 1200) * Math.PI);
 				s.imu_pitch_deg = round(2 + 34 * p + noise(r, 2));
 				s.joint_torque_max = round(18 + 30 * p + noise(r, 4));
-				s.foot_contact = [true, true, true, true]; // ← 關鍵差異
+				s.foot_contact = [true, true, true, true]; // ← the decisive difference
 				s.cmd_vel_x = 0;
 			}
 			return s;
@@ -153,7 +155,8 @@ const SESSIONS: SessionSpec[] = [
 	{
 		id: "sess_003",
 		robot: "unitree-go2-b",
-		groundTruth: "外力碰撞：t=6400ms 側向撞擊，roll 尖峰與加速度尖峰，機器人踉蹌但自行恢復",
+		groundTruth:
+			"External collision: a sideways impact at t=6400ms, a roll spike and an acceleration spike; the robot staggers but recovers on its own",
 		durationMs: 13000,
 		seed: 1003,
 		build(t, r) {
@@ -176,7 +179,8 @@ const SESSIONS: SessionSpec[] = [
 	{
 		id: "sess_004",
 		robot: "unitree-go2-b",
-		groundTruth: "資料缺失：t=4000-7000ms 完全沒有取樣。這段期間發生什麼事無法從 telemetry 判斷",
+		groundTruth:
+			"Missing data: no samples at all between t=4000-7000ms. What happened in that window cannot be judged from telemetry",
 		durationMs: 12000,
 		seed: 1004,
 		build: nominal,
@@ -184,7 +188,8 @@ const SESSIONS: SessionSpec[] = [
 	{
 		id: "sess_005",
 		robot: "unitree-go2-c",
-		groundTruth: "時鐘偏移：telemetry 顯示 t=7000ms 有事件，但影片時間戳比 telemetry 早 2300ms",
+		groundTruth:
+			"Clock offset: telemetry shows an event at t=7000ms, but the video timestamps run 2300ms ahead of telemetry",
 		durationMs: 13000,
 		seed: 1005,
 		build(t, r) {
@@ -201,8 +206,8 @@ const SESSIONS: SessionSpec[] = [
 		id: "sess_006",
 		robot: "unitree-go2-a",
 		groundTruth:
-			"兩次事件：t=3000ms 踉蹌後恢復（near miss），t=9200ms 真的跌倒。" +
-			"測「只報告最嚴重的那一個」這個很常見的失敗",
+			"Two events: a stagger with recovery at t=3000ms (near miss), and a real fall at t=9200ms. " +
+			"Tests the very common failure of reporting only the most severe one",
 		durationMs: 14000,
 		seed: 1006,
 		build(t, r) {
@@ -240,9 +245,9 @@ const SESSIONS: SessionSpec[] = [
 		id: "sess_007",
 		robot: "unitree-go2-c",
 		groundTruth:
-			"極慢傾倒：從 t=4000ms 開始，pitch 用 6 秒緩慢增加到 55 度，" +
-			"腳到 t=9500ms 才全部離地。每一個「單點門檻」都要很晚才會觸發，" +
-			"測 find_anomalies 的候選會不會來得太晚、模型會不會因此把起點抓錯",
+			"A very slow tip-over: from t=4000ms, pitch climbs to 55 degrees over 6 seconds, " +
+			"and the feet only all leave the ground at t=9500ms. Every single-point threshold fires late, " +
+			"which tests whether find_anomalies' candidates arrive too late and whether the model then misplaces the start",
 		durationMs: 13000,
 		seed: 1007,
 		build(t, r) {
@@ -307,7 +312,7 @@ async function main(): Promise<void> {
 
 	await writeFile(resolve(OUT, "index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
 
-	console.log(`已產生 ${SESSIONS.length} 個 session 到 ${OUT}`);
+	console.log(`Generated ${SESSIONS.length} sessions into ${OUT}`);
 	for (const spec of SESSIONS) {
 		console.log(`  ${spec.id}  ${spec.groundTruth}`);
 	}

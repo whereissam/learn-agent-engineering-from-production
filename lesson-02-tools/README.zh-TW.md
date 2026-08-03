@@ -26,24 +26,24 @@ PROVIDER=fake bun run lesson-02
 隨便問一句，然後**注意跳出來的黃色框框**：
 
 ```
-> 修好測試
+> fix the tests
 
   → list_files()
-  ✓ 7 entries
+  ✓ 8 entries
   → read_file(path: "src/store.ts")
   → read_file(path: "src/config.ts")
   → run_command(command: "bun test")
 
-┌ 需要批准
+┌ approval needed
 │ run_command  command=bun test
 └
-  [y] 允許  [a] 這個工具都允許  [n] 拒絕 ›
+  [y] allow  [a] always allow this tool  [n] deny ›
 ```
 
 按 `y` 讓它繼續。你會看到完整流程：
 
 ```
-探索 → 讀檔 → 跑測試（2 fail）→ 改檔 → 再跑測試（5 pass）
+explore → read → run the tests (2 fail) → edit → run them again (5 pass)
 ```
 
 `list_files` 和 `read_file` **沒有**問你，`run_command` 和 `edit_file` 有。
@@ -144,8 +144,9 @@ truncateTail(text)   // 保留結尾，砍掉前面
 ### 截斷提示是寫給模型看的
 
 ```
-[... 輸出被截斷：原本 12043 行 / 1.2MB，只顯示前 400 行。
-需要後面的內容請用 offset 參數繼續讀，或用更精確的條件縮小範圍。]
+[... output truncated: 12043 lines / 1.2MB originally, showing the first 400
+lines. Use the offset parameter to read further, or narrow the request with a
+more precise filter.]
 ```
 
 三個要素缺一不可：**被砍了**（別以為你看到全部）、**砍掉多少**（判斷嚴重性）、
@@ -271,8 +272,8 @@ const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, time
 
 ```
 → run_command(command: "npm test")
-    │ (pass) progressive disclosure（Lesson 16） > 未知的 skill 名稱…
-    │ (pass) 輸出截斷（Lesson 2） > truncateTail 保留結尾…
+    │ (pass) progressive disclosure (Lesson 16) > an unknown skill name…
+    │ (pass) output truncation (Lesson 2) > truncateTail keeps the tail…
   ✓ [exit 0]
 ```
 
@@ -357,7 +358,7 @@ return `[${status}]\n\n${text || "(no output)"}`;
 | 症狀 | 原因 | 解法 |
 |---|---|---|
 | `old_string was not found` | 檔案已經被上一次執行改掉了 | `bun run reset` |
-| `(沒有輸入可讀，視為拒絕)` | stdin 結束了（Ctrl+D，或管線餵完了） | 互動式跑，或用 `AUTO_APPROVE=1` |
+| `(no input to read; treated as a denial)` | stdin 結束了（Ctrl+D，或管線餵完了） | 互動式跑，或用 `AUTO_APPROVE=1` |
 | agent 一直重試被拒絕的操作 | 拒絕訊息沒說 "do not retry" | 見 Step 3 |
 | 一輪跑很久、花很多錢 | 模型陷入改-測迴圈 | 調低 `MAX_STEPS` |
 
@@ -383,7 +384,7 @@ return `[${status}]\n\n${text || "(no output)"}`;
 現在 `edit_file` 的批准框只顯示參數摘要。改成顯示真正的 diff：
 
 ```
-┌ 需要批准
+┌ approval needed
 │ edit_file  src/store.ts
 │ - 	entries.set(code, url);
 │ + 	entries.set(code.toLowerCase(), url);
@@ -419,7 +420,7 @@ seq 1 100000 > big.txt
 在 `run_command` 的批准框裡，對特別危險的指令加上額外警告：
 
 ```
-┌ 需要批准  ⚠️  這個指令會刪除檔案
+┌ approval needed  ⚠️  this command deletes files
 │ run_command  command=rm -rf build/
 └
 ```

@@ -32,37 +32,37 @@ bun run lesson-10
 三個情境會自動跑完（下面是真的跑出來的輸出）：
 
 ```
-情境 1：NAIVE server ， 事件流從「現在」開始
-斷線 → 重連 → 看看畫面上有什麼
+Scenario 1: the NAIVE server, whose event stream starts from "now"
+disconnect → reconnect → see what is on screen
 
-  斷線前即時收到 89 個字
-  斷線期間 turn 在 server 上跑完了
-  重連後畫面上有 0 個字，server 上實際有 599 個字
-  ✗ 少了 599 個字，而且永遠補不回來
-     沒有錯誤、沒有例外、沒有警告。使用者只會覺得「怪怪的」。
+  89 characters arrived live before the drop
+  the turn finished on the server while disconnected
+  after reconnecting the screen holds 0 characters, while the server actually has 1585
+  ✗ 1585 characters missing, and they are never coming back
+     No error, no exception, no warning. The user just feels something is "off".
 
-情境 2：修好的 server ， 重連時重送一次狀態
-同一段劇本，只差在 openStream() 裡那個 if
+Scenario 2: the fixed server, which replays the state on reconnect
+the same script; the only difference is one if inside openStream()
 
-  斷線前即時收到 82 個字
-  斷線期間 turn 在 server 上跑完了
-  重連後畫面上有 599 個字，server 上實際有 599 個字
-  ✓ 補回來了（重連時 server 重送了一次狀態）
+  90 characters arrived live before the drop
+  the turn finished on the server while disconnected
+  after reconnecting the screen holds 1585 characters, while the server actually has 1585
+  ✓ restored (the server replayed the state on reconnect)
 
-情境 3：兩個視窗看同一個 session
-廣播給所有連線，包含送訊息的那一個
+Scenario 3: two windows watching the same session
+broadcast to every connection, including the one that sent the message
 
-  視窗 A 送出訊息（視窗 B 什麼都沒做）
-  視窗 A 看到 480 個字，視窗 B 看到 480 個字
-  ✓ 兩個視窗一模一樣（送訊息的那個也是等事件回來才畫）
+  window A sends a message (window B does nothing)
+  window A saw 1151 characters, window B saw 1151
+  ✓ both windows are identical (even the sender waits for the event before drawing)
 
-  現在從視窗 B 按中斷
-  中斷後 A=481 B=481
-  ✓ 中斷是 session 的事，不是視窗的事
+  now press interrupt from window B
+  after the interruption A=1152 B=1152
+  ✓ interruption belongs to the session, not to a window
 
-  連按兩次送出：
-  第一個請求 202，第二個請求 409
-  ✓ 一個 session 一次只跑一輪，第二個被 409 擋掉
+  press send twice in a row:
+  first request 202, second request 409
+  ✓ one session runs one turn at a time; the second is refused with 409
 ```
 
 ### 想自己動手
@@ -70,10 +70,10 @@ bun run lesson-10
 開兩個終端機：
 
 ```bash
-# 終端機 1
+# terminal 1
 PROVIDER=fake bun run lesson-10:server
 
-# 終端機 2
+# terminal 2
 bun run lesson-10:client
 ```
 
@@ -105,15 +105,15 @@ bun run lesson-10:client
 const cleanup = (): void => {
 	clearInterval(keepAlive);
 	session.clients.delete(send);
-	// 注意這裡沒有 abort。UI 關掉不代表要停止工作，
-	// 那是使用者的決定，不是視窗的。
+	// Note there is no abort here. Closing the UI does not mean stop working;
+	// that is the user's decision, not the window's.
 };
 ```
 
 還有 `startTurn` 裡刻意不 await 的那一行：
 
 ```ts
-// HTTP 請求要立刻回，turn 在背景跑，進度靠 SSE 推。
+// The HTTP request returns immediately; the turn runs in the background and progress is pushed over SSE.
 void runTurn(session, controller.signal)
 ```
 
@@ -133,7 +133,7 @@ turn 的生命週期屬於 session，不屬於送出它的那個請求。
 所以 client 送出去之後什麼都不畫：
 
 ```ts
-// 送出去之後什麼都不畫。等 turn_start 事件回來才畫。
+// Draw nothing after sending. Wait for the turn_start event to come back.
 await post("message", { text: input });
 ```
 
@@ -160,7 +160,7 @@ await manager.broadcast_session(...)
 ```ts
 if (!tryMarkRunning(session)) {
 	broadcast(session, { type: "input_rejected", error: "…" });
-	json(res, 409, { error: "已經在跑了" });
+	json(res, 409, { error: "already running" });
 	return;
 }
 startTurn(session, text);
@@ -189,7 +189,7 @@ Ctrl+C  →  SIGINT  →  handleInterrupt()  →  controller.abort()
 
 ```
 Ctrl+C  →  SIGINT  →  POST /interrupt  →  controller.abort()
-      （client 進程）              （server 進程）
+      (client process)              (server process)
 ```
 
 `controller.abort()` 那一端一個字都沒改。Lesson 3 寫的三個中斷點
@@ -202,10 +202,10 @@ client 這邊的 Ctrl+C 也保留了 Lesson 3 的分岔，有東西在跑就中�
 ```ts
 const onInterrupt = (): void => {
 	if (running) {
-		void post("interrupt");   // 中斷 server 上的 turn
+		void post("interrupt");   // interrupt the turn on the server
 		return;
 	}
-	console.log(dim("\n再見。（server 還活著）"));
+	console.log(dim("\nGoodbye. (the server is still alive)"));
 	process.exit(0);
 };
 ```
@@ -231,7 +231,7 @@ const onInterrupt = (): void => {
 ```ts
 session.clients.add(send);
 send({ type: "ready", ... });
-// 然後就等下一個事件
+// then simply wait for the next event
 ```
 
 看起來很合理，而且跑起來完全正常，只要你不斷線。
@@ -239,12 +239,12 @@ send({ type: "ready", ... });
 ### 實際發生的事
 
 ```
-t=0    使用者送出訊息，模型開始講
-t=0.6  使用者切到別的 app / 筆電闔上 / 前端熱重載
-       → SSE 連線斷了，server 上的 turn 繼續跑
-t=3.0  turn 跑完，模型講了 599 個字
-t=5.0  使用者切回來，前端重連
-       → 收到 ready，然後……什麼都沒有
+t=0    the user sends a message and the model starts talking
+t=0.6  the user switches apps / closes the laptop / the frontend hot-reloads
+       → the SSE connection drops; the turn on the server keeps running
+t=3.0  the turn finishes, having produced 1585 characters
+t=5.0  the user comes back and the frontend reconnects
+       → it receives ready, and then… nothing
 ```
 
 使用者看到的是一個講到一半就停住的回覆。沒有錯誤訊息，
@@ -315,9 +315,9 @@ OpenWorker 的清單（`app.py:1705`）比我們多兩個，但形狀一樣：
 ```python
 _CHECKPOINTS = {
     "turn_start",
-    "permission_required",      # ← 停下來等人（Lesson 8）
-    "directory_requested",      # ← 停下來等人
-    "plan_proposed",            # ← 停下來等人
+    "permission_required",      # ← stop and wait for a human (Lesson 8)
+    "directory_requested",      # ← stop and wait for a human
+    "plan_proposed",            # ← stop and wait for a human
     "iteration_end",
 }
 ```
@@ -396,10 +396,10 @@ const MAX_TEXT_CHARS = 200_000;
 OpenWorker 的上行不只兩種（`app.py:1767` 之後那一串）：
 
 ```python
-if   kind == "approval":            # Lesson 8 的批准
-elif kind == "directory_response":  # 目錄授權
-elif kind == "plan_response":       # 計畫確認
-elif kind == "question_response":   # agent 反問使用者
+if   kind == "approval":            # Lesson 8's approval
+elif kind == "directory_response":  # directory authorisation
+elif kind == "plan_response":       # plan confirmation
+elif kind == "question_response":   # the agent asking the user something
 elif kind == "interrupt":
 ```
 
@@ -426,9 +426,9 @@ elif kind == "interrupt":
 
 | 症狀 | 原因 |
 |---|---|
-| `[事件流斷了] fetch failed` | server 沒開。先跑 `bun run lesson-10:server` |
+| `[the event stream dropped] fetch failed` | server 沒開。先跑 `bun run lesson-10:server` |
 | `EADDRINUSE` | 7010 被佔了。`PORT=7020 bun run lesson-10:server`，client 也要帶同一個 `PORT` |
-| demo 卡在 `turn 沒有結束` | 上一次的 server 進程沒死乾淨。`pkill -f lesson-10-agent-server` |
+| demo 卡在 `the turn never finished` | 上一次的 server 進程沒死乾淨。`pkill -f lesson-10-agent-server` |
 | client 什麼都收不到但沒報錯 | 檢查 server 是不是 `NAIVE=1`，那是刻意的 |
 | 重連後畫面重複 | 你的 client 在收到 `state` 之前就先畫了東西。`state` 應該覆蓋畫面，不是附加 |
 

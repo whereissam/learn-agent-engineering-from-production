@@ -90,7 +90,7 @@ export interface Skill {
 export function parseSkill(raw: string, origin: SkillOrigin = "human"): Skill {
 	const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
 	if (!match?.[1]) {
-		throw new Error("SKILL.md 必須以 YAML frontmatter 開頭（--- 包起來）");
+		throw new Error("SKILL.md must start with YAML frontmatter (wrapped in ---)");
 	}
 
 	const [, front, body = ""] = match;
@@ -113,7 +113,7 @@ export function parseSkill(raw: string, origin: SkillOrigin = "human"): Skill {
 	}
 
 	if (!fm.name || !fm.description) {
-		throw new Error("skill frontmatter 缺少 name 或 description");
+		throw new Error("Skill frontmatter is missing name or description");
 	}
 
 	return {
@@ -167,40 +167,44 @@ export function validateSkill(skill: Skill): ValidationIssue[] {
 	const fm = skill.frontmatter;
 
 	if (!/^[a-z0-9-]+$/.test(fm.name)) {
-		issues.push({ field: "name", message: "只能用小寫、數字與連字號", blocking: true });
+		issues.push({ field: "name", message: "Only lowercase letters, digits and hyphens", blocking: true });
 	}
 
 	if (fm.description.length > MAX_DESCRIPTION_CHARS) {
 		issues.push({
 			field: "description",
 			message:
-				`${fm.description.length} 字元，超過 ${MAX_DESCRIPTION_CHARS}。` +
-				"超出的部分會被靜靜切掉，這個 skill 可能永遠不會被叫用。",
+				`${fm.description.length} characters, over the ${MAX_DESCRIPTION_CHARS} limit. ` +
+				"The overflow is silently cut, and this skill may never be invoked.",
 			blocking: true,
 		});
 	}
 
 	if (!fm.description.trim().endsWith(".") && !fm.description.trim().endsWith("。")) {
-		issues.push({ field: "description", message: "描述要是完整的一句話", blocking: false });
+		issues.push({ field: "description", message: "The description should be a complete sentence", blocking: false });
 	}
 
 		// Marketing language means the description says "how good it is" rather than "what it does"
-	const marketing = ["powerful", "comprehensive", "seamless", "advanced", "robust", "強大", "全面"];
+	const marketing = ["powerful", "comprehensive", "seamless", "advanced", "robust"];
 	const hit = marketing.filter((w) => fm.description.toLowerCase().includes(w));
 	if (hit.length > 0) {
 		issues.push({
 			field: "description",
-			message: `含行銷詞（${hit.join(", ")}）。描述要講能力，不是講品質。`,
+			message: `Contains marketing words (${hit.join(", ")}). A description states capability, not quality.`,
 			blocking: false,
 		});
 	}
 
 	if (fm.description.toLowerCase().includes(fm.name.replace(/-/g, " "))) {
-		issues.push({ field: "description", message: "不要在描述裡重複 skill 名稱（浪費字元）", blocking: false });
+		issues.push({
+			field: "description",
+			message: "Do not repeat the skill name in the description (wasted characters)",
+			blocking: false,
+		});
 	}
 
 	if (!skill.body.trim()) {
-		issues.push({ field: "body", message: "本文是空的", blocking: true });
+		issues.push({ field: "body", message: "The body is empty", blocking: true });
 	}
 
 	return issues;

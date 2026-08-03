@@ -20,7 +20,7 @@
 沒有評估的話，你調 prompt 的流程是這樣：
 
 ```
-改 prompt → 手動跑一次 → 「嗯感覺好像好一點」→ 上線
+edit the prompt → run it once by hand → "hmm, feels a bit better" → ship
 ```
 
 問題：
@@ -33,10 +33,10 @@
 有評估之後：
 
 ```
-改 prompt → bun run lesson-07-evaluation/eval.ts --compare baseline
-→ real-fall 0 → 12  ← 修好了
-→ clock-skew 11 → 14 ← 修好了
-→ 沒有退步
+edit the prompt → bun run lesson-07-evaluation/eval.ts --compare baseline
+→ real-fall 0 → 12  ← fixed
+→ clock-skew 11 → 14 ← fixed
+→ no regressions
 ```
 
 ---
@@ -50,16 +50,16 @@ bun run lesson-07-evaluation/eval.ts
 實際輸出（Gemini 3.6 Flash）：
 
 ```
-PASS  crouch-not-fall       100%  12/12  12 calls  37.4s
-  ✓ no_dangerous_misclassification  沒有危險的誤判
-  ✓ classification                  "near_miss"（最佳答案）
-  ✓ window_overlap                  5360..5860ms 與真實區間 5000..6200ms 有重疊
-  ✓ has_evidence                    5 條證據
-  ✓ numbers_plausible               21/22 個引用的數字對得上實際資料 (95%)
-  ✓ calibrated_confidence           confidence=high
+PASS  crouch-not-fall      100%  12/12  10 calls  36.6s
+  ✓ no_dangerous_misclassification no dangerous misclassification
+  ✓ classification                 "near_miss" (the best answer)
+  ✓ window_overlap                 5360..5860ms overlaps the true window 5000..6200ms
+  ✓ has_evidence                   6 pieces of evidence
+  ✓ numbers_plausible              31/31 cited numbers match the actual data (100%)
+  ✓ calibrated_confidence          confidence=high
 
 ────────────────────────────────────────────────────────────────
-通過 5/5   總分 63/64 (98%)   48 次工具呼叫   143.5s
+passed 7/7   total 88/91 (97%)   62 tool calls   207.1s
 ```
 
 跑單一案例、存基準、比較基準：
@@ -70,7 +70,7 @@ bun run lesson-07-evaluation/eval.ts --save baseline
 bun run lesson-07-evaluation/eval.ts --compare baseline
 ```
 
-> 這會呼叫真的模型，跑完七個案例大約 2.5 分鐘、48 次工具呼叫。
+> 這會呼叫真的模型，跑完七個案例大約 3.5 分鐘、62 次工具呼叫。
 > 用便宜的 model 省錢：`MODEL=gemini-3.5-flash-lite bun run lesson-07-evaluation/eval.ts`
 
 ---
@@ -80,8 +80,8 @@ bun run lesson-07-evaluation/eval.ts --compare baseline
 最常見的錯誤做法：
 
 ```ts
-// ✗ 這永遠不會有用
-if (report.summary === "機器人在 8400ms 跌倒") pass();
+// ✗ this will never work
+if (report.summary === "the robot fell at 8400ms") pass();
 ```
 
 自然語言有無限多種正確寫法。「機器人跌倒了」「發生跌倒事故」
@@ -136,16 +136,16 @@ const overlaps = rs !== null && re !== null && rs <= te && re >= ts;
 ```ts
 const cited = report.evidence.flatMap(extractNumbers);
 const plausible = cited.filter((n) =>
-  (n >= 0 && n <= facts.durationMs) ||                          // 是合理的時間戳
-  realValues.some((v) => v !== 0 && Math.abs((n - v) / v) < 0.15), // 接近某個真實峰值
+  (n >= 0 && n <= facts.durationMs) ||                          // a plausible timestamp
+  realValues.some((v) => v !== 0 && Math.abs((n - v) / v) < 0.15), // close to some real peak
 );
 ```
 
 實測結果：
 
 ```
-numbers_plausible  21/22 個引用的數字對得上實際資料 (95%)
-numbers_plausible  26/27 個引用的數字對得上實際資料 (96%)
+numbers_plausible  21/22 cited numbers match the actual data (95%)
+numbers_plausible  26/27 cited numbers match the actual data (96%)
 ```
 
 95% 而不是 100%，是因為模型有時會引用區間平均或自己算的衍生值。
@@ -165,7 +165,7 @@ checks.push({
   name: "no_dangerous_misclassification",
   passed: !hitForbidden,
   weight: 3,
-  critical: true,     // ← 這個
+  critical: true,     // ← this one
   detail: ...
 });
 ```
@@ -188,7 +188,7 @@ checks.push({
 實測輸出會把它標紅：
 
 ```
-⚠  2 個案例有危險錯誤，這比分數低嚴重得多
+⚠  2 cases had a dangerous error, which is far worse than a low score
 ```
 
 ---
@@ -196,11 +196,11 @@ checks.push({
 ## Step 5：七個案例的設計邏輯
 
 ```
-sess_001  real-fall            真的跌倒        → 測「抓得到嗎」
-sess_002  crouch-not-fall      蹲下不是跌倒    → 測「會不會假警報」
-sess_003  external-collision   外力碰撞        → 測「分得出成因嗎」
-sess_004  missing-data         資料有洞        → 測「知不知道自己不知道」
-sess_005  clock-skew           時鐘偏移        → 測「有沒有察覺陷阱」
+sess_001  real-fall            a real fall          → tests "can it be detected"
+sess_002  crouch-not-fall      a crouch, not a fall → tests "does it false-alarm"
+sess_003  external-collision   an external collision → tests "can the cause be told apart"
+sess_004  missing-data         a hole in the data   → tests "does it know what it does not know"
+sess_005  clock-skew           a clock offset       → tests "is the trap noticed"
 ```
 
 前三個測「判斷準不準」，後兩個測「知不知道自己不知道」。
@@ -211,7 +211,7 @@ sess_005  clock-skew           時鐘偏移        → 測「有沒有察覺陷�
 ### 每個案例都用同一句 prompt
 
 ```ts
-prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。"
+prompt: "Analyse what happened in this session and write an incident report."
 ```
 
 刻意的。如果 `missing-data` 的 prompt 寫成「注意這個 session 資料有缺」，
@@ -227,7 +227,7 @@ prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。"
 
 ```
 CRITICAL  real-fall             0%   0/1   1 calls   3.5s
-  ✗ produced_report        agent 沒有呼叫 create_incident_report
+  ✗ produced_report        the agent never called create_incident_report
     error: 400 status code (no body)
 
 PASS      crouch-not-fall     100%  12/12
@@ -235,13 +235,13 @@ PASS      external-collision  100%  12/12
 PASS      missing-data        100%  13/13
 
 CRITICAL  clock-skew           73%  11/15
-  ✓ classification         "near_miss"（最佳答案）
-  ✓ window_overlap         7000..7380ms 與真實區間有重疊
-  ✗ mentions_data_issue    沒有提到資料問題（預期：offset, clock, 時鐘, 偏移, 2300）
-  ✗ calibrated_confidence  資料品質有問題，但回報 high confidence
+  ✓ classification         "near_miss" (the best answer)
+  ✓ window_overlap         7000..7380ms overlaps the true window
+  ✗ mentions_data_issue    never mentioned the data problem (expected any of: offset, clock, skew, 2300)
+  ✗ calibrated_confidence  the data quality is poor, yet it reported high confidence
 
-通過 3/5   總分 48/53 (91%)
-⚠  2 個案例有危險錯誤
+passed 3/5   total 48/53 (91%)
+⚠  2 cases had a dangerous error
 ```
 
 兩個問題，兩種性質完全不同。
@@ -298,26 +298,34 @@ bun run lesson-07-evaluation/eval.ts --compare gemini-baseline
 ```
 
 ```
-通過 5/5   總分 63/64 (98%)   48 次工具呼叫   143.5s
+passed 7/7   total 88/91 (97%)   72 tool calls   208.3s
 
-跟基準 "gemini-baseline" 比較
-基準：gemini/gemini-3.6-flash  2026-07-27T10:20:43.559Z
+compared against baseline "gemini-baseline"
+baseline: gemini/gemini-3.6-flash  2026-07-31T14:35:47.197Z
 
-  real-fall            0 → 12   +12  ← 修好了
-  crouch-not-fall     12 → 12    ±0
-  external-collision  12 → 12    ±0
-  missing-data        13 → 13    ±0
-  clock-skew          11 → 14    +3  ← 修好了
+  real-fall            12 → 12  ±0
+  crouch-not-fall      12 → 12  ±0
+  external-collision   12 → 12  ±0
+  missing-data         13 → 13  ±0
+  clock-skew           14 → 14  ±0
+  two-events           15 → 15  ±0
+  slow-tip             10 → 10  ±0
 
-沒有退步
+no regressions
 ```
 
-3/5 → 5/5，91% → 98%，而且確認其他三個案例沒被改壞。
+同樣七個案例連跑兩次，每一個案例的分數都一模一樣。這正是 `--compare` 要的東西：
+模型是隨機的，而分數穩定到「真的退步」會很明顯。
+
+> 剩下那兩分是刻意留著的：`clock-skew` 的 `calibrated_confidence`（它有發現
+> 時鐘偏移，還是回報 high），以及 `slow-tip` 的 `window_overlap`（它照抄
+> `find_anomalies` 的 7060.. 候選，而不是真正的起點 4000..）。這兩個正是那兩個
+> 案例被寫出來要抓的失敗，而且到今天還是抓得到。
 
 這就是評估的完整價值：
 
 ```
-量測 → 發現具體問題 → 修 → 再量測 → 確認真的變好而且沒有副作用
+measure → find a specific problem → fix → measure again → confirm it really improved with no side effects
 ```
 
 沒有這個完整迴圈，你只是在憑感覺調 prompt。
@@ -335,8 +343,8 @@ bun run lesson-07-evaluation/eval.ts --compare gemini-baseline
 
 ```ts
 if (regressions > 0) {
-  console.log(red(bold(`⚠  ${regressions} 個案例退步了`)));
-  process.exitCode = 1;   // ← CI 可以擋
+  console.log(red(bold(`⚠  ${regressions} cases regressed`)));
+  process.exitCode = 1;   // ← so CI can block on it
 }
 ```
 
@@ -361,7 +369,7 @@ if (regressions > 0) {
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `找不到基準 "xxx"` | 還沒存過 | 先 `--save xxx` |
+| `no baseline "xxx"` | 還沒存過 | 先 `--save xxx` |
 | 每次分數都不一樣 | 模型本來就有隨機性 | 正常。看趨勢不看單次；跑多次取平均 |
 | 某案例間歇性失敗 | API 間歇錯誤 | 已有重試。看 `error` 欄位確認是不是基礎設施問題 |
 | 全部 0 分 | agent 沒寫報告 | 單獨跑 `bun run lesson-06` 看它卡在哪 |

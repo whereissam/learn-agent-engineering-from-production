@@ -31,13 +31,13 @@ PROVIDER=openai bun run lesson-30:probe
 `minimum/maximum`、`enum`、巢狀選填），**兩家 provider 全過**：
 
 ```
-Schema 相容性探針  gemini / gemini-3.6-flash
-  ✓ nullable   type: ["string", "null"]    {"note":null}
-  ✓ union      oneOf                       {"window":{"start":"2026-08-01T02:00:00Z","hours":3}}
-  ✓ strlen     minLength / maxLength       {"code":"INC84920"}
-  ✓ numrange   minimum / maximum           {"severity":5}
-  ✓ enum       enum                        {"status":"closed"}
-  ✓ nested     巢狀物件 + 選填欄位            {"incident":{"id":"INC-9","robot":{"id":"R-204"}}}
+Schema compatibility probe  gemini / gemini-3.6-flash  [no compat layer]
+  ✓ nullable       type: ["string", "null"]         {"note":null}
+  ✓ union          oneOf                            {"window":{"hours":3,"start":"2026-08-01T02:00:00Z"}}
+  ✓ strlen         minLength / maxLength            {"code":"INC10001"}
+  ✓ numrange       minimum / maximum                {"severity":5}
+  ✓ enum           enum                             {"status":"closed"}
+  ✓ nested         nested object + optional field   {"incident":{"robot":{"id":"R-204","site":"unknown"},"id":"INC-9"}}
 ```
 
 ### 差點寫成「所以沒問題」
@@ -76,8 +76,10 @@ TIER=hard PROVIDER=openai bun run lesson-30:probe
 ## Step 2：兩種失敗，不要混為一談
 
 ```
-✗ tuple       400 status code (no body)
-⚠ multipleof  應為 15 的倍數，拿到 70
+⚠ silently violated multipleof     multipleOf
+      should be a multiple of 15, got 70
+✗ rejected by the API tuple          tuple (items is an array)
+      400 status code (no body)
 ```
 
 這兩行看起來都是「壞了」，但它們是完全不同的東西：
@@ -108,13 +110,13 @@ compat=off  70  70  70  70  70
 
 ```ts
 if (key === "items" && Array.isArray(value) && !target.tupleItems) {
-  // 結構改寫：tuple → anyOf + 長度限制
+  // structural rewrite: tuple → anyOf + a length constraint
   out.items = { anyOf: value.map(...) };
   notes.push(`${path} is a fixed-length tuple: [...]`);
 }
 
 if (!target.enforcesNumeric) collect(out, NUMERIC_KEYS, notes, path);
-// 約束搬家：留在 schema 裡，同時寫進 notes
+// constraint relocation: it stays in the schema and also goes into notes
 ```
 
 然後 `notes` 接到工具描述後面：
@@ -138,8 +140,8 @@ TIER=hard COMPAT=1 PROVIDER=gemini bun run lesson-30:probe
 ```
 
 ```
-compat=off  70  70  70  70  70      ← 五次全違反
-compat=on   75  75  75  75  75      ← 五次全正確
+compat=off  70  70  70  70  70      ← all five violated
+compat=on   75  75  75  75  75      ← all five correct
 ```
 
 `tuple` 那題也從 400 變成通過。
@@ -149,8 +151,8 @@ compat=on   75  75  75  75  75      ← 五次全正確
 一、約束搬進 description 之後，schema 裡要留著。
 
 ```ts
-// 契約測試裡有這一條
-test("約束搬走之後仍然留在 schema 裡", ...)
+// the contract tests contain this one
+test("a relocated constraint still stays in the schema", ...)
 ```
 
 搬進描述是「多講一次」，不是「改成用講的」。拿掉的話，
@@ -203,8 +205,8 @@ export const TARGETS: Record<string, CompatTarget> = {
 `tests/schema-compat.test.ts`，跟 `provider-contract.test.ts` 一樣分兩半：
 
 ```
-不需要金鑰   相容層的結構改寫是純函式，可以完整測（CI 跑這半）
-需要金鑰     provider 到底吃不吃，只有真的打才知道（lesson-30:probe）
+no key needed   the compat layer's structural rewrite is a pure function and fully testable (CI runs this half)
+key needed      whether the provider actually accepts it is only knowable by calling (lesson-30:probe)
 ```
 
 > CI 擋的是「相容層自己壞掉」，不是「provider 又改了」。
@@ -231,8 +233,8 @@ mastra 那邊對應的是 `provider-compats/test-suite.ts`，
 
 | 症狀 | 原因 |
 |---|---|
-| `這支程式要量的就是真 provider 的行為` | 沒設 `PROVIDER`。這一課的探針一定要金鑰 |
-| 全部 `－ 模型沒有呼叫工具` | prompt 沒有逼它用工具，或模型當天心情不同。重跑 |
+| `This program measures a real provider's behaviour` | 沒設 `PROVIDER`。這一課的探針一定要金鑰 |
+| 全部 `－ the model called no tool` | prompt 沒有逼它用工具，或模型當天心情不同。重跑 |
 | `400 status code (no body)` | 這是**預期結果**之一，看 Step 1 那張表 |
 | 結果跟 README 不一樣 | 很正常，模型會改版。**那正是 Step 4 的重點** |
 

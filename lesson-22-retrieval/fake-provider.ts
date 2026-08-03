@@ -24,15 +24,15 @@ const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 8);
 
 const STEPS = [
 	{
-		text: "我搜尋一下。",
+		text: "Let me search.",
 		call: {
 			id: "f1",
 			name: "web_search",
-			args: { query: "把影片動作 retarget 到 Unitree G1 的開源專案", max_results: 5 },
+			args: { query: "open source video to humanoid retargeting for unitree g1", max_results: 5 },
 		},
 	},
 	{
-		text: "第一名就是 humanoid-mimic，而且是三週前的。我打開來確認 G1 支援的細節。",
+		text: "humanoid-mimic is first, and it is three weeks old. Let me open it and confirm the G1 support details.",
 		call: {
 			id: "f2",
 			name: "fetch_page",
@@ -43,22 +43,24 @@ const STEPS = [
 
 const ANSWER = `**kinelabs/humanoid-mimic** — https://github.com/kinelabs/humanoid-mimic
 
-v0.7（2026 年 6 月）加入 Unitree G1 profile，對著 2026 SDK 的關節順序寫的，
-而且在實機上驗證過。授權 MIT，但 pose backbone 的權重另外下載、帶非商業條款。
-[CONFIRMED：fetch_page 讀到正文第二段和第五段]
+v0.7 (June 2026) added a Unitree G1 profile written against the 2026 SDK's joint
+ordering and verified on real hardware. Licence MIT, though the pose backbone weights
+are a separate download under a non-commercial clause.
+[CONFIRMED: fetch_page, second and fifth paragraphs of the body]
 
-注意這次的搜尋結果跟 Lesson 20 不一樣：
+Note how these search results differ from Lesson 20:
 
-- 用中文問也查得到（dense retrieval，BM25 在這題會回 0 筆）
-- SEO 農場沒有出現在前五名（關鍵字堆砌被扣分）
-- 2025 年的懶人包被壓下去了（新鮮度衰減）
-- retarget-anything 的 GitHub 和 docs 站只出現一個（近似重複被合併）
+- asking in Chinese still finds things (dense retrieval; BM25 returns 0 results there)
+- the SEO farm is not in the top five (keyword stuffing is penalised)
+- the 2025 round-up is pushed down (freshness decay)
+- only one of retarget-anything's GitHub and docs pages appears (near-duplicates merged)
 
-⚠️ 但這只是一段**寫死的**腳本，演的是「如果 agent 願意相信排序」會怎麼樣。
-實測真模型問同一個問題時，它並沒有這樣做——它照樣搜了十幾次去找
-訓練資料裡記得的專案名，然後撞上步數上限。見 README Step 8。
+⚠️ But this is a **hardcoded** script, acting out what happens if the agent is willing
+to trust the ranking. Measured against a real model on the same question, it did not:
+it still searched a dozen times for project names it remembered from training data,
+and hit the step cap. See README Step 8.
 
-**排序是離線量得出來的；agent 要不要相信排序，是另一個問題。**`;
+**Ranking is measurable offline; whether the agent trusts the ranking is a separate question.**`;
 
 export function fakeRetrievalProvider(): StreamingProvider {
 	let step = 0;
@@ -92,9 +94,9 @@ export function fakeRetrievalProvider(): StreamingProvider {
 			const text =
 				turn === STEPS.length
 					? ANSWER
-					: "（這個假 provider 只有一段寫死的腳本，演完了。\n" +
-						"想繼續問，換成真模型：bun run lesson-22\n" +
-						"想看排序本身：bun run lesson-22:eval）";
+					: "(This fake provider has one hardcoded script and it just finished.\n" +
+						"To keep asking, switch to a real model: bun run lesson-22\n" +
+						"To look at the ranking itself: bun run lesson-22:eval)";
 
 			yield* say(text, signal);
 			if (signal?.aborted) return yield aborted();

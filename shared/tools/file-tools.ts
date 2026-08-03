@@ -69,7 +69,7 @@ export const readFileTool: Tool = {
 
 export const writeFileTool: Tool = {
 	name: "write_file",
-	mutating: true, // ← 會改變外部狀態，registry 會先問使用者
+	mutating: true, // ← changes state outside the process, so the registry asks the user first
 	description:
 		"Create a new file, or completely overwrite an existing one. " +
 		"To change part of an existing file, prefer edit_file - it is safer and cheaper.",

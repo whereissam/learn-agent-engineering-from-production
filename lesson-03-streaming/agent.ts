@@ -74,7 +74,7 @@ function handleInterrupt(): void {
 		return;
 	}
 	// Ctrl+C while idle → really leave
-	console.log(dim("\n再見。"));
+	console.log(dim("\nGoodbye."));
 	process.exit(0);
 }
 
@@ -158,7 +158,7 @@ async function runTurn(
 		// This is the most important passage in the lesson.
 		if (streamError) {
 			if (streamError.aborted) {
-				console.log(yellow("\n\n[已中斷]"));
+				console.log(yellow("\n\n[interrupted]"));
 
 				// Interruption point A: the model is mid-sentence.
 				//
@@ -175,19 +175,19 @@ async function runTurn(
 					});
 					messages.push({
 						role: "user",
-						text: "[你上一則回覆被我中斷了。等我的下一個指示，不要自己接續。]",
+						text: "[I interrupted your last reply. Wait for my next instruction; do not resume on your own.]",
 					});
 				}
 				// Interrupted before saying anything → the history is unpolluted and nothing needs doing.
 				return { aborted: true };
 			}
 
-			console.log(red(`\n[串流失敗] ${streamError.message}`));
+			console.log(red(`\n[stream failed] ${streamError.message}`));
 			return { aborted: false };
 		}
 
 		if (!response) {
-			console.log(red("\n[串流沒有正常結束]"));
+			console.log(red("\n[the stream did not end cleanly]"));
 			return { aborted: false };
 		}
 
@@ -195,11 +195,11 @@ async function runTurn(
 		messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
 		if (response.stopReason === "refusal") {
-			console.log(red("\n[模型拒絕了這個請求]"));
+			console.log(red("\n[the model refused this request]"));
 			return { aborted: false };
 		}
 		if (response.stopReason === "max_tokens") {
-			console.log(red(`\n[輸出撞到 ${MAX_TOKENS} token 上限]`));
+			console.log(red(`\n[output hit the ${MAX_TOKENS} token cap]`));
 			return { aborted: false };
 		}
 
@@ -250,18 +250,18 @@ async function runTurn(
 		messages.push({ role: "toolResult", results });
 
 		if (abortedDuringTools || signal.aborted) {
-			console.log(yellow("\n[已中斷]"));
+			console.log(yellow("\n[interrupted]"));
 			// Interruption point C: the tool results are complete and the history is legal.
 			// Add a user message describing what happened, so the model knows next round.
 			messages.push({
 				role: "user",
-				text: "[我中斷了你的工具執行。等我的下一個指示。]",
+				text: "[I interrupted your tool execution. Wait for my next instruction.]",
 			});
 			return { aborted: true };
 		}
 	}
 
-	console.log(red(`\n[已達 ${MAX_STEPS} 步上限。輸入「繼續」讓它接著做。]`));
+	console.log(red(`\n[hit the ${MAX_STEPS}-step cap. Type "continue" to let it carry on.]`));
 	return { aborted: false };
 }
 
@@ -271,15 +271,15 @@ function createApprover(reader: LineReader) {
 	return async (request: ApprovalRequest): Promise<boolean> => {
 		if (AUTO_APPROVE || alwaysAllow.has(request.toolName)) return true;
 
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
 		console.log(yellow("└"));
 
 		const line = await reader.next(
-			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 都允許  ${yellow("[n]")} 拒絕 › `,
+			`  ${yellow("[y]")} allow  ${yellow("[a]")} always  ${yellow("[n]")} deny › `,
 		);
 		if (line === null) {
-			console.log(dim("  (沒有輸入可讀，視為拒絕)"));
+			console.log(dim("  (no input to read; treated as a denial)"));
 			return false;
 		}
 		const answer = line.trim().toLowerCase();
@@ -322,12 +322,12 @@ async function main(): Promise<void> {
 	};
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(dim("生成中按 Ctrl+C 可以中斷；閒置時按 Ctrl+C 離開\n"));
+	console.log(dim("Ctrl+C interrupts while it is generating; Ctrl+C when idle exits\n"));
 
 	try {
 		while (true) {
 			const line = await reader.next("\x1b[36m> \x1b[0m");
-			if (line === null) break; // stdin 結束
+			if (line === null) break; // stdin ended
 			const input = line.trim();
 			if (!input) continue;
 			if (input === "/exit") break;

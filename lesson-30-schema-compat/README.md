@@ -35,13 +35,13 @@ Six basic constructs (`["string","null"]`, `oneOf`, `minLength/maxLength`,
 them**:
 
 ```
-Schema 相容性探針  gemini / gemini-3.6-flash
-  ✓ nullable   type: ["string", "null"]    {"note":null}
-  ✓ union      oneOf                       {"window":{"start":"2026-08-01T02:00:00Z","hours":3}}
-  ✓ strlen     minLength / maxLength       {"code":"INC84920"}
-  ✓ numrange   minimum / maximum           {"severity":5}
-  ✓ enum       enum                        {"status":"closed"}
-  ✓ nested     巢狀物件 + 選填欄位            {"incident":{"id":"INC-9","robot":{"id":"R-204"}}}
+Schema compatibility probe  gemini / gemini-3.6-flash  [no compat layer]
+  ✓ nullable       type: ["string", "null"]         {"note":null}
+  ✓ union          oneOf                            {"window":{"hours":3,"start":"2026-08-01T02:00:00Z"}}
+  ✓ strlen         minLength / maxLength            {"code":"INC10001"}
+  ✓ numrange       minimum / maximum                {"severity":5}
+  ✓ enum           enum                             {"status":"closed"}
+  ✓ nested         nested object + optional field   {"incident":{"robot":{"id":"R-204","site":"unknown"},"id":"INC-9"}}
 ```
 
 ### This nearly became "so there is no problem"
@@ -84,8 +84,10 @@ this lesson exists.
 ## Step 2: two kinds of failure, not to be conflated
 
 ```
-✗ tuple       400 status code (no body)
-⚠ multipleof  應為 15 的倍數，拿到 70
+⚠ silently violated multipleof     multipleOf
+      should be a multiple of 15, got 70
+✗ rejected by the API tuple          tuple (items is an array)
+      400 status code (no body)
 ```
 
 Both lines look like "broken", and they are completely different things:
@@ -116,13 +118,13 @@ Not an occasional slip: **it simply does not treat that constraint as real**.
 
 ```ts
 if (key === "items" && Array.isArray(value) && !target.tupleItems) {
-  // 結構改寫：tuple → anyOf + 長度限制
+  // structural rewrite: tuple → anyOf + a length constraint
   out.items = { anyOf: value.map(...) };
   notes.push(`${path} is a fixed-length tuple: [...]`);
 }
 
 if (!target.enforcesNumeric) collect(out, NUMERIC_KEYS, notes, path);
-// 約束搬家：留在 schema 裡，同時寫進 notes
+// constraint relocation: it stays in the schema and also goes into notes
 ```
 
 Then `notes` is appended to the tool description:
@@ -147,8 +149,8 @@ TIER=hard COMPAT=1 PROVIDER=gemini bun run lesson-30:probe
 ```
 
 ```
-compat=off  70  70  70  70  70      ← 五次全違反
-compat=on   75  75  75  75  75      ← 五次全正確
+compat=off  70  70  70  70  70      ← all five violated
+compat=on   75  75  75  75  75      ← all five correct
 ```
 
 The `tuple` case also goes from a 400 to a pass.
@@ -158,8 +160,8 @@ The `tuple` case also goes from a 400 to a pass.
 First, once a constraint moves into the description, it must stay in the schema.
 
 ```ts
-// 契約測試裡有這一條
-test("約束搬走之後仍然留在 schema 裡", ...)
+// the contract tests contain this one
+test("a relocated constraint still stays in the schema", ...)
 ```
 
 Moving it into the description is "saying it twice", not "switching to saying it".
@@ -216,8 +218,8 @@ for people who have not measured yet.**
 `provider-contract.test.ts`:
 
 ```
-不需要金鑰   相容層的結構改寫是純函式，可以完整測（CI 跑這半）
-需要金鑰     provider 到底吃不吃，只有真的打才知道（lesson-30:probe）
+no key needed   the compat layer's structural rewrite is a pure function and fully testable (CI runs this half)
+key needed      whether the provider actually accepts it is only knowable by calling (lesson-30:probe)
 ```
 
 > CI guards against "the compatibility layer broke", not "the provider changed
@@ -245,8 +247,8 @@ assertions run across every provider's compatibility layer.
 
 | Symptom | Cause |
 |---|---|
-| `這支程式要量的就是真 provider 的行為` | `PROVIDER` is unset. This lesson's probe requires a key |
-| everything says `－ 模型沒有呼叫工具` | the prompt did not force tool use, or the model is in a different mood today. Re-run |
+| `This program measures a real provider's behaviour` | `PROVIDER` is unset. This lesson's probe requires a key |
+| everything says `－ the model called no tool` | the prompt did not force tool use, or the model is in a different mood today. Re-run |
 | `400 status code (no body)` | one of the **expected results**; see the table in Step 1 |
 | the results differ from the README | entirely normal, models get revised. **That is precisely Step 4's point** |
 

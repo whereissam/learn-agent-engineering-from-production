@@ -27,24 +27,24 @@ PROVIDER=fake bun run lesson-02
 Ask anything, and watch for the yellow box:
 
 ```
-> 修好測試
+> fix the tests
 
   → list_files()
-  ✓ 7 entries
+  ✓ 8 entries
   → read_file(path: "src/store.ts")
   → read_file(path: "src/config.ts")
   → run_command(command: "bun test")
 
-┌ 需要批准
+┌ approval needed
 │ run_command  command=bun test
 └
-  [y] 允許  [a] 這個工具都允許  [n] 拒絕 ›
+  [y] allow  [a] always allow this tool  [n] deny ›
 ```
 
 Press `y` to continue and you get the whole arc:
 
 ```
-探索 → 讀檔 → 跑測試（2 fail）→ 改檔 → 再跑測試（5 pass）
+explore → read → run the tests (2 fail) → edit → run them again (5 pass)
 ```
 
 `list_files` and `read_file` did not ask. `run_command` and `edit_file` did.
@@ -153,8 +153,9 @@ and the agent can never fix the bug.
 ### The truncation notice is written for the model
 
 ```
-[... 輸出被截斷：原本 12043 行 / 1.2MB，只顯示前 400 行。
-需要後面的內容請用 offset 參數繼續讀，或用更精確的條件縮小範圍。]
+[... output truncated: 12043 lines / 1.2MB originally, showing the first 400
+lines. Use the offset parameter to read further, or narrow the request with a
+more precise filter.]
 ```
 
 Three parts, none optional: that it was cut (do not assume you saw
@@ -296,8 +297,8 @@ issued an entirely ordinary command:
 
 ```
 → run_command(command: "npm test")
-    │ (pass) progressive disclosure（Lesson 16） > 未知的 skill 名稱…
-    │ (pass) 輸出截斷（Lesson 2） > truncateTail 保留結尾…
+    │ (pass) progressive disclosure (Lesson 16) > an unknown skill name…
+    │ (pass) output truncation (Lesson 2) > truncateTail keeps the tail…
   ✓ [exit 0]
 ```
 
@@ -389,12 +390,12 @@ disagrees with its manual just makes the agent quietly worse.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `old_string was not found` | a previous run already made the change | `bun run reset` |
-| `(沒有輸入可讀，視為拒絕)` | stdin ended (Ctrl+D, or a pipe ran dry) | run interactively, or use `AUTO_APPROVE=1` |
+| `(no input to read; treated as a denial)` | stdin ended (Ctrl+D, or a pipe ran dry) | run interactively, or use `AUTO_APPROVE=1` |
 | The agent keeps retrying a refused action | the refusal never said "do not retry" | see Step 3 |
 | One turn takes forever and costs a lot | the model is stuck in an edit-test loop | lower `MAX_STEPS` |
 
 > Feeding input through a pipe works
-> (`printf '問題\ny\ny\n' | bun run lesson-02`). An earlier version used
+> (`printf 'question\ny\ny\n' | bun run lesson-02`). An earlier version used
 > `readline.question()` and swallowed everything after the second line; the
 > fix was the `LineReader` in [`shared/repl.ts`](../shared/repl.ts), whose
 > comments record what went wrong.
@@ -418,7 +419,7 @@ Today `edit_file`'s approval box shows an argument summary. Show the real diff
 instead:
 
 ```
-┌ 需要批准
+┌ approval needed
 │ edit_file  src/store.ts
 │ - 	entries.set(code, url);
 │ + 	entries.set(code.toLowerCase(), url);
@@ -458,7 +459,7 @@ Add an extra warning to `run_command`'s approval box for especially dangerous
 commands:
 
 ```
-┌ 需要批准  ⚠️  這個指令會刪除檔案
+┌ approval needed  ⚠️  this command deletes files
 │ run_command  command=rm -rf build/
 └
 ```

@@ -32,7 +32,7 @@ export const GROUND_TRUTH = {
  * not the wording. Too narrow would misjudge "said it correctly in other words" as lost —
  * exactly the kind of false negative Lesson 16 hit.
  */
-export const CAVEAT_MARKERS = ["2026-07-14", "renumber", "編號", "改號", "遷移", "migration", "舊"];
+export const CAVEAT_MARKERS = ["2026-07-14", "renumber", "renumbered", "migration", "migrated", "old code"];
 
 function logLines(entries: [string, number][], start: string): string[] {
 	const lines: string[] = [];

@@ -113,7 +113,7 @@ function handleInterrupt(): void {
 		currentRun.abort();
 		return;
 	}
-	console.log(dim("\n再見。"));
+	console.log(dim("\nGoodbye."));
 	process.exit(0);
 }
 
@@ -162,7 +162,7 @@ export async function runTurn(
 
 		if (streamError) {
 			if (streamError.aborted) {
-				if (!quiet) console.log(yellow("\n\n[已中斷]"));
+				if (!quiet) console.log(yellow("\n\n[interrupted]"));
 				if (partialText.trim()) {
 					messages.push({
 						role: "assistant",
@@ -171,12 +171,12 @@ export async function runTurn(
 					});
 					messages.push({
 						role: "user",
-						text: "[你上一則回覆被我中斷了。等我的下一個指示。]",
+						text: "[I interrupted your last reply. Wait for my next instruction.]",
 					});
 				}
 				return;
 			}
-			if (!quiet) console.log(red(`\n[串流失敗] ${streamError.message}`));
+			if (!quiet) console.log(red(`\n[stream failed] ${streamError.message}`));
 			throw new Error(streamError.message);
 		}
 
@@ -185,11 +185,11 @@ export async function runTurn(
 		messages.push({ role: "assistant", blocks: response.blocks, raw: response.raw });
 
 		if (response.stopReason === "refusal") {
-			if (!quiet) console.log(red("\n[模型拒絕了這個請求]"));
+			if (!quiet) console.log(red("\n[the model refused this request]"));
 			return;
 		}
 		if (response.stopReason === "max_tokens") {
-			if (!quiet) console.log(red(`\n[輸出撞到 ${MAX_TOKENS} token 上限]`));
+			if (!quiet) console.log(red(`\n[output hit the ${MAX_TOKENS} token cap]`));
 			return;
 		}
 
@@ -221,12 +221,12 @@ export async function runTurn(
 		messages.push({ role: "toolResult", results });
 
 		if (signal.aborted) {
-			if (!quiet) console.log(yellow("\n[已中斷]"));
+			if (!quiet) console.log(yellow("\n[interrupted]"));
 			return;
 		}
 	}
 
-	if (!quiet) console.log(red(`\n[已達 ${MAX_STEPS} 步上限]`));
+	if (!quiet) console.log(red(`\n[hit the ${MAX_STEPS}-step cap]`));
 }
 
 export { registry, SYSTEM_PROMPT };
@@ -236,14 +236,14 @@ export { registry, SYSTEM_PROMPT };
 function createApprover(reader: LineReader) {
 	return async (request: ApprovalRequest): Promise<boolean> => {
 		if (AUTO_APPROVE || alwaysAllow.has(request.toolName)) return true;
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
 		console.log(yellow("└"));
 		const line = await reader.next(
-			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 都允許  ${yellow("[n]")} 拒絕 › `,
+			`  ${yellow("[y]")} allow  ${yellow("[a]")} always  ${yellow("[n]")} deny › `,
 		);
 		if (line === null) {
-			console.log(dim("  (沒有輸入可讀，視為拒絕)"));
+			console.log(dim("  (no input to read; treated as a denial)"));
 			return false;
 		}
 		const answer = line.trim().toLowerCase();
@@ -297,7 +297,7 @@ async function main(): Promise<void> {
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
 	console.log(dim(`tools:    ${registry.specs().map((t) => t.name).join(", ")}`));
-	console.log(dim("試試看：分析 sess_001 發生了什麼事\n"));
+	console.log(dim("Try: analyse what happened in sess_001\n"));
 
 	try {
 		while (true) {
@@ -312,7 +312,7 @@ async function main(): Promise<void> {
 			try {
 				await runTurn(provider, messages, ctx, currentRun.signal);
 			} catch (error) {
-				console.log(red(`\n[錯誤] ${(error as Error).message}`));
+				console.log(red(`\n[error] ${(error as Error).message}`));
 			} finally {
 				currentRun = undefined;
 			}

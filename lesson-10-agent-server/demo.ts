@@ -98,7 +98,7 @@ function watch(port: number, session: string, label: string, echo = false): Watc
 					state.deltas += event.delta ?? "";
 					if (echo) process.stdout.write(cyan(event.delta ?? ""));
 				}
-				if (echo && event.type === "interrupted") process.stdout.write(yellow(`\n  [${label} 收到中斷]\n`));
+				if (echo && event.type === "interrupted") process.stdout.write(yellow(`\n  [${label} saw the interruption]\n`));
 			}
 		}
 	})().catch(() => {
@@ -125,12 +125,12 @@ function startServer(port: number, naive: boolean): Promise<ChildProcess> {
 	return new Promise((resolveReady, rejectReady) => {
 		const deadline = Date.now() + 5000;
 		const poll = async (): Promise<void> => {
-			if (child.exitCode !== null) return rejectReady(new Error("server 沒起來"));
+			if (child.exitCode !== null) return rejectReady(new Error("the server did not start"));
 			try {
 				await fetch(`http://127.0.0.1:${port}/session/probe`);
 				resolveReady(child);
 			} catch {
-				if (Date.now() > deadline) return rejectReady(new Error("server 起太慢"));
+				if (Date.now() > deadline) return rejectReady(new Error("the server took too long to start"));
 				setTimeout(() => void poll(), 50);
 			}
 		};
@@ -158,7 +158,7 @@ async function interrupt(port: number, session: string): Promise<void> {
  */
 async function warmUp(port: number, session: string): Promise<void> {
 	for (let i = 0; i < 2; i++) {
-		await send(port, session, `暖身 ${i}`);
+		await send(port, session, `warm-up ${i}`);
 		await waitIdle(port, session);
 	}
 }
@@ -171,7 +171,7 @@ async function waitIdle(port: number, session: string): Promise<void> {
 		if (!state.running) return;
 		await sleep(25);
 	}
-	throw new Error("turn 沒有結束");
+	throw new Error("the turn never finished");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -189,15 +189,15 @@ async function reconnectScenario(naive: boolean): Promise<void> {
 			// Connect, send a message, watch it talk
 		const before = watch(port, session, "client");
 		await sleep(100);
-		await send(port, session, "講一段長的");
+		await send(port, session, "say something long");
 
-		await sleep(600); // 看一小段
+		await sleep(600); // watch a little of it
 		const sawBeforeDrop = before.deltas.length;
-		before.close(); // ← 使用者關掉視窗 / 網路斷了 / GUI 重載
-		console.log(dim(`  斷線前即時收到 ${sawBeforeDrop} 個字`));
+		before.close(); // ← the user closes the window / the network drops / the GUI reloads
+		console.log(dim(`  ${sawBeforeDrop} characters arrived live before the drop`));
 
-		await waitIdle(port, session); // turn 在背景繼續跑完
-		console.log(dim("  斷線期間 turn 在 server 上跑完了"));
+		await waitIdle(port, session); // the turn keeps running to completion in the background
+		console.log(dim("  the turn finished on the server while disconnected"));
 
 			// Reconnect
 		const after = watch(port, session, "client");
@@ -205,18 +205,18 @@ async function reconnectScenario(naive: boolean): Promise<void> {
 
 		const total = await totalText(port, session);
 		console.log(
-			`  重連後畫面上有 ${bold(String(after.seen.length))} 個字，` +
-				`server 上實際有 ${bold(String(total))} 個字`,
+			`  after reconnecting the screen holds ${bold(String(after.seen.length))} characters, ` +
+				`while the server actually has ${bold(String(total))}`,
 		);
 
 		if (after.seen.length >= total) {
-			console.log(`  ${green("✓")} 補回來了（重連時 server 重送了一次狀態）`);
+			console.log(`  ${green("✓")} restored (the server replayed the state on reconnect)`);
 		} else {
 			console.log(
-				`  ${red("✗")} 少了 ${red(String(total - after.seen.length))} 個字，` +
-					`而且${red("永遠")}補不回來`,
+				`  ${red("✗")} ${red(String(total - after.seen.length))} characters missing, ` +
+					`and they are ${red("never")} coming back`,
 			);
-			console.log(dim("     沒有錯誤、沒有例外、沒有警告。使用者只會覺得「怪怪的」。"));
+			console.log(dim('     No error, no exception, no warning. The user just feels something is "off".'));
 		}
 		after.close();
 	} finally {
@@ -250,49 +250,49 @@ async function twoWindowsScenario(): Promise<void> {
 	try {
 		await warmUp(port, session);
 
-		const windowA = watch(port, session, "視窗 A");
-		const windowB = watch(port, session, "視窗 B");
+		const windowA = watch(port, session, "window A");
+		const windowB = watch(port, session, "window B");
 		await sleep(100);
 
-		console.log(dim("  視窗 A 送出訊息（視窗 B 什麼都沒做）"));
-		await send(port, session, "講一段長的");
+		console.log(dim("  window A sends a message (window B does nothing)"));
+		await send(port, session, "say something long");
 		await sleep(500);
 
 		console.log(
-			`  視窗 A 看到 ${bold(String(windowA.seen.length))} 個字，` +
-				`視窗 B 看到 ${bold(String(windowB.seen.length))} 個字`,
+			`  window A saw ${bold(String(windowA.seen.length))} characters, ` +
+				`window B saw ${bold(String(windowB.seen.length))}`,
 		);
 		if (windowA.seen === windowB.seen) {
-			console.log(`  ${green("✓")} 兩個視窗一模一樣（送訊息的那個也是等事件回來才畫）`);
+			console.log(`  ${green("✓")} both windows are identical (even the sender waits for the event before drawing)`);
 		} else {
-			console.log(`  ${red("✗")} 不同步`);
+			console.log(`  ${red("✗")} out of sync`);
 		}
 
-		console.log(dim("\n  現在從視窗 B 按中斷"));
+		console.log(dim("\n  now press interrupt from window B"));
 		await interrupt(port, session);
 		await waitIdle(port, session);
 		await sleep(150);
 
 		console.log(
-			`  中斷後 A=${bold(String(windowA.seen.length))} B=${bold(String(windowB.seen.length))}`,
+			`  after the interruption A=${bold(String(windowA.seen.length))} B=${bold(String(windowB.seen.length))}`,
 		);
-		console.log(`  ${green("✓")} 中斷是 session 的事，不是視窗的事`);
+		console.log(`  ${green("✓")} interruption belongs to the session, not to a window`);
 
 			// The sender cannot send twice at once
-		console.log(dim("\n  連按兩次送出："));
+		console.log(dim("\n  press send twice in a row:"));
 		const first = fetch(`http://127.0.0.1:${port}/session/${session}/message`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ text: "第一次" }),
+			body: JSON.stringify({ text: "first" }),
 		});
 		const second = fetch(`http://127.0.0.1:${port}/session/${session}/message`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ text: "第二次" }),
+			body: JSON.stringify({ text: "second" }),
 		});
 		const [a, b] = await Promise.all([first, second]);
-		console.log(`  第一個請求 ${a.status}，第二個請求 ${b.status}`);
-		console.log(`  ${green("✓")} 一個 session 一次只跑一輪，第二個被 409 擋掉`);
+		console.log(`  first request ${a.status}, second request ${b.status}`);
+		console.log(`  ${green("✓")} one session runs one turn at a time; the second is refused with 409`);
 
 		await interrupt(port, session).catch(() => {});
 		await waitIdle(port, session);
@@ -309,23 +309,23 @@ async function twoWindowsScenario(): Promise<void> {
 async function main(): Promise<void> {
 	rmSync(SESSION_DIR, { recursive: true, force: true });
 
-	console.log(bold("\n情境 1：NAIVE server ， 事件流從「現在」開始"));
-	console.log(dim("斷線 → 重連 → 看看畫面上有什麼\n"));
+	console.log(bold('\nScenario 1: the NAIVE server, whose event stream starts from "now"'));
+	console.log(dim("disconnect → reconnect → see what is on screen\n"));
 	await reconnectScenario(true);
 
-	console.log(bold("\n情境 2：修好的 server ， 重連時重送一次狀態"));
-	console.log(dim("同一段劇本，只差在 openStream() 裡那個 if\n"));
+	console.log(bold("\nScenario 2: the fixed server, which replays the state on reconnect"));
+	console.log(dim("the same script; the only difference is one if inside openStream()\n"));
 	await reconnectScenario(false);
 
-	console.log(bold("\n情境 3：兩個視窗看同一個 session"));
-	console.log(dim("廣播給所有連線，包含送訊息的那一個\n"));
+	console.log(bold("\nScenario 3: two windows watching the same session"));
+	console.log(dim("broadcast to every connection, including the one that sent the message\n"));
 	await twoWindowsScenario();
 
-	console.log(bold("\n重點"));
-	console.log("  1. turn 的生命週期屬於 session，不屬於送出它的那個視窗");
-	console.log("  2. 重連不是「接續播放事件」，是「重新拿一次狀態」");
-	console.log(`  3. 掉事件是${red("安靜的失敗")}，要靠設計避免，不能靠測試發現`);
-	console.log(dim("\n細節見 README。想手動玩：bun run lesson-10 + bun run lesson-10:client\n"));
+	console.log(bold("\nThe point"));
+	console.log("  1. a turn's lifetime belongs to the session, not to the window that sent it");
+	console.log('  2. reconnecting is not "resume playing events", it is "fetch the state again"');
+	console.log(`  3. a dropped event is a ${red("silent failure")}: design it out, because testing will not find it`);
+	console.log(dim("\nDetails in the README. To play by hand: bun run lesson-10 + bun run lesson-10:client\n"));
 
 	rmSync(SESSION_DIR, { recursive: true, force: true });
 }

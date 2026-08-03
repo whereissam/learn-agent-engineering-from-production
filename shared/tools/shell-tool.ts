@@ -80,7 +80,7 @@ function run(
 ): Promise<RunResult> {
 	return new Promise((resolveRun) => {
 		const child = spawn(command, {
-			cwd, // ← 工作目錄鎖在沙箱裡
+			cwd, // ← working directory pinned inside the sandbox
 			shell: true,
 				// Do not inherit the whole process.env. API keys are in there,
 				// and every command the agent runs does not need to see them.

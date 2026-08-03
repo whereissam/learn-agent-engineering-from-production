@@ -94,13 +94,13 @@ async function showDetail(point: InterruptPoint): Promise<void> {
 	const cell = await runCell(point, CLEANUP_ON);
 
 	console.log(`\n${bold(`── ${point}`)}  ${dim(`CLEANUP=${CLEANUP_ON ? "on" : "off"}`)}`);
-	console.log(dim(`  finish=${cell.finish ?? "（沒有）"}`));
-	console.log(dim("  存檔裡的 parts："));
+	console.log(dim(`  finish=${cell.finish ?? "(none)"}`));
+	console.log(dim("  the parts in the saved file:"));
 	for (const part of cell.parts) console.log(`    ${part}`);
 
-	console.log(dim("\n  稽核："));
+	console.log(dim("\n  audit:"));
 	if (cell.violations.length === 0) {
-		console.log(`    ${green("沒有違規")}`);
+		console.log(`    ${green("no violations")}`);
 	}
 	for (const violation of cell.violations) {
 		console.log(`    ${red(`[${violation.kind}]`)} ${violation.where}`);
@@ -109,39 +109,39 @@ async function showDetail(point: InterruptPoint): Promise<void> {
 }
 
 async function showMatrix(): Promise<void> {
-	console.log(bold("\n中斷位置 × 有沒有收尾"));
+	console.log(bold("\ninterruption point × cleanup or not"));
 	console.log(dim("─".repeat(78)));
 	console.log(
-		dim("  中斷位置            ") + dim("CLEANUP=on".padEnd(16)) + dim("CLEANUP=off"),
+		dim("  interruption point  ") + dim("CLEANUP=on".padEnd(16)) + dim("CLEANUP=off"),
 	);
 
 	for (const point of INTERRUPT_POINTS) {
 		const on = await runCell(point, true);
 		const off = await runCell(point, false);
-		const onText = on.violations.length === 0 ? green("乾淨") : red(summarise(on.violations));
-		const offText = off.violations.length === 0 ? green("乾淨") : red(summarise(off.violations));
+		const onText = on.violations.length === 0 ? green("clean") : red(summarise(on.violations));
+		const offText = off.violations.length === 0 ? green("clean") : red(summarise(off.violations));
 		console.log(`  ${point.padEnd(20)}${onText.padEnd(16 + 9)}${offText}`);
 	}
 
 	console.log(dim("─".repeat(78)));
 	console.log(
 		dim(
-			"每一格的失敗都是安靜的（設計原則 7）：永久 pending 的工具、\n" +
-				"永遠 busy 的 session、漏記的 patch，全部不會丟例外。",
+			"Every cell's failure is silent (design principle 7): a tool stuck pending forever,\n" +
+				"a session that stays busy, a missed patch — none of them throw.",
 		),
 	);
 
 	// One cell deserves stating separately: the tool that makes the grace window.
 	const finishing = await runCell("tool_finishing", true);
-	console.log(`\n${bold("為什麼要有寬限窗口")}`);
+	console.log(`\n${bold("Why there is a grace window")}`);
 	console.log(
-		dim("  tool_finishing 這一格的工具 20ms 後就會回來，寬限窗口 250ms：\n") +
+		dim("  In the tool_finishing cell the tool returns after 20ms, and the grace window is 250ms:\n") +
 			`    ${finishing.parts.find((p) => p.startsWith("tool")) ?? ""}`,
 	);
 	console.log(
 		yellow(
-			"  它被記成 completed，不是 interrupted —— 因為它真的跑完了。\n" +
-				"  沒有這個窗口，紀錄會說一件沒發生的事（一個其實成功了的工具被標成中斷）。",
+			"  It is recorded as completed, not interrupted — because it really did finish.\n" +
+				"  Without the window the record would state something that never happened (a tool that succeeded, marked interrupted).",
 		),
 	);
 }
@@ -152,7 +152,7 @@ async function main(): Promise<void> {
 	const only = process.argv[2] as InterruptPoint | undefined;
 	if (only) {
 		if (!INTERRUPT_POINTS.includes(only)) {
-			console.error(`不認得的中斷位置：${only}。可用：${INTERRUPT_POINTS.join(", ")}`);
+			console.error(`Unknown interruption point: ${only}. Available: ${INTERRUPT_POINTS.join(", ")}`);
 			process.exitCode = 1;
 			return;
 		}

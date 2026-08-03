@@ -32,7 +32,7 @@ Lesson 20 的 `corpus/index.json` 裡存的就是每一頁的正文，
 因為 HTML 本來就是從那份文字產生的。所以可以直接算分：
 
 ```
-recall = 正文抽到多少   noise = 抽出來的東西有多少不是正文
+recall = how much of the body was extracted   noise = how much of the extract is not body
 
                                           stripTags        extractMain
                                         recall  noise    recall  noise
@@ -42,11 +42,11 @@ top-robotics-tools-example-net-unitr  100.0% 52.1%   100.0%  0.0%
 huggingface-co-datasets-openmotion-h  100.0% 65.8%   100.0%  0.0%
 cookingwith-example-com-sous-vide-gu  100.0% 68.3%   100.0%  0.0%
 ──────────────────────────────────────────────────────────────────────
-平均                                    100.0% 51.0%   100.0%  0.0%
+average                               100.0% 51.0%   100.0%  0.0%
 
-正文實際大小        8688 字元
-stripTags 抽出來    17403 字元  (2.00x)
-extractMain 抽出來  8688 字元  (1.00x)
+actual body size        8688 characters
+stripTags extracted     17403 characters  (2.00x)
+extractMain extracted   8688 characters  (1.00x)
 ```
 
 `stripTags` 就是那個大家第一次寫爬蟲都會寫的版本：
@@ -65,7 +65,7 @@ bun run lesson-21:measure --show retarget-anything
 ```
 
 ```
-【stripTags】把標籤拿掉就好了吧？
+[stripTags] just remove the tags, surely?
 
 We use cookies to improve your experience. Accept all Reject github.com Home Docs Blog
 Pricing Sign in openmotion/retarget-anything: … Never miss an update Join 24,000 engineers
@@ -83,9 +83,9 @@ RoboOps Cloud. Start free. Related posts 10 things nobody tells you about humano
 `extractMain` 的做法沒有任何魔法，就三步：
 
 ```text
-1. 整塊丟掉：script / style / nav / header / footer / aside / form
-2. class 或 id 命中黑名單的區塊也丟掉（cookie / newsletter / sidebar / ad / related …）
-3. 挑正文容器：<article> 優先，其次 <main>，都沒有才退回 <body>
+1. drop whole elements: script / style / nav / header / footer / aside / form
+2. drop blocks whose class or id hits a blocklist (cookie / newsletter / sidebar / ad / related …)
+3. pick the body container: <article> first, then <main>, falling back to <body>
 ```
 
 > 0% noise 是假的。語料的 HTML 是用同一個模板產生的，
@@ -134,38 +134,42 @@ bun run lesson-21
 ```
 
 ```
-> retarget-anything 現在還能用在 2026 SDK 的 G1 上嗎？如果不行，替代方案是什麼？
+> Does retarget-anything still work with the G1 on the 2026 SDK? If not, what is the alternative?
 ```
 
 實際軌跡（Gemini 3.6 Flash，7 個工具呼叫）：
 
 ```
-→ web_search(retarget-anything Unitree G1)
-→ web_search("retarget-anything" "G1" "SDK" OR "humanoid-mimic" OR "unitree_sdk2" …)
+→ web_search("retarget-anything" OR "retarget_anything" G1 unitree)
 → fetch_page(https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)
-→ web_search("humanoid-mimic" Unitree G1 SDK 2026)
+→ web_search("retarget-anything" "2026 SDK" OR "joint ordering" OR "G1")
 → fetch_page(https://github.com/openmotion/retarget-anything)
 → fetch_page(https://github.com/kinelabs/humanoid-mimic)
-→ web_search(Unitree G1 retargeting tools alternative 2026 …)
+→ fetch_page(https://www.unitree.com/g1/developer)
 ```
 
 答案（節錄）：
 
 ```markdown
-**直接回答：無法直接開箱使用（預設 G1 Profile 已失效/官方已棄用）。**
+**No, `retarget-anything` does not work out-of-the-box with the Unitree G1 on the 2026 SDK.**
 
-1. 關節順序不匹配：retarget-anything 內建的 G1 Profile 是基於 2024 年舊版的 G1 URDF…
-   機器人會立刻觸發保護性停機 [CONFIRMED: https://discourse.ros.org/t/…/45211]
-2. 官方公告放棄維護 G1：v2.0 公告明確指出 G1 Profile 已被棄用且不再維護
-   [CONFIRMED: https://github.com/openmotion/retarget-anything]
+### Why It Fails
+* Deprecated G1 Profile: in v2.0 (March 2026) the maintainers deprecated the G1
+  profile. It was originally created against the 2024 G1 URDF and joint layout
+  (CONFIRMED: github.com/openmotion/retarget-anything).
+* 2026 SDK Joint Index Revision: left_hip_pitch changed from index 7 to 1, and
+  waist_yaw from 1 to 13 (CONFIRMED: unitree.com/g1/developer).
+* Protective Stop: the index shift makes trajectories target the wrong actuators,
+  which the controller detects as a joint tracking error
+  (CONFIRMED: discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
 
-#### 方案 1：改用 humanoid-mimic（主要推薦）
-* v0.7（2026-06）已建立支援 2026 SDK 關節順序的 G1 Profile，且在實體機器人上驗證
-  [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
-* 專案 MIT 授權，但預設下載的姿態估計模型權重帶有非商業條款
-  [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
-* 快速步態下可能出現腳步滑行，社群暫時做法是把播放速率調到 0.8x
-  [CONFIRMED: https://discourse.ros.org/t/…/45211]
+### Recommended Alternative: `humanoid-mimic`
+* 2026 SDK Support: v0.7 (June 2026) added a native G1 profile built against the
+  2026 SDK joint ordering and verified on physical hardware.
+* Real-time Pipeline: ~50 Hz control loop, ~18 ms latency on an RTX 4070 class GPU.
+* Known Limitation & Workaround: foot sliding on fast movements; slowing to ~0.8x
+  playback makes it stable on hardware
+  (CONFIRMED: discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
 ```
 
 每一條 `CONFIRMED` 現在都真的有讀過那一頁。最後那條「0.8x」尤其值得看：
@@ -261,7 +265,7 @@ you need.
 這一段是實測踩出來的，三次跑同一個問題。
 
 ```
-> G1 的 waist_yaw 關節在 2026 SDK 裡是第幾號？
+> What index is the G1's waist_yaw joint in the 2026 SDK?
 ```
 
 答案在那份遷移文件的一個 HTML `<table>` 裡：`waist_yaw | 1 | 13`。
@@ -272,10 +276,10 @@ you need.
 
 ```
 web_search × 6
-fetch_page(unitree.com/g1/developer) chunk 1,2,3,4,5,6,7   ← 整份文件讀完
+fetch_page(unitree.com/g1/developer) chunk 1,2,3,4,5,6,7   ← the whole document read
 fetch_page(blog.kinelabs.dev) / (openmotion.dev) / (humanoid-mimic)
 web_search × 2
-[已達 16 步上限]
+[hit the 16-step cap]
 ```
 
 16 個工具呼叫，沒有答案，也沒有一句「我找不到」。
@@ -302,7 +306,7 @@ Do NOT conclude that the page does not contain it, and do not guess the value.
 工具老老實實在每一塊都印了這段警告。結果：
 
 ```
-[已達 16 步上限]
+[hit the 16-step cap]
 ```
 
 它還是沒停。它讀完七塊、又搜了六次，包括最後這個很絕望的 query：
@@ -334,9 +338,9 @@ const pattern = options.includeStructures
 → fetch_page(unitree.com/g1/developer) chunk 1,2,3,4
 → fetch_page(blog.kinelabs.dev/humanoid-mimic-0-7)
 
-根據 Unitree G1 官方 SDK 遷移指南文件，waist_yaw 關節在 2026 SDK 裡的編號是 13。
-* 2026 SDK 關節索引：13 [CONFIRMED: https://www.unitree.com/g1/developer]
-* 2024 SDK 舊版索引：1  [CONFIRMED: https://www.unitree.com/g1/developer]
+According to Unitree's official G1 SDK migration guide, the waist_yaw joint is index 13 in the 2026 SDK.
+* 2026 SDK joint index: 13 [CONFIRMED: https://www.unitree.com/g1/developer]
+* 2024 SDK old index:   1  [CONFIRMED: https://www.unitree.com/g1/developer]
 ```
 
 8 步，答對，引用正確。
@@ -344,7 +348,7 @@ const pattern = options.includeStructures
 ### 這一段真正的教訓
 
 ```text
-16 步（沒答案）→ 加警告 → 16 步（還是沒答案）→ 改抽取器 → 8 步（答對）
+16 steps (no answer) → add a warning → 16 steps (still no answer) → fix the extractor → 8 steps (correct)
 ```
 
 Lesson 6 有一條原則：能用 harness 保證的事，不要交給 prompt 祈禱。
@@ -367,11 +371,11 @@ Lesson 6 有一條原則：能用 harness 保證的事，不要交給 prompt 祈
 模型除了正確的兩個 repo 之外，還多寫了一整節：
 
 ```markdown
-### 二、社群常用的「兩階段自訂重定向工具鏈」
+### 2. The community's usual "two-stage custom retargeting toolchain"
 * WHAM / GVHMR / HMR 2.0 [SNIPPET-ONLY: https://arxiv.org/abs/2603.04417]
 * MediaPipe / OpenPose / MMPose [SNIPPET-ONLY: https://robotblog.example.com/…]
-* Pink (Python IK based on Pinocchio) [UNVERIFIED]，可以直接載入 Unitree G1 的
-  URDF 檔案（23 DoF 配置）[CONFIRMED: https://www.unitree.com/g1/developer]
+* Pink (Python IK based on Pinocchio) [UNVERIFIED] can load the Unitree G1's
+  URDF directly (the 23-DoF configuration) [CONFIRMED: https://www.unitree.com/g1/developer]
 * DexRetargeting [UNVERIFIED]
 ```
 
@@ -386,8 +390,9 @@ unitree.com——但那一頁只說了 G1 是 23 DoF，從來沒提過 Pink。
 引用被嫁接了。
 
 ```text
-fetch_page 解決的是「模型漏讀」。
-它不解決「模型多寫」，也不保證引用真的支持那句話。
+fetch_page fixes "the model did not read enough".
+It does not fix "the model wrote more than it read", and it does not guarantee
+a citation actually supports the sentence attached to it.
 ```
 
 要抓這種錯，只能回頭去驗證每一條引用：那個 URL 的正文裡，
@@ -400,7 +405,7 @@ fetch_page 解決的是「模型漏讀」。
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
+| `Lesson 20's corpus not found` | 語料還沒產生 | `bun run lesson-20:corpus` |
 | `robots.txt disallows` | 這是設計 | 見 Step 3，那一頁本來就不該被爬 |
 | `found no readable text` | JS 渲染的頁面 | 見 Step 3。**不代表那一頁沒內容** |
 | 模型只讀 chunk 1 就下結論 | 沒有強調「還有幾塊」 | 見 `tools/fetch.ts` 的 footer |
@@ -492,11 +497,11 @@ Lesson 23 會把這一課和 Lesson 22 組成一個服務，那時會再回到�
 它讀的每一頁都是排序決定的。
 
 ```text
-BM25 + dense retrieval + RRF 融合 + cross-encoder rerank
-去重（同一份內容兩個網址）
-新鮮度（2025 年的懶人包）
-權威度（官方 repo vs 內容農場）
-來源多樣性
+BM25 + dense retrieval + RRF fusion + cross-encoder rerank
+deduplication (the same content at two URLs)
+freshness (a 2025 round-up)
+authority (an official repo vs a content farm)
+source diversity
 ```
 
 語料裡那對近似重複的頁面（GitHub README 和 docs 站）就是為那一課準備的。

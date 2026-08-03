@@ -82,10 +82,10 @@ export class SkillStore {
 		const skill = this.skills.get(name);
 		if (!skill) {
 			const available = [...this.skills.keys()].join(", ");
-			throw new Error(`沒有名為 "${name}" 的 skill。可用的：${available || "(無)"}`);
+			throw new Error(`No skill named "${name}". Available: ${available || "(none)"}`);
 		}
 		if (!this.matchesPlatform(skill)) {
-			throw new Error(`skill "${name}" 不支援目前平台（${this.platform}）`);
+			throw new Error(`Skill "${name}" does not support the current platform (${this.platform})`);
 		}
 		return skill.body;
 	}
@@ -150,7 +150,7 @@ async function loadDir(dir: string, origin: SkillOrigin): Promise<Map<string, Sk
 	try {
 		entries = await readdir(dir);
 	} catch {
-		return out; // 目錄不存在很正常
+		return out; // a missing directory is perfectly normal
 	}
 
 	for (const entry of entries) {

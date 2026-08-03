@@ -18,9 +18,9 @@
 ## 先講這一課的結論
 
 ```text
-搜尋回來的不是網頁，是 snippet。
-snippet 是「跟你的 query 最像的那一段」，不是「這一頁的結論」。
-所以：換一個 query，同一個頁面可以給你相反的答案。
+What search returns is not a page, it is a snippet.
+A snippet is "the passage most like your query", not "this page's conclusion".
+So: change the query and the same page can give you the opposite answer.
 ```
 
 這句話等一下會有兩次實測佐證，**同一個模型、同一份語料、相反的結論**。
@@ -53,8 +53,8 @@ bun run lesson-20:corpus
 ```
 
 ```
-已產生 14 個頁面到 lesson-20-search-agent/corpus/pages
-索引：lesson-20-search-agent/corpus/index.json（正文共 8688 字元）
+Generated 14 pages into lesson-20-search-agent/corpus/pages
+Index: lesson-20-search-agent/corpus/index.json (8688 characters of body text)
 ```
 
 產生出來的東西有兩份，這個分法就是 Lesson 20 和 21 的分界：
@@ -67,12 +67,12 @@ bun run lesson-20:corpus
 語料是**刻意有病**的，真實 web 有的毛病它都有：
 
 ```text
-snippet 講的跟正文不一樣（而且兩個方向都有）
-同一份內容有兩個網址（GitHub README 和 docs 站）
-關鍵字塞滿但沒有內容的 SEO 農場
-兩年前的懶人包還在到處被引用
-已經封存的 repo，頁面上看不太出來
-提到關鍵字很多次但其實無關的新聞
+a snippet that contradicts the body (in both directions)
+the same content at two URLs (a GitHub README and a docs site)
+an SEO farm stuffed with keywords and no content
+a two-year-old round-up still being cited everywhere
+an archived repo that does not look archived on the page
+a news item that mentions the keywords often and is irrelevant
 ```
 
 一份乾淨的語料學不到排序。 Lesson 22 就是要處理這些。
@@ -94,8 +94,8 @@ bun run lesson-20:search "unitree g1 retargeting"
 
 ```
 query: unitree g1 retargeting
-斷詞:  [unitree, g1, retargeting]
-8 筆結果
+tokens: [unitree, g1, retargeting]
+8 results
 
 1. Unitree G1 retargeting: best open source video to humanoid retargeting 2026
    https://top-robotics-tools.example.net/…  2026-07-01  score=2.771
@@ -158,40 +158,38 @@ bun run lesson-20
 ```
 
 ```
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
-實際跑出來的（Gemini 3.6 Flash）。它搜了 **11 次**：
+實際跑出來的（Gemini 3.6 Flash）。它搜了 **7 次**：
 
 ```
-→ web_search(Unitree G1 motion retargeting open source github)
-→ web_search(github "Unitree G1" retargeting)
-→ web_search(github video retargeting "Unitree G1" OR "G1" humanoid)
-→ web_search(github "dex-retargeting" unitree g1)
-→ web_search(github Open-TeleVision Unitree G1)
-→ web_search(github Human2Humanoid unitree)
-→ web_search(github unitree retargeting motion)
-→ web_search(github dex-retargeting unitree)
-→ web_search("humanoid-mimic" OR "retarget-anything" github)
-→ web_search(github "Unitree" "G1" retargeting video OR pose OR motion)
-→ web_search(github "dex-retargeting" OR "dex_retargeting" "unitree")
+→ web_search(Unitree G1 video motion retargeting github)
+→ web_search(Unitree G1 human motion retargeting github)
+→ web_search(github unitreerobotics retargeting)
+→ web_search("Unitree G1" retargeting site:github.com)
+→ web_search(github humanoid video motion retargeting "unitree")
+→ web_search("dex-retargeting" Unitree G1 OR H1)
+→ web_search("human-to-humanoid" OR "H2O" OR "Open-TeleVision" Unitree G1)
 ```
 
 然後給出答案（節錄）：
 
 ```markdown
-### 1. openmotion/retarget-anything
-* Unitree G1 支援：開箱即用（Out of the box），內建 Unitree G1（23 自由度）
-  以及 Unitree H1 等預設 Profile。 [CONFIRMED: https://github.com/openmotion/retarget-anything]
-* 開源授權：Apache License 2.0。 [CONFIRMED: .../blob/main/LICENSE]
+### 1. `openmotion/retarget-anything`
+* Status: CONFIRMED (https://github.com/openmotion/retarget-anything)
+* Capabilities: Converts monocular video of a human into joint trajectories for
+  humanoid robots. Out of the box, it includes retargeting profiles specifically
+  for the Unitree G1, Unitree H1, and Booster T1.
 
-### 2. kinelabs/humanoid-mimic
-* Unitree G1 支援：提供對應 Unitree G1 的設定檔，並針對 SDK 的關節順序
-  進行適配與實機測試。 [CONFIRMED: https://github.com/kinelabs/humanoid-mimic]
+### 2. `kinelabs/humanoid-mimic`
+* Status: CONFIRMED (https://github.com/kinelabs/humanoid-mimic)
+* Capabilities: Real-time motion imitation at 50 Hz. Includes an official
+  Unitree G1 profile (added in v0.7).
 
-### 實務開發注意事項
-2. 關節對應：請務必確認 SDK 的關節排序是否與重定向工具中的配對檔案一致
-   [CONFIRMED: https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211]
+### Notes & Related Projects
+* `legacy-robotics/mocap2robot`: UNVERIFIED for direct monocular video
+  retargeting on the G1 …
 ```
 
 看起來非常專業。有分類、有連結、每一條都標了 `CONFIRMED`。
@@ -224,7 +222,7 @@ We are not planning to fix it.
 這是這一課最值得記住的一段。同一個模型、同一份語料，換一個問法：
 
 ```
-> retarget-anything 的 G1 profile 現在還能用在 2026 SDK 上嗎？
+> Does retarget-anything's G1 profile still work on the 2026 SDK?
 ```
 
 它只搜了兩次：
@@ -237,13 +235,13 @@ We are not planning to fix it.
 答案（節錄）：
 
 ```markdown
-**無法直接正常使用**。
+**Not directly usable**.
 
-* G1 Profile 已棄用且不再維護：官方 README 及文檔明確指出，G1 profile 在 v2.0
-  已被標示為棄用（deprecated）且不會再進行更新維護。
-* 相容性問題原因：原本的 G1 profile 是針對 2024 年的 G1 URDF 設計，
-  而 Unitree 在 2026 SDK 中更改了關節順序。
-* 替代方案：humanoid-mimic 在 v0.7 已新增支援 2026 SDK 關節順序的 G1 profile。
+* The G1 profile is deprecated and unmaintained: the official README and docs
+  state plainly that it was marked deprecated in v2.0 and receives no updates.
+* Why it broke: the original G1 profile targeted the 2024 G1 URDF, and Unitree
+  changed the joint ordering in the 2026 SDK.
+* Alternative: humanoid-mimic added a G1 profile for the 2026 SDK joint ordering in v0.7.
 ```
 
 完全正確。
@@ -254,16 +252,16 @@ We are not planning to fix it.
 原因在 `search/engine.ts` 的 `makeSnippet`：
 
 ```ts
-// 挑一段最像「有回答到 query」的文字當 snippet
+// pick the passage that most looks like "this answers the query" as the snippet
 for (let start = 0; start + SNIPPET_WORDS <= words.length; start += 4) {
-  // 數這個視窗裡命中幾個 query 的字，取最高的那個視窗
+  // count how many query terms hit inside this window and keep the best window
 }
 ```
 
 真的搜尋引擎也是這樣做的。所以：
 
 ```text
-query 決定 snippet，snippet 決定模型看到頁面的哪一面。
+The query decides the snippet, and the snippet decides which face of the page the model sees.
 ```
 
 第一個問題問的是「有哪些專案」，命中的是介紹段落；
@@ -293,7 +291,7 @@ github Human2Humanoid unitree
 |---|---|
 | 模型用記憶裡的名字生 query | 它以為自己知道答案，只是要找連結 |
 | 有些 query 語法對這個引擎沒意義 | `site:`、`OR`、引號在 BM25 裡只是普通的字 |
-| 11 次搜尋，重複性很高 | 沒有東西告訴它「這個角度已經試過了」 |
+| 7 次搜尋，重複性很高 | 沒有東西告訴它「這個角度已經試過了」 |
 
 這三件事都不是模型的錯，是 harness 沒做。到 Lesson 24 會補上
 「已經搜過什麼」的狀態，這也是 Deep Research 的核心之一。
@@ -305,16 +303,16 @@ bun run lesson-20:search "把影片動作轉到人形機器人"
 ```
 
 ```
-斷詞:  []
-0 筆結果
+tokens: []
+0 results
 ```
 
 不是「找不到相關內容」，是**這個檢索方式看不懂這個 query**。
 `engine.ts` 的斷詞只認得 `a-z0-9`：
 
 ```ts
-// 中文、日文、韓文丟進來會得到空陣列——
-// 這是關鍵字檢索的真實限制，不是這份程式偷懶。
+// Chinese, Japanese and Korean all come back as an empty array —
+// that is a real limitation of keyword retrieval, not laziness in this code.
 export function tokenize(text: string): string[] {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter(...);
 }
@@ -325,8 +323,8 @@ export function tokenize(text: string): string[] {
 ```text
 1. tool description：  "The index is keyword-based and English-only,
                         so write the query in English"
-2. system prompt 規則 2：把使用者的問題轉成英文關鍵字
-3. 空結果的錯誤訊息：   "rewrite the query in English … and search again"
+2. system prompt rule 2:  turn the user's question into English keywords
+3. the empty-result error: "rewrite the query in English … and search again"
 ```
 
 第 3 層值得特別看（`tools/search.ts`）。查不到東西的時候不要只回 `no results`：
@@ -374,8 +372,8 @@ so it can omit or even contradict what the page actually concludes.
 這就是這一課想讓你先體驗、下一課才解決的事：
 
 ```text
-prompt 可以要求誠實，
-但只有工具能讓誠實變得可能。
+a prompt can ask for honesty,
+but only a tool can make honesty possible.
 ```
 
 Lesson 21 加上 `fetch_page` 之後，同樣的 prompt 才會開始有效——
@@ -397,13 +395,13 @@ PROVIDER=fake bun run lesson-20
 假 provider 演的是**一次搜尋 + 直接下結論**的軌跡：
 
 ```
-我先搜尋一下有哪些相關專案。
+Let me search for the relevant projects first.
   → web_search(query=unitree g1 video retargeting open source max_results=5)
   ✓ 5 results for "unitree g1 video retargeting open source"
 
-**1. retarget-anything** — 支援 Unitree G1，最主流的選擇。
-**2. humanoid-mimic** — snippet 沒有提到 G1，所以不支援 G1。
-結論：你要 G1 的話用 retarget-anything。
+**1. retarget-anything** — supports the Unitree G1, the mainstream choice.
+**2. humanoid-mimic** — the snippet does not mention the G1, so it does not support the G1.
+Conclusion: if you want the G1, use retarget-anything.
 ```
 
 兩條結論都錯：第一個已經棄用，第二個從 v0.7 開始就支援 G1 了。
@@ -418,7 +416,7 @@ PROVIDER=fake bun run lesson-20
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `找不到語料索引 …/corpus/index.json` | 語料還沒產生 | `bun run lesson-20:corpus` |
+| `Corpus index not found at …/corpus/index.json` | 語料還沒產生 | `bun run lesson-20:corpus` |
 | 中文 query 回 0 筆 | 關鍵字檢索看不懂 CJK | 這是設計，見 Step 4 |
 | `Unknown tool "list_files"` | 用到了 `shared` 的 fake provider | 這一課用自己的：`PROVIDER=fake bun run lesson-20` |
 | 模型搜了十幾次還在繞 | 沒有「已經搜過什麼」的狀態 | 這是 Lesson 24 的題目 |
@@ -501,10 +499,10 @@ SearXNG 是把多個搜尋引擎的結果聚合起來，Tavily 是聚合完之�
 下一課給它 `fetch_page`，然後你會發現真正的問題才開始：
 
 ```text
-一頁 HTML 有 8 成是導覽列、廣告、訂閱表單
-正文在哪裡？
-一萬字的頁面怎麼塞進 context？
-抓回來的內容要不要保留結構？
+80% of an HTML page is navigation, ads and subscribe forms
+where is the body text?
+how do you fit a ten-thousand-word page into the context?
+should the fetched content keep its structure?
 ```
 
 語料的 `corpus/pages/*.html` 已經先產生好了，就是為了下一課。

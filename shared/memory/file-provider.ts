@@ -55,7 +55,7 @@ export class FileMemoryProvider implements MemoryProvider {
 	}
 
 	isAvailable(): boolean {
-		return true; // 檔案式記憶不需要任何憑證
+		return true; // file-backed memory needs no credentials
 	}
 
 	async initialize(): Promise<void> {
@@ -73,7 +73,7 @@ export class FileMemoryProvider implements MemoryProvider {
 	 */
 	systemPromptBlock(): string {
 		if (!this.userProfile.trim()) return "";
-		return `## 關於使用者\n\n${this.userProfile.trim()}`;
+		return `## About the user\n\n${this.userProfile.trim()}`;
 	}
 
 	/**
@@ -143,7 +143,7 @@ export class FileMemoryProvider implements MemoryProvider {
 		if (name !== "remember") throw new Error(`Unknown memory tool: ${name}`);
 
 		const fact = String(args.fact ?? "").trim();
-		if (!fact) throw new Error("fact 不能是空的");
+		if (!fact) throw new Error("fact must not be empty");
 
 			// Sanitise before writing too. If memory content contains fence tags, a later recall
 			// gets a chance to forge a system message, so it is blocked at the entrance.
@@ -155,7 +155,7 @@ export class FileMemoryProvider implements MemoryProvider {
 		await mkdir(dirname(this.memoryPath), { recursive: true });
 		await appendFile(this.memoryPath, `- ${entry.timestamp} ${entry.text}\n`, "utf8");
 
-		return `記住了：${clean}`;
+		return `Remembered: ${clean}`;
 	}
 
 		/** For demonstrations: set the user profile directly. */

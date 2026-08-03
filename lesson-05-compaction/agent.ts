@@ -76,7 +76,7 @@ function handleInterrupt(): void {
 		currentRun.abort();
 		return;
 	}
-	console.log(dim("\n再見。"));
+	console.log(dim("\nGoodbye."));
 	process.exit(0);
 }
 
@@ -104,7 +104,7 @@ async function runTurn(
 		// Checking too late means that oversized request was already sent (and paid for).
 		if (shouldCompact(messages, COMPACTION)) {
 			const before = estimateTokens(messages);
-			console.log(dim(`\n  [壓縮中… 目前約 ${before} tokens]`));
+			console.log(dim(`\n  [compacting… about ${before} tokens right now]`));
 
 			try {
 				const result = await compact(provider, messages, COMPACTION, signal);
@@ -121,7 +121,7 @@ async function runTurn(
 				});
 				if (result.compactedCount === 0) {
 						// The summary is longer than the original, so compaction is not worth it; leave things as they are.
-					console.log(dim("  [摘要不比原文短，這次跳過壓縮]\n"));
+					console.log(dim("  [the summary is no shorter than the original; skipping compaction]\n"));
 				} else {
 					await session.append(result.messages[0] as Message);
 					messages = result.messages;
@@ -129,15 +129,15 @@ async function runTurn(
 					const saved = Math.round((1 - result.tokensAfter / result.tokensBefore) * 100);
 					console.log(
 						dim(
-							`  [已壓縮 ${result.compactedCount} 則訊息：` +
-								`${result.tokensBefore} → ${result.tokensAfter} tokens，省下 ${saved}%]\n`,
+							`  [compacted ${result.compactedCount} messages: ` +
+								`${result.tokensBefore} → ${result.tokensAfter} tokens, ${saved}% saved]\n`,
 						),
 					);
 				}
 			} catch (error) {
 					// A failed compaction must not take down the turn; the original messages still work,
 					// and this turn is merely more expensive.
-				console.log(dim(`  [壓縮失敗，繼續使用完整歷史：${(error as Error).message}]`));
+				console.log(dim(`  [compaction failed; carrying on with the full history: ${(error as Error).message}]`));
 			}
 		}
 
@@ -174,7 +174,7 @@ async function runTurn(
 
 		if (streamError) {
 			if (streamError.aborted) {
-				console.log(yellow("\n\n[已中斷]"));
+				console.log(yellow("\n\n[interrupted]"));
 				if (partialText.trim()) {
 						// Messages produced by an interruption must be persisted too, or after a restart the history disagrees with the screen
 					await session.append({
@@ -184,17 +184,17 @@ async function runTurn(
 					});
 					await session.append({
 						role: "user",
-						text: "[你上一則回覆被我中斷了。等我的下一個指示，不要自己接續。]",
+						text: "[I interrupted your last reply. Wait for my next instruction; do not resume on your own.]",
 					});
 				}
 				return;
 			}
-			console.log(red(`\n[串流失敗] ${streamError.message}`));
+			console.log(red(`\n[stream failed] ${streamError.message}`));
 			return;
 		}
 
 		if (!response) {
-			console.log(red("\n[串流沒有正常結束]"));
+			console.log(red("\n[the stream did not end cleanly]"));
 			return;
 		}
 
@@ -205,11 +205,11 @@ async function runTurn(
 		});
 
 		if (response.stopReason === "refusal") {
-			console.log(red("\n[模型拒絕了這個請求]"));
+			console.log(red("\n[the model refused this request]"));
 			return;
 		}
 		if (response.stopReason === "max_tokens") {
-			console.log(red(`\n[輸出撞到 ${MAX_TOKENS} token 上限]`));
+			console.log(red(`\n[output hit the ${MAX_TOKENS} token cap]`));
 			return;
 		}
 
@@ -244,16 +244,16 @@ async function runTurn(
 		await session.append({ role: "toolResult", results });
 
 		if (abortedDuringTools || signal.aborted) {
-			console.log(yellow("\n[已中斷]"));
+			console.log(yellow("\n[interrupted]"));
 			await session.append({
 				role: "user",
-				text: "[我中斷了你的工具執行。等我的下一個指示。]",
+				text: "[I interrupted your tool execution. Wait for my next instruction.]",
 			});
 			return;
 		}
 	}
 
-	console.log(red(`\n[已達 ${MAX_STEPS} 步上限。輸入「繼續」讓它接著做。]`));
+	console.log(red(`\n[hit the ${MAX_STEPS}-step cap. Type "continue" to let it carry on.]`));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 		case "/history": {
 			const records = session.branch();
 			if (records.length === 0) {
-				console.log(dim("  (這條分支還沒有內容)"));
+				console.log(dim("  (this branch has nothing on it yet)"));
 				return true;
 			}
 			for (const record of records) {
@@ -293,13 +293,13 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 		case "/rewind": {
 			const target = rest[0];
 			if (!target) {
-				console.log(dim("  用法：/rewind <entry-id>   （用 /history 看 id）"));
+				console.log(dim("  usage: /rewind <entry-id>   (use /history to see ids)"));
 				return true;
 			}
 			try {
 				session.rewindTo(target);
 				console.log(
-					dim(`  已退回 ${target}。接下來的訊息會長出一條新分支，舊的分支還在檔案裡。`),
+					dim(`  rewound to ${target}. New messages grow a new branch; the old one stays in the file.`),
 				);
 			} catch (error) {
 				console.log(red(`  ${(error as Error).message}`));
@@ -311,13 +311,13 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 				// Print every record in the file, including abandoned branches.
 			const all = session.all();
 			const onBranch = new Set(session.branch().map((r) => r.id));
-			console.log(dim(`  檔案裡共 ${all.length} 筆記錄，目前分支上有 ${onBranch.size} 筆`));
+			console.log(dim(`  ${all.length} entries in the file, ${onBranch.size} of them on the current branch`));
 			for (const record of all) {
 				const marker = onBranch.has(record.id) ? green("●") : dim("○");
 				const role = "type" in record ? `[meta] ${record.kind}` : record.message.role;
 				console.log(`  ${marker} ${cyan(record.id)} ← ${dim(record.parentId ?? "root")}  ${role}`);
 			}
-			console.log(dim(`  ● = 目前分支   ○ = 已放棄的分支（還在檔案裡，沒有刪除）`));
+			console.log(dim(`  ● = current branch   ○ = abandoned branch (still in the file, not deleted)`));
 			return true;
 		}
 
@@ -325,17 +325,17 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 			const messages = session.messages();
 			const tokens = estimateTokens(messages);
 			const pct = Math.round((tokens / COMPACTION.triggerTokens) * 100);
-			console.log(dim(`  ${messages.length} 則訊息，約 ${tokens} tokens`));
-			console.log(dim(`  壓縮門檻 ${COMPACTION.triggerTokens}（目前 ${pct}%）`));
+			console.log(dim(`  ${messages.length} messages, about ${tokens} tokens`));
+			console.log(dim(`  compaction threshold ${COMPACTION.triggerTokens} (currently ${pct}%)`));
 			if (tokens > COMPACTION.triggerTokens) {
-				console.log(dim("  → 下一輪會先壓縮"));
+				console.log(dim("  → the next turn will compact first"));
 			}
 			return true;
 		}
 
 		case "/file":
 			console.log(dim(`  ${session.file}`));
-			console.log(dim(`  ${session.size} 筆記錄`));
+			console.log(dim(`  ${session.size} entries`));
 			return true;
 
 		default:
@@ -348,14 +348,14 @@ async function handleCommand(input: string, session: Session): Promise<boolean> 
 function createApprover(reader: LineReader) {
 	return async (request: ApprovalRequest): Promise<boolean> => {
 		if (AUTO_APPROVE || alwaysAllow.has(request.toolName)) return true;
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
 		console.log(yellow("└"));
 		const line = await reader.next(
-			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 都允許  ${yellow("[n]")} 拒絕 › `,
+			`  ${yellow("[y]")} allow  ${yellow("[a]")} always  ${yellow("[n]")} deny › `,
 		);
 		if (line === null) {
-			console.log(dim("  (沒有輸入可讀，視為拒絕)"));
+			console.log(dim("  (no input to read; treated as a denial)"));
 			return false;
 		}
 		const answer = line.trim().toLowerCase();
@@ -404,11 +404,11 @@ async function main(): Promise<void> {
 	if (wantResume) {
 		const latest = await findLatestSession();
 		if (!latest) {
-			console.log(dim("找不到可以續跑的 session，開一個新的。"));
+			console.log(dim("No session to resume; starting a new one."));
 			session = await Session.create(newSessionPath());
 		} else {
 			session = await Session.load(latest);
-			console.log(dim(`續跑 ${latest}（${session.size} 筆記錄）`));
+			console.log(dim(`resuming ${latest} (${session.size} entries)`));
 		}
 	} else {
 		session = await Session.create(newSessionPath());
@@ -426,13 +426,13 @@ async function main(): Promise<void> {
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
 	console.log(dim(`session:  ${session.file}`));
-	console.log(dim(`壓縮門檻：${COMPACTION.triggerTokens} tokens（COMPACT_AT 可調）`));
-	console.log(dim("指令：/history  /tree  /tokens  /rewind <id>  /file  /exit\n"));
+	console.log(dim(`compaction threshold: ${COMPACTION.triggerTokens} tokens (tune with COMPACT_AT)`));
+	console.log(dim("commands: /history  /tree  /tokens  /rewind <id>  /file  /exit\n"));
 
 	try {
 		while (true) {
 			const line = await reader.next("\x1b[36m> \x1b[0m");
-			if (line === null) break; // stdin 結束
+			if (line === null) break; // stdin ended
 			const input = line.trim();
 			if (!input) continue;
 			if (input === "/exit") break;
@@ -443,7 +443,7 @@ async function main(): Promise<void> {
 					console.log();
 					continue;
 				}
-				console.log(dim(`  未知的指令：${input}`));
+				console.log(dim(`  unknown command: ${input}`));
 				console.log();
 				continue;
 			}

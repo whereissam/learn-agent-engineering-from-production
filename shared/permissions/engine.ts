@@ -159,7 +159,7 @@ export class PermissionEngine {
 		if (READ_ONLY_MODES.has(this.mode) && consequential) {
 			return {
 				allowed: false,
-				reason: `${this.mode} 模式是唯讀的`,
+				reason: `${this.mode} mode is read-only`,
 				needsUser: false, // Not "go ask"; a flat refusal.
 			};
 		}
@@ -175,7 +175,7 @@ export class PermissionEngine {
 			if (typeof path === "string" && !this.underWritableRoot(path)) {
 				return {
 					allowed: false,
-					reason: `路徑不在可寫入的目錄內：${path}`,
+					reason: `Path is outside the writable directory: ${path}`,
 					needsUser: false, // A hard boundary: asking must not unlock it.
 				};
 			}
@@ -183,23 +183,23 @@ export class PermissionEngine {
 
 		// ── 3. Pure reads ──────────────────────────────────
 		if (!consequential) {
-			return { allowed: true, reason: "低風險", needsUser: false };
+			return { allowed: true, reason: "low risk", needsUser: false };
 		}
 
 		// ── 4. AUTO mode ───────────────────────────────────
 		// Reaching here means the path check already passed.
 		if (this.mode === Mode.AUTO) {
-			return { allowed: true, reason: "完全存取", needsUser: false };
+			return { allowed: true, reason: "full access", needsUser: false };
 		}
 
 		// ── 5. Command allowlist ───────────────────────────
 		if (risk === RiskClass.EXEC) {
 			const command = String(args.command ?? "");
 			if (this.commandAllowed(command)) {
-				return { allowed: true, reason: "指令在允許清單上", needsUser: false };
+				return { allowed: true, reason: "command is on the allowlist", needsUser: false };
 			}
 			if (command && this.sessionAllowCommands.has(command)) {
-				return { allowed: true, reason: "這一輪已允許此指令", needsUser: false };
+				return { allowed: true, reason: "command already allowed this session", needsUser: false };
 			}
 		}
 
@@ -211,7 +211,7 @@ export class PermissionEngine {
 		// "Allow send_slack_message" means allow messages to any channel.
 		// The user pressing "always" meant that channel, not the whole company.
 		if (this.sessionAllowTools.has(toolName) && !isConnector) {
-			return { allowed: true, reason: "這一輪已允許此工具", needsUser: false };
+			return { allowed: true, reason: "tool already allowed this session", needsUser: false };
 		}
 
 		// ── 7. Target-bound standing rules ─────────────────
@@ -223,13 +223,13 @@ export class PermissionEngine {
 			const target = standingRuleTarget(toolName, args, metadata, this.riskOverrides);
 			if (target && targets.has(target)) {
 				const rule = `${toolName} → ${target}`;
-				return { allowed: true, reason: `符合持久規則：${rule}`, needsUser: false, rule };
+				return { allowed: true, reason: `matches a saved rule: ${rule}`, needsUser: false, rule };
 			}
 		}
 
 		// ── 8. CUSTOM mode config ──────────────────────────
 		if (this.mode === Mode.CUSTOM && this.autoAllowTools.has(toolName)) {
-			return { allowed: true, reason: "設定檔自動允許", needsUser: false };
+			return { allowed: true, reason: "auto-allowed by config", needsUser: false };
 		}
 
 		// ── 9. Nothing matched → ask ───────────────────────
@@ -252,14 +252,14 @@ export class PermissionEngine {
 			// Prefix fooled the allowlist but metacharacters are present. Worth
 			// spelling out: the model may be trying to slip past the list (Lesson 8 Step 4).
 			if (hasShellOperators(command) && this.prefixAllowed(command)) {
-				return "指令開頭雖然在允許清單上，但含有 shell 元字元，等於可以跑第二個指令";
+				return "The command starts with an allowlisted binary but contains shell metacharacters, which means it can run a second command";
 			}
-			return `指令不在允許清單上：${this.allowedCommands.join(" / ") || "（清單是空的）"}`;
+			return `Command is not on the allowlist: ${this.allowedCommands.join(" / ") || "(the list is empty)"}`;
 		}
 		if (risk === RiskClass.EXTERNAL) {
-			return "這個操作的副作用會跑到這台機器外面，收不回來";
+			return "This operation has side effects that leave the machine and cannot be taken back";
 		}
-		return `風險等級 ${risk}，${this.mode} 模式下需要使用者批准`;
+		return `Risk level ${risk}; ${this.mode} mode requires user approval`;
 	}
 
 	// ── session / task memory ────────────────────────────

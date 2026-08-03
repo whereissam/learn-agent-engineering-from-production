@@ -67,52 +67,52 @@ function scripted(beats: { say: string; tool?: { name: string; args: Record<stri
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioIsolation(): Promise<void> {
-	console.log(`\n${bold("── isolation · 子 agent 看得到什麼")}`);
+	console.log(`\n${bold("── isolation · what a subagent can see")}`);
 
 	// The parent's conversation contains something only it knows.
 	const parentHistory = [
-		"使用者：我們的 staging 環境從上週開始就一直噴 E-118。",
-		"使用者：喔對了，**staging 的資料是假的，不要拿去做結論**。",
-		"助理：了解，我看一下 logs/。",
+		"user: our staging environment has been throwing E-118 since last week.",
+		"user: oh, and **the staging data is fake, do not draw conclusions from it**.",
+		"assistant: understood, let me look at logs/.",
 	];
 
-	console.log(dim("  父 agent 的對話："));
+	console.log(dim("  the parent agent's conversation:"));
 	for (const line of parentHistory) console.log(dim(`    │ ${line}`));
 
 	const seen: string[] = [];
 	const provider = scripted([
-		{ say: "我看一下。", tool: { name: "read_file", args: { path: "logs/inventory.log" } } },
-		{ say: "inventory 最常見的是 E-118，共 11 次。" },
+		{ say: "Let me look.", tool: { name: "read_file", args: { path: "logs/inventory.log" } } },
+		{ say: "The most common one in inventory is E-118, 11 times." },
 	]);
 
 	const child = await runChild(
-		{ goal: "統計 logs/inventory.log 裡最常出現的錯誤碼", context: "檔案在 workspace 底下。" },
+		{ goal: "count the most frequent error code in logs/inventory.log", context: "The file is under the workspace." },
 		{
 			provider,
 			tools: TOOLS,
 			execute: async (name, args) => {
 				seen.push(`${name}(${JSON.stringify(args)})`);
-				return "2026-07-11T03:00:00Z ERROR E-118 …（11 筆）";
+				return "2026-07-11T03:00:00Z ERROR E-118 … (11 entries)";
 			},
 		},
 	);
 
-	console.log(`\n  ${bold("子 agent 的整個 context：")}`);
+	console.log(`\n  ${bold("the subagent's entire context:")}`);
 	console.log(cyan(`    │ ${child.goal}`));
-	console.log(cyan("    │ Context: 檔案在 workspace 底下。"));
+	console.log(cyan("    │ Context: The file is under the workspace."));
 
 	const leaked = parentHistory.some((line) => child.goal.includes(line));
 	console.log(
-		`\n  「staging 的資料是假的」有沒有跨過去：${leaked ? red("有") : green("沒有")}`,
+		`\n  did "the staging data is fake" cross over: ${leaked ? red("yes") : green("no")}`,
 	);
-	console.log(dim(`  子 agent 的摘要：${child.summary}`));
+	console.log(dim(`  the subagent's summary: ${child.summary}`));
 
 	console.log(
 		yellow(
-			"\n  ⚠ 這既是功能也是 bug，取決於那句話重不重要。\n" +
-				"    父 agent 的 context 不會被子 agent 的十次工具呼叫塞爆（功能），\n" +
-				"    但子 agent 也不知道那份資料是假的（bug）。\n" +
-				"    **決定哪些東西要放進 context 參數的是父 agent，而它常常會忘。**",
+			"\n  ⚠ This is both a feature and a bug, depending on how important that sentence was.\n" +
+				"    The parent's context is not flooded by the subagent's ten tool calls (the feature),\n" +
+				"    but the subagent also does not know the data is fake (the bug).\n" +
+				"    **The parent decides what goes into the context parameter, and it forgets constantly.**",
 		),
 	);
 }
@@ -122,16 +122,16 @@ async function scenarioIsolation(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioBlocklist(): Promise<void> {
-	console.log(`\n${bold("── blocklist · 子 agent 不准做的五件事")}`);
+	console.log(`\n${bold("── blocklist · the five things a subagent may not do")}`);
 	console.log(dim(`  BLOCK=${BLOCK_ON ? "on" : "off"}`));
 
-	console.log(dim("\n  五個被擋的工具，五個不同的理由："));
+	console.log(dim("\n  five blocked tools, five different reasons:"));
 	for (const [tool, reason] of [
-		["delegate_task", "資源：會指數展開"],
-		["clarify", "通道：子 agent 那一側沒有使用者"],
-		["memory", "共用狀態：誰都能寫的話，隔離是假的"],
-		["send_message", "外部副作用：收不回來，而且父 agent 不知情"],
-		["cronjob", "身分：用父 agent 的名義排未來的工作"],
+		["delegate_task", "resources: it expands exponentially"],
+		["clarify", "channel: there is no user on the subagent's side"],
+		["memory", "shared state: if anyone can write, the isolation is fake"],
+		["send_message", "external side effects: irreversible, and the parent never knows"],
+		["cronjob", "identity: it schedules future work in the parent's name"],
 	]) {
 		console.log(`    ${dim(String(tool).padEnd(15))}${dim(String(reason))}`);
 	}
@@ -139,7 +139,7 @@ async function scenarioBlocklist(): Promise<void> {
 		// The subagent's tool list simply does not contain them.
 	const available = BLOCK_ON ? TOOLS.filter((t) => !BLOCKED_FOR_CHILDREN.has(t.name)) : TOOLS;
 	console.log(
-		`\n  子 agent 拿到的工具：${available.map((t) => t.name).join(", ")}`,
+		`\n  the tools a subagent actually gets: ${available.map((t) => t.name).join(", ")}`,
 	);
 
 		// ── recursion ───────────────────────────────────────────
@@ -150,11 +150,11 @@ async function scenarioBlocklist(): Promise<void> {
 		if (depth > DEPTH_CAP) return;
 		spawned++;
 		const provider = scripted([
-			{ say: "這件事太大了，我再拆成兩個子任務。", tool: { name: "delegate_task", args: { goal: `子任務 d${depth}` } } },
-			{ say: "做完了。" },
+			{ say: "This is too big; I will split it into two more subtasks.", tool: { name: "delegate_task", args: { goal: `subtask d${depth}` } } },
+			{ say: "Done." },
 		]);
 		const child = await runChild(
-			{ goal: `深度 ${depth} 的任務` },
+			{ goal: `a task at depth ${depth}` },
 			{
 				provider,
 				tools: TOOLS,
@@ -171,22 +171,22 @@ async function scenarioBlocklist(): Promise<void> {
 			},
 		);
 		if (child.blockedAttempts.length > 0 && depth === 1) {
-			console.log(dim(`  子 agent 想叫 ${child.blockedAttempts.join(", ")}，被擋下來了`));
+			console.log(dim(`  the subagent tried to call ${child.blockedAttempts.join(", ")} and was blocked`));
 		}
 	}
 
 	await spawn(1);
 
 	console.log(
-		`\n  總共產生了 ${BLOCK_ON ? green(String(spawned)) : red(String(spawned))} 個子 agent` +
-			dim(`（深度上限 ${DEPTH_CAP}、每層 2 個）`),
+		`\n  ${BLOCK_ON ? green(String(spawned)) : red(String(spawned))} subagents were spawned in total` +
+			dim(` (depth cap ${DEPTH_CAP}, 2 per level)`),
 	);
 	if (!BLOCK_ON) {
 		console.log(
-			red("  ⚠ 每一個都在燒 token，而且父 agent 只看得到最上面那一層的摘要。"),
+			red("  ⚠ Every one of them burns tokens, and the parent only ever sees the top level's summary."),
 		);
 		console.log(
-			dim("    真實情況沒有深度上限，是 API quota 或錢包當上限。"),
+			dim("    In reality there is no depth cap; the API quota or your wallet is the cap."),
 		);
 	}
 }
@@ -196,17 +196,17 @@ async function scenarioBlocklist(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioApproval(): Promise<void> {
-	console.log(`\n${bold("── approval · 子 agent 那一側沒有人")}`);
+	console.log(`\n${bold("── approval · there is nobody on the subagent's side")}`);
 	console.log(dim(`  APPROVE=${APPROVAL}`));
 
 	const written: string[] = [];
 	const provider = scripted([
-		{ say: "我把結論寫進報告。", tool: { name: "write_file", args: { path: "report.md" } } },
-		{ say: "完成。" },
+		{ say: "I will write the conclusion into the report.", tool: { name: "write_file", args: { path: "report.md" } } },
+		{ say: "Finished." },
 	]);
 
 	const child = await runChild(
-		{ goal: "統計錯誤碼，把結果寫成 report.md" },
+		{ goal: "count the error codes and write the result to report.md" },
 		{
 			provider,
 			tools: TOOLS,
@@ -218,21 +218,21 @@ async function scenarioApproval(): Promise<void> {
 		},
 	);
 
-	console.log(`  實際寫出去的檔案：${written.length === 0 ? green("（沒有）") : red(written.join(", "))}`);
-	console.log(dim(`  子 agent 說：${child.summary}`));
+	console.log(`  files actually written: ${written.length === 0 ? green("(none)") : red(written.join(", "))}`);
+	console.log(dim(`  the subagent said: ${child.summary}`));
 
 	if (APPROVAL === "deny") {
 		console.log(
-			green("\n  ✓ 預設拒絕。") +
-				dim("Hermes 的理由有兩層（delegate_tool.py:60-76）：\n" +
-					"    安全　子 agent 的動作沒有人看得到，不該有副作用\n" +
-					"    活性　worker thread 拿不到互動式 callback，掉回 input() 會跟父進程的 TUI 搶 stdin **死鎖**"),
+			green("\n  ✓ denied by default. ") +
+				dim("Hermes gives two reasons (delegate_tool.py:60-76):\n" +
+					"    safety    nobody watches a subagent's actions, so it should have no side effects\n" +
+					"    liveness  a worker thread has no interactive callback; falling back to input() fights the parent's TUI for stdin and **deadlocks**"),
 		);
 	} else {
 		console.log(
-			red("\n  ⚠ 自動批准：檔案真的被寫出去了，而且從頭到尾沒有人看到那個要求。"),
+			red("\n  ⚠ auto-approved: the file really was written, and nobody ever saw the request."),
 		);
-		console.log(dim("    Hermes 有這個開關（`delegation.subagent_auto_approve`），預設 false，註解寫 opt-in YOLO。"));
+		console.log(dim("    Hermes has this switch (`delegation.subagent_auto_approve`), default false, commented as opt-in YOLO."));
 	}
 }
 
@@ -241,9 +241,9 @@ async function scenarioApproval(): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 async function scenarioLocate(): Promise<void> {
-	console.log(`\n${bold("── locate · 出錯的時候看得出是哪一步嗎")}`);
+	console.log(`\n${bold("── locate · when something breaks, can you tell which step it was")}`);
 
-	const goals = ["統計 checkout 的錯誤碼", "統計 inventory 的錯誤碼", "統計 notify 的錯誤碼"];
+	const goals = ["count checkout's error codes", "count inventory's error codes", "count notify's error codes"];
 	const results: { goal: string; toolFailed: boolean; summary: string }[] = [];
 
 	for (const [index, goal] of goals.entries()) {
@@ -251,8 +251,8 @@ async function scenarioLocate(): Promise<void> {
 			// which is exactly what a model really does (the family of Lesson 8's "false completion report").
 		const broken = index === 1;
 		const provider = scripted([
-			{ say: "讀檔。", tool: { name: "read_file", args: { path: `logs/${index}.log` } } },
-			{ say: broken ? "最常見的是 E-118。" : `最常見的是 E-${400 + index}。` },
+			{ say: "Reading the file.", tool: { name: "read_file", args: { path: `logs/${index}.log` } } },
+			{ say: broken ? "The most common one is E-118." : `The most common one is E-${400 + index}.` },
 		]);
 
 			// The truth is recorded by the demo rather than asked of the subagent — asking it means trusting it.
@@ -274,25 +274,25 @@ async function scenarioLocate(): Promise<void> {
 		results.push({ goal, toolFailed, summary: child.summary });
 	}
 
-	console.log(dim("\n  真相（demo 自己記的）　　　　父 agent 收到的 tool result："));
+	console.log(dim("\n  the truth (recorded by the demo)      the tool result the parent received:"));
 	for (const row of results) {
 		console.log(
-			`    ${row.goal.padEnd(24)} ${row.toolFailed ? red("工具失敗") : green("工具成功")}　${dim(row.summary)}`,
+			`    ${row.goal.padEnd(30)} ${row.toolFailed ? red("tool failed") : green("tool ok    ")}  ${dim(row.summary)}`,
 		);
 	}
 
 	console.log(
 		yellow(
-			"\n  ⚠ 這裡有一個委派特有的失敗：**子 agent 把失敗吞掉了。**\n" +
-				"    檔案讀不到 → 工具回一個 isError 的字串 → 但那是**子 agent 的** context，\n" +
-				"    它可以選擇在摘要裡不提，然後父 agent 收到一段看起來正常的摘要。",
+			"\n  ⚠ Here is a failure specific to delegation: **the subagent swallowed it.**\n" +
+				"    The file could not be read → the tool returned an isError string → but that is the **subagent's** context,\n" +
+				"    and it can choose not to mention it, leaving the parent with a summary that looks fine.",
 		),
 	);
 	console.log(
 		dim(
-			"\n  委派讓「哪一步壞了」變得好定位（每個子任務有名字），\n" +
-				"  同時讓「有沒有壞」變得難偵測（中間隔了一層自然語言摘要）。\n" +
-				"  → 這正是 Lesson 29 的結論在委派上的版本：**摘要不是證據。**",
+			'\n  Delegation makes "which step broke" easy to locate (every subtask has a name),\n' +
+				'  and "did anything break" hard to detect (a natural-language summary sits in between).\n' +
+				"  → This is Lesson 29's conclusion in delegation form: **a summary is not evidence.**",
 		),
 	);
 }
@@ -312,14 +312,14 @@ async function main(): Promise<void> {
 	for (const name of names) {
 		const scenario = SCENARIOS[name];
 		if (!scenario) {
-			console.error(`不認得的情境：${name}。可用：${Object.keys(SCENARIOS).join(", ")}`);
+			console.error(`Unknown scenario: ${name}. Available: ${Object.keys(SCENARIOS).join(", ")}`);
 			process.exitCode = 1;
 			return;
 		}
 		await scenario();
 	}
 	console.log(
-		dim("\n（真模型的成本比較在 `MODE=delegate PROVIDER=gemini bun run lesson-19:agent`）"),
+		dim("\n(The real-model cost comparison lives in `MODE=delegate PROVIDER=gemini bun run lesson-19:agent`)"),
 	);
 }
 

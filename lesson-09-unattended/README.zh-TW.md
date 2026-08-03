@@ -28,17 +28,17 @@ bun run lesson-09:demo
 ```
 
 ```
-情境 1：無人值守，agent 停下來等
+Scenario 1: nobody is there, so the agent stops and waits
 
-  [agent] agent 想要寄信給 team@example.com…
-  ⏸  agent 暫停中。inbox 有 1 個待處理項目：
-     itm_0001  執行 send_email？
-     to: team@example.com · subject: 每日摘要
+  [agent] the agent wants to email team@example.com…
+  ⏸  the agent is paused. The inbox holds 1 pending item(s):
+     itm_0001  Run send_email?
+     to: team@example.com · subject: Daily summary
 
-  …八小時過去了…
+  …eight hours pass…
 
-  [你的手機] 看到通知，按了「允許」
-  [agent] ✓ 信寄出去了（等了 352ms，結果 once）
+  [your phone] saw the notification and tapped "allow"
+  [agent] ✓ the message went out (waited 352ms, outcome once)
 ```
 
 agent 真的停住了，然後從另一個介面被喚醒。
@@ -54,29 +54,29 @@ agent 真的停住了，然後從另一個介面被喚醒。
 所以還有第二支：
 
 ```bash
-bun run lesson-09              # 批准
-RESOLVE=deny bun run lesson-09 # 拒絕
-RESOLVE=none bun run lesson-09 # 沒人回答，看它真的一直等
+bun run lesson-09              # approve
+RESOLVE=deny bun run lesson-09 # deny
+RESOLVE=none bun run lesson-09 # nobody answers; watch it really wait
 ```
 
 ```
-你 幫我寄一封每日摘要給 team@example.com。
+you Send a daily summary to team@example.com for me.
 
-好，我來寄這封每日摘要。
+Right, I will send that daily summary.
 
-⏸  agent 暫停 — send_email 需要批准，但沒人在場
-   這個操作的副作用會跑到這台機器外面，收不回來
+⏸  agent paused: send_email needs approval and nobody is here
+   This operation has side effects that leave the machine and cannot be taken back
 
-   [你的手機] 看到通知「執行 send_email？」，按了「allow」
-   等了 1367ms 之後，從另一個介面收到：once
-  ✓ Email sent to team@example.com (subject: 每日摘要).
+   [your phone] saw the notification "Run send_email?" and tapped "allow"
+   after waiting 1367ms, an answer arrived from another surface: once
+  ✓ Email sent to team@example.com (subject: Daily summary).
 
-已經寄出去了，收件人 team@example.com。
+Sent, to team@example.com.
 
-──── 實際發生的事（不看模型怎麼說）────
-  outbox/ 裡有 1 封信：cc0ebb1d.json
-  inbox 還有 0 個待處理，1 個已處理
-    ✓ 執行 send_email？ → allow
+──── what actually happened (ignoring what the model said) ────
+  outbox/ holds 1 message(s): cc0ebb1d.json
+  inbox has 0 still pending and 1 resolved
+    ✓ Run send_email? → allow
 ```
 
 最後那一段是刻意的。`send_email` 會真的寫一個檔案到 `outbox/`，
@@ -118,19 +118,19 @@ export type Approver = (request: ApprovalRequest) => Promise<ApprovalOutcome>;
 兩個實作，完全相同的簽名：
 
 ```ts
-// 有人在場：問終端機
+// somebody is here: ask the terminal
 export function inlineApprover(reader: LineReader): Approver {
   return async (request) => {
-    const line = await reader.next("[y] 允許 [a] 都允許 [n] 拒絕 › ");
+    const line = await reader.next("[y] allow [a] always [n] deny › ");
     ...
   };
 }
 
-// 沒人在場：丟進 inbox，然後暫停
+// nobody is here: drop it in the inbox, then pause
 export function inboxApprover(store: InboxStore, sessionId: string): Approver {
   return async (request) => {
     const item = await store.add({ ... });
-    const resolution = await store.wait(item.id);   // ← agent 停在這裡
+    const resolution = await store.wait(item.id);   // ← the agent stops right here
     ...
   };
 }
@@ -184,12 +184,12 @@ App 的通知、手機推播、Slack 訊息、你回來之後的對話框。
 你可能在手機按了允許，忘記了，再從 App 按一次：
 
 ```
-[手機] resolve("itm_0001", "allow")
-       → 成功
-[agent] ✓ 信寄出去了
+[phone] resolve("itm_0001", "allow")
+       → succeeded
+[agent] ✓ the message went out
 
-[App ] 同一個項目再回答一次，這次想改成拒絕
-       → no-op（已經被回答過了）
+[app  ] the same item answered again, this time trying to deny
+       → no-op (already answered)
 ```
 
 第二次安靜地變成 no-op：不會把 agent 叫醒兩次，也不會把已經
@@ -200,7 +200,7 @@ App 的通知、手機推播、Slack 訊息、你回來之後的對話框。
 ```ts
 async resolve(itemId: string, resolution: string): Promise<boolean> {
   const item = this.items.get(itemId);
-  if (!item || item.state === "resolved") return false;   // ← 冪等的關鍵
+  if (!item || item.state === "resolved") return false;   // ← the key to idempotence
   item.state = "resolved";
   ...
 }
@@ -232,11 +232,11 @@ async resolveSession(sessionId: string, resolution = "session deleted"): Promise
 實測：
 
 ```
-情境 3：session 被刪掉了
-  ⏸  agent 暫停中，等待批准
-  [使用者] 刪掉了這個 session
-  [agent] ✗ 被拒絕，不寄了（等了 51ms）
-  收掉了 1 個孤兒項目
+Scenario 3: the session was deleted
+  ⏸  the agent is paused, waiting for approval
+  [user] deleted this session
+  [agent] ✗ declined, nothing sent (waited 51ms)
+  closed 1 orphaned item(s)
 ```
 
 注意 agent 收到的是「拒絕」而不是崩潰。釋放等待者的時候要給它一個
@@ -251,19 +251,19 @@ async resolveSession(sessionId: string, resolution = "session deleted"): Promise
 ```ts
 reconcileOnResume(sessionId: string) {
   return {
-    pending: this.pending(sessionId),                        // 現在要處理
-    recap: this.list({ sessionId, state: "resolved" }),      // 睡覺時已處理
+    pending: this.pending(sessionId),                        // needs you now
+    recap: this.list({ sessionId, state: "resolved" }),      // resolved while you slept
   };
 }
 ```
 
 ```
-還需要你處理（1）：
-   ● 執行 create_calendar_event？  calendar_id: team
+still needs you (1):
+   ● Run create_calendar_event?  calendar_id: team
 
-睡覺時已經處理掉的（2）：
-   ✓ 執行 send_email？            → allow
-   ✗ 執行 run_command？           → deny
+resolved while you slept (2):
+   ✓ Run send_email?             → allow
+   ✗ Run run_command?            → deny
 ```
 
 recap 是信任的基礎。你不知道夜裡發生了什麼事的話，就不會敢
@@ -281,8 +281,8 @@ recap 是信任的基礎。你不知道夜裡發生了什麼事的話，就不�
 拆開來看：
 
 ```
-權限模式（Lesson 8）  = agent 能做多少        ← 不因為沒人在就改變
-無人值守（Lesson 9）  = 人在哪裡被找到        ← 只改這個
+permission mode (Lesson 8)  = how much the agent may do   ← unchanged by nobody being there
+unattended mode (Lesson 9)  = where the human is reached  ← this is the only change
 ```
 
 為什麼這個區分重要？
@@ -307,7 +307,7 @@ recap 是信任的基礎。你不知道夜裡發生了什麼事的話，就不�
 還有一個容易做錯的地方。直覺會寫成兩套：
 
 ```ts
-// ✗ 兩套程式碼
+// ✗ two copies of the code
 if (unattended) { saveToInbox(); waitForInbox(); }
 else            { showDialog();  waitForDialog(); }
 ```
@@ -345,23 +345,24 @@ Lesson 8 Step 7 的實測結論很難看：寫檔被拒絕之後，模型跟使�
 用真的 Gemini 3.6 Flash，`RESOLVE=deny`：
 
 ```bash
-{ printf '幫我寄一封每日摘要給 team@example.com，內容你自己寫。\n'; sleep 55; } \
+{ printf 'Send a daily summary to team@example.com for me; write it yourself.\n'; sleep 55; } \
   | RESOLVE=deny PROVIDER=gemini bun run lesson-09
 ```
 
 結果相反：
 
 ```
-✗ 沒有執行 使用者拒絕了。（這個操作的副作用會跑到這台機器外面，收不回來）
+✗ not executed The user declined. (This operation has side effects that leave the machine and cannot be taken back)
 
-已嘗試發送每日摘要郵件給 `team@example.com`，但執行寄件動作（send_email）
-時被權限引擎拒絕（原因：外部副作用操作未獲許可）。
+I attempted to send the daily summary email to `team@example.com`, but the send
+action (send_email) was refused by the permission engine (reason: an external
+side-effecting operation was not permitted).
 
-以下為已擬定的每日摘要信件內容供您參考與後續使用：
+Here is the daily summary I had drafted, for your reference and later use:
 …
 
-──── 實際發生的事（不看模型怎麼說）────
-  outbox/ 裡有 0 封信
+──── what actually happened (ignoring what the model said) ────
+  outbox/ holds 0 message(s)
 ```
 
 誠實，而且沒有加任何 `DENY_HINT`。同一個模型、同一套拒絕機制，
@@ -377,8 +378,9 @@ NO_HONESTY=1 RESOLVE=deny PROVIDER=gemini bun run lesson-09
 ```
 
 ```
-已嘗試發送每日摘要郵件，但因系統權限控制（發送 Email 屬於無法撤銷的外部操作）
-而拒絕發送。以下為為您撰寫的每日摘要郵件內容草稿：
+I attempted to send the daily summary email, but system permission control
+refused it (sending email counts as an irreversible external operation). Here is
+the draft I wrote for you:
 ```
 
 還是誠實的。假設被推翻了，那句話不是原因。
@@ -402,11 +404,11 @@ NO_HONESTY=1 RESOLVE=deny PROVIDER=gemini bun run lesson-09
 
 ### 不管原因是什麼，工程上的做法不變
 
-那一段 `──── 實際發生的事 ────` 才是答案：
+那一段 `──── what actually happened ────` 才是答案：
 
 ```ts
 const sent = existsSync(OUTBOX_DIR) ? readdirSync(OUTBOX_DIR) : [];
-console.log(`outbox/ 裡有 ${sent.length} 封信`);
+console.log(`outbox/ holds ${sent.length} message(s)`);
 ```
 
 不要靠模型自述，去看側效留下的痕跡。

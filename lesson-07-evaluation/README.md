@@ -23,7 +23,7 @@
 Without evaluation, tuning a prompt looks like this:
 
 ```
-改 prompt → 手動跑一次 → 「嗯感覺好像好一點」→ 上線
+edit the prompt → run it once by hand → "hmm, feels a bit better" → ship
 ```
 
 The problems:
@@ -36,10 +36,10 @@ The problems:
 With evaluation:
 
 ```
-改 prompt → bun run lesson-07-evaluation/eval.ts --compare baseline
-→ real-fall 0 → 12  ← 修好了
-→ clock-skew 11 → 14 ← 修好了
-→ 沒有退步
+edit the prompt → bun run lesson-07-evaluation/eval.ts --compare baseline
+→ real-fall 0 → 12  ← fixed
+→ clock-skew 11 → 14 ← fixed
+→ no regressions
 ```
 
 ---
@@ -53,16 +53,16 @@ bun run lesson-07-evaluation/eval.ts
 Real output, Gemini 3.6 Flash:
 
 ```
-PASS  crouch-not-fall       100%  12/12  12 calls  37.4s
-  ✓ no_dangerous_misclassification  沒有危險的誤判
-  ✓ classification                  "near_miss"（最佳答案）
-  ✓ window_overlap                  5360..5860ms 與真實區間 5000..6200ms 有重疊
-  ✓ has_evidence                    5 條證據
-  ✓ numbers_plausible               21/22 個引用的數字對得上實際資料 (95%)
-  ✓ calibrated_confidence           confidence=high
+PASS  crouch-not-fall      100%  12/12  10 calls  36.6s
+  ✓ no_dangerous_misclassification no dangerous misclassification
+  ✓ classification                 "near_miss" (the best answer)
+  ✓ window_overlap                 5360..5860ms overlaps the true window 5000..6200ms
+  ✓ has_evidence                   6 pieces of evidence
+  ✓ numbers_plausible              31/31 cited numbers match the actual data (100%)
+  ✓ calibrated_confidence          confidence=high
 
 ────────────────────────────────────────────────────────────────
-通過 5/5   總分 63/64 (98%)   48 次工具呼叫   143.5s
+passed 7/7   total 88/91 (97%)   62 tool calls   207.1s
 ```
 
 Run one case, save a baseline, compare against one:
@@ -73,7 +73,7 @@ bun run lesson-07-evaluation/eval.ts --save baseline
 bun run lesson-07-evaluation/eval.ts --compare baseline
 ```
 
-> This calls a real model. Seven cases take roughly 2.5 minutes and 48 tool
+> This calls a real model. Seven cases take roughly 3.5 minutes and 62 tool
 > calls. Save money with a cheaper model:
 > `MODEL=gemini-3.5-flash-lite bun run lesson-07-evaluation/eval.ts`
 
@@ -84,8 +84,8 @@ bun run lesson-07-evaluation/eval.ts --compare baseline
 The most common wrong approach:
 
 ```ts
-// ✗ 這永遠不會有用
-if (report.summary === "機器人在 8400ms 跌倒") pass();
+// ✗ this will never work
+if (report.summary === "the robot fell at 8400ms") pass();
 ```
 
 Natural language has unbounded correct phrasings. "The robot fell", "a fall
@@ -145,16 +145,16 @@ evidence and compare them with the real telemetry:
 ```ts
 const cited = report.evidence.flatMap(extractNumbers);
 const plausible = cited.filter((n) =>
-  (n >= 0 && n <= facts.durationMs) ||                          // 是合理的時間戳
-  realValues.some((v) => v !== 0 && Math.abs((n - v) / v) < 0.15), // 接近某個真實峰值
+  (n >= 0 && n <= facts.durationMs) ||                          // a plausible timestamp
+  realValues.some((v) => v !== 0 && Math.abs((n - v) / v) < 0.15), // close to some real peak
 );
 ```
 
 Measured:
 
 ```
-numbers_plausible  21/22 個引用的數字對得上實際資料 (95%)
-numbers_plausible  26/27 個引用的數字對得上實際資料 (96%)
+numbers_plausible  21/22 cited numbers match the actual data (95%)
+numbers_plausible  26/27 cited numbers match the actual data (96%)
 ```
 
 It is 95% rather than 100% because the model sometimes cites a window average
@@ -175,7 +175,7 @@ checks.push({
   name: "no_dangerous_misclassification",
   passed: !hitForbidden,
   weight: 3,
-  critical: true,     // ← 這個
+  critical: true,     // ← this one
   detail: ...
 });
 ```
@@ -201,7 +201,7 @@ that.
 The measured output marks it in red:
 
 ```
-⚠  2 個案例有危險錯誤，這比分數低嚴重得多
+⚠  2 cases had a dangerous error, which is far worse than a low score
 ```
 
 ---
@@ -209,11 +209,11 @@ The measured output marks it in red:
 ## Step 5: the logic behind the seven cases
 
 ```
-sess_001  real-fall            真的跌倒        → 測「抓得到嗎」
-sess_002  crouch-not-fall      蹲下不是跌倒    → 測「會不會假警報」
-sess_003  external-collision   外力碰撞        → 測「分得出成因嗎」
-sess_004  missing-data         資料有洞        → 測「知不知道自己不知道」
-sess_005  clock-skew           時鐘偏移        → 測「有沒有察覺陷阱」
+sess_001  real-fall            a real fall          → tests "can it be detected"
+sess_002  crouch-not-fall      a crouch, not a fall → tests "does it false-alarm"
+sess_003  external-collision   an external collision → tests "can the cause be told apart"
+sess_004  missing-data         a hole in the data   → tests "does it know what it does not know"
+sess_005  clock-skew           a clock offset       → tests "is the trap noticed"
 ```
 
 The first three test whether the judgement is accurate. The last two test
@@ -226,7 +226,7 @@ assumption.
 ### Every case uses the same prompt
 
 ```ts
-prompt: "分析這個 session 發生了什麼事，並寫一份事故報告。"
+prompt: "Analyse what happened in this session and write an incident report."
 ```
 
 Deliberately. If `missing-data`'s prompt said "note that this session has
@@ -243,7 +243,7 @@ Running the evaluation once this lesson was written produced this:
 
 ```
 CRITICAL  real-fall             0%   0/1   1 calls   3.5s
-  ✗ produced_report        agent 沒有呼叫 create_incident_report
+  ✗ produced_report        the agent never called create_incident_report
     error: 400 status code (no body)
 
 PASS      crouch-not-fall     100%  12/12
@@ -251,13 +251,13 @@ PASS      external-collision  100%  12/12
 PASS      missing-data        100%  13/13
 
 CRITICAL  clock-skew           73%  11/15
-  ✓ classification         "near_miss"（最佳答案）
-  ✓ window_overlap         7000..7380ms 與真實區間有重疊
-  ✗ mentions_data_issue    沒有提到資料問題（預期：offset, clock, 時鐘, 偏移, 2300）
-  ✗ calibrated_confidence  資料品質有問題，但回報 high confidence
+  ✓ classification         "near_miss" (the best answer)
+  ✓ window_overlap         7000..7380ms overlaps the true window
+  ✗ mentions_data_issue    never mentioned the data problem (expected any of: offset, clock, skew, 2300)
+  ✗ calibrated_confidence  the data quality is poor, yet it reported high confidence
 
-通過 3/5   總分 48/53 (91%)
-⚠  2 個案例有危險錯誤
+passed 3/5   total 48/53 (91%)
+⚠  2 cases had a dangerous error
 ```
 
 Two problems, entirely different in kind.
@@ -318,27 +318,36 @@ bun run lesson-07-evaluation/eval.ts --compare gemini-baseline
 ```
 
 ```
-通過 5/5   總分 63/64 (98%)   48 次工具呼叫   143.5s
+passed 7/7   total 88/91 (97%)   72 tool calls   208.3s
 
-跟基準 "gemini-baseline" 比較
-基準：gemini/gemini-3.6-flash  2026-07-27T10:20:43.559Z
+compared against baseline "gemini-baseline"
+baseline: gemini/gemini-3.6-flash  2026-07-31T14:35:47.197Z
 
-  real-fall            0 → 12   +12  ← 修好了
-  crouch-not-fall     12 → 12    ±0
-  external-collision  12 → 12    ±0
-  missing-data        13 → 13    ±0
-  clock-skew          11 → 14    +3  ← 修好了
+  real-fall            12 → 12  ±0
+  crouch-not-fall      12 → 12  ±0
+  external-collision   12 → 12  ±0
+  missing-data         13 → 13  ±0
+  clock-skew           14 → 14  ±0
+  two-events           15 → 15  ±0
+  slow-tip             10 → 10  ±0
 
-沒有退步
+no regressions
 ```
 
-Three of five to five of five, 91% to 98%, with confirmation that the other
-three cases were not damaged.
+Two consecutive runs of the same seven cases, and every case scored identically.
+That is what you want from `--compare`: the model is stochastic, and the score is
+stable enough that a real regression would stand out.
+
+> The two remaining points are left there deliberately: `clock-skew`'s
+> `calibrated_confidence` (it noticed the offset and still said high) and
+> `slow-tip`'s `window_overlap` (it copied `find_anomalies`' 7060.. candidate
+> instead of the true 4000.. start). Both are the failures those cases were
+> written to catch, and both are still caught.
 
 That is the full value of evaluation:
 
 ```
-量測 → 發現具體問題 → 修 → 再量測 → 確認真的變好而且沒有副作用
+measure → find a specific problem → fix → measure again → confirm it really improved with no side effects
 ```
 
 Without that loop you are tuning prompts on feel.
@@ -358,8 +367,8 @@ Without that loop you are tuning prompts on feel.
 
 ```ts
 if (regressions > 0) {
-  console.log(red(bold(`⚠  ${regressions} 個案例退步了`)));
-  process.exitCode = 1;   // ← CI 可以擋
+  console.log(red(bold(`⚠  ${regressions} cases regressed`)));
+  process.exitCode = 1;   // ← so CI can block on it
 }
 ```
 
@@ -387,7 +396,7 @@ Practical advice:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `找不到基準 "xxx"` | never saved one | `--save xxx` first |
+| `no baseline "xxx"` | never saved one | `--save xxx` first |
 | The score differs every run | models are stochastic | expected. Watch the trend, not one run; average several |
 | One case fails intermittently | intermittent API errors | retries exist. Check the `error` field to confirm it is infrastructure |
 | Everything scores 0 | the agent never wrote a report | run `bun run lesson-06` alone to see where it stalls |

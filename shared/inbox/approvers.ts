@@ -55,16 +55,16 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 export function inlineApprover(reader: LineReader): Approver {
 	return async (request) => {
-		console.log(`\n${yellow("┌ 需要批准")}`);
+		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.toolName}`);
 		console.log(`${yellow("│")} ${dim(argsPreview(request.args))}`);
 		console.log(`${yellow("│")} ${dim(request.reason)}`);
 		console.log(yellow("└"));
 
 		const line = await reader.next(
-			`  ${yellow("[y]")} 允許  ${yellow("[a]")} 都允許  ${yellow("[n]")} 拒絕 › `,
+			`  ${yellow("[y]")} allow  ${yellow("[a]")} always  ${yellow("[n]")} deny › `,
 		);
-		if (line === null) return "deny"; // 沒人能回答就當拒絕
+		if (line === null) return "deny"; // nobody there to answer counts as a denial
 
 		const answer = line.trim().toLowerCase();
 		if (answer === "a") return "always";
@@ -89,7 +89,7 @@ export function inboxApprover(store: InboxStore, sessionId: string): Approver {
 			sessionId,
 			kind: "approval",
 			visibility: "inbox",
-			title: `執行 ${request.toolName}？`,
+			title: `Run ${request.toolName}?`,
 			body: `${argsPreview(request.args)}\n\n${request.reason}`,
 			toolCallId: request.toolCallId,
 		});
@@ -139,7 +139,7 @@ export function routeApprover(options: {
 		return inboxApprover(options.store, options.sessionId);
 	}
 	if (!options.reader) {
-		throw new Error("有人值守的模式需要一個 LineReader");
+		throw new Error("Attended mode needs a LineReader");
 	}
 	return inlineApprover(options.reader);
 }

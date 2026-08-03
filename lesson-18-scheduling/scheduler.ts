@@ -100,9 +100,9 @@ export class Scheduler {
 					report.skipped.push({
 						jobId: job.id,
 						scheduledFor,
-						reason: `上一輪還在跑（${active.id}，${active.status}）`,
+						reason: `the previous run is still going (${active.id}, ${active.status})`,
 					});
-					log?.(`  ⏭ ${job.name}：跳過，${active.id} 還在 ${active.status}`);
+					log?.(`  ⏭ ${job.name}: skipped, ${active.id} is still ${active.status}`);
 					continue;
 				}
 

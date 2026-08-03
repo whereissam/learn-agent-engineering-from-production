@@ -32,18 +32,18 @@ PROVIDER=fake bun run lesson-04-sessions/agent.ts --resume
 ```
 
 ```
-續跑 .../lesson-04-sessions/.sessions/2026-07-27T08-58-59-686Z.jsonl（6 筆記錄）
+resuming .../lesson-04-sessions/.sessions/2026-07-27T08-58-59-686Z.jsonl (6 entries)
 ```
 
 Type `/history` to see the conversation you just had:
 
 ```
-  e0001  user        第一個問題
-  e0002  assistant   我先看一下專案結構。
+  e0001  user        first question
+  e0002  assistant   Let me look at the project structure first.
   e0003  toolResult  1 tool result(s)
-  e0004  assistant   接著讀 store.ts。
+  e0004  assistant   Now reading store.ts.
   e0005  toolResult  1 tool result(s)
-  e0006  assistant   這是一段刻意寫得很長的回覆…
+  e0006  assistant   This reply is deliberately long, to give you enough time…
 ```
 
 ### Built-in commands
@@ -62,7 +62,7 @@ Type `/history` to see the conversation you just had:
 The storage format is JSONL, one JSON object per line:
 
 ```jsonl
-{"id":"e0001","parentId":null,"timestamp":"…","message":{"role":"user","text":"第一個問題"}}
+{"id":"e0001","parentId":null,"timestamp":"…","message":{"role":"user","text":"first question"}}
 {"id":"e0002","parentId":"e0001","timestamp":"…","message":{"role":"assistant",…}}
 {"id":"e0003","parentId":"e0002","timestamp":"…","message":{"role":"toolResult",…}}
 ```
@@ -114,9 +114,9 @@ The most important idea in this lesson.
 Picture a very ordinary situation:
 
 ```
-你：「幫我把這個函式改成用 async」
-AI：（改了，但改錯方向）
-你：「不對，我是說…」
+you:  "rewrite this function to use async"
+AI:   (rewrites it, in the wrong direction)
+you:  "no, I meant…"
 ```
 
 Rather than explain, what you actually want is to go back and ask the question
@@ -154,35 +154,35 @@ e0001 ← e0002 ← e0003 ← e0004
 But speak after `/rewind e0002` and the new message's `parentId` is `e0002`:
 
 ```
-e0001 ← e0002 ← e0003 ← e0004     （舊分支，被放棄）
+e0001 ← e0002 ← e0003 ← e0004     (old branch, abandoned)
             ↖
-              e0007 ← e0008        （新分支，目前在這）
+              e0007 ← e0008        (new branch, where you are now)
 ```
 
 ### Seeing it happen
 
 ```
 > /rewind e0002
-  已退回 e0002。接下來的訊息會長出一條新分支，舊的分支還在檔案裡。
+  rewound to e0002. New messages grow a new branch; the old one stays in the file.
 
-> 新的問法
-（AI 回答…）
+> a different phrasing
+(the AI answers…)
 
 > /tree
-  檔案裡共 12 筆記錄，目前分支上有 8 筆
+  12 entries in the file, 8 of them on the current branch
   ● e0001 ← root   user
   ● e0002 ← e0001  assistant
-  ○ e0003 ← e0002  toolResult      ← 舊分支
+  ○ e0003 ← e0002  toolResult      ← old branch
   ○ e0004 ← e0003  assistant
   ○ e0005 ← e0004  toolResult
   ○ e0006 ← e0005  assistant
-  ● e0007 ← e0002  user            ← 新分支從 e0002 長出來
+  ● e0007 ← e0002  user            ← the new branch grows from e0002
   ● e0008 ← e0007  assistant
   ● e0009 ← e0008  toolResult
   ● e0010 ← e0009  assistant
   ● e0011 ← e0010  toolResult
   ● e0012 ← e0011  assistant
-  ● = 目前分支   ○ = 已放棄的分支（還在檔案裡，沒有刪除）
+  ● = current branch   ○ = abandoned branch (still in the file, not deleted)
 ```
 
 Look at `e0007 ← e0002`. It skips `e0003` to `e0006` and attaches straight to
@@ -306,9 +306,9 @@ turn, then add `/cost` to total up what the session spent.
 ```
 e0001 user
 └─ e0002 assistant
-   ├─ e0003 toolResult        ← 舊分支
+   ├─ e0003 toolResult        ← old branch
    │  └─ e0004 assistant
-   └─ e0007 user  ●           ← 目前分支
+   └─ e0007 user  ●           ← current branch
       └─ e0008 assistant
 ```
 

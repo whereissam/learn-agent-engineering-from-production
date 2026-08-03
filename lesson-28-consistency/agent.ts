@@ -72,13 +72,13 @@ const TOOLS: ToolSpec[] = [
  * Interrupting "mid-text" requires the model to have text to emit first.
  */
 const PROMPT =
-	"先用一句話說明你打算怎麼做，再用 write_file 把 a.ts 的常數從 1 改成 2。";
+	"First say in one sentence how you plan to do it, then use write_file to change the constant in a.ts from 1 to 2.";
 
 async function main(): Promise<void> {
 	if (!process.env.PROVIDER) {
 		console.log(
-			yellow("這支程式要中斷一個真的串流，需要 PROVIDER。") +
-				dim("\n離線的六格矩陣在 `bun run lesson-28`。"),
+			yellow("This program interrupts a real stream and needs PROVIDER. ") +
+				dim("\nThe offline six-cell matrix is `bun run lesson-28`."),
 		);
 		return;
 	}
@@ -108,12 +108,12 @@ async function main(): Promise<void> {
 	console.log(
 		dim(`INTERRUPT=${INTERRUPT}　CLEANUP=${CLEANUP_ON ? "on" : "off"}　workspace=${workspace}`),
 	);
-	console.log(`\n${cyan("你")} ${PROMPT}`);
+	console.log(`\n${cyan("you")} ${PROMPT}`);
 	console.log();
 
 	let deltas = 0;
 	let textStarted = false;
-	let abortedAt = "（沒有中斷）";
+	let abortedAt = "(no interruption)";
 
 	for await (const event of provider.stream(
 		{
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
 			await processor.handle({ type: "text_delta", id: "x1", delta: event.delta });
 			deltas++;
 			if (INTERRUPT === "text" && deltas >= AFTER_DELTAS) {
-				abortedAt = `第 ${deltas} 個 text delta 之後`;
+				abortedAt = `after text delta ${deltas}`;
 				controller.abort();
 				break;
 			}
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 			});
 			if (INTERRUPT === "tool") {
 					// The tool is already running in the background (the processor does not await it); interrupt now.
-				abortedAt = "工具開始執行之後";
+				abortedAt = "after the tool started running";
 				controller.abort();
 				break;
 			}
@@ -162,14 +162,14 @@ async function main(): Promise<void> {
 			await processor.handle({ type: "step_finish" });
 		}
 		if (event.type === "error" && event.aborted) {
-			abortedAt = "provider 回報 aborted";
+			abortedAt = "the provider reported aborted";
 		}
 	}
 
-	console.log(`\n\n${bold("中斷")} ${abortedAt}`);
+	console.log(`\n\n${bold("interrupted")} ${abortedAt}`);
 	if (INTERRUPT === "text" && !textStarted) {
 		console.log(
-			yellow("  ⚠ 這一次模型沒有先輸出文字（直接呼叫工具），所以中斷點沒有發生。請重跑或改用 INTERRUPT=tool。"),
+			yellow("  ⚠ This time the model emitted no text first (it called the tool directly), so the interruption point never arrived. Run it again, or use INTERRUPT=tool."),
 		);
 	}
 
@@ -179,20 +179,20 @@ async function main(): Promise<void> {
 	await processor.persist(path);
 	const loaded = await SessionProcessor.load(path);
 
-	console.log(dim("\n存檔裡的 parts："));
+	console.log(dim("\nthe parts in the saved file:"));
 	for (const part of loaded.parts) console.log(`  ${describePart(part)}`);
-	console.log(dim(`finish=${loaded.finish ?? "（沒有）"}`));
+	console.log(dim(`finish=${loaded.finish ?? "(none)"}`));
 
 	// What the filesystem says (Lesson 29's position: only it decides).
 	const onDisk = await readFile(join(workspace, "a.ts"), "utf8");
 	const changed = onDisk.trim() !== "export const a = 1;";
 	console.log(
-		dim(`檔案系統：a.ts ${changed ? "變了" : "沒變"}　內容 ${JSON.stringify(onDisk.trim())}`),
+		dim(`filesystem: a.ts ${changed ? "changed" : "unchanged"}  content ${JSON.stringify(onDisk.trim())}`),
 	);
 
 	const violations = audit({ message: loaded, changedFiles: changed ? ["a.ts"] : [] });
-	console.log(`\n${bold("稽核")}`);
-	if (violations.length === 0) console.log(`  ${green("沒有違規")}`);
+	console.log(`\n${bold("audit")}`);
+	if (violations.length === 0) console.log(`  ${green("no violations")}`);
 	for (const violation of violations) {
 		console.log(`  ${red(`[${violation.kind}]`)} ${violation.where}　${dim(violation.detail)}`);
 	}

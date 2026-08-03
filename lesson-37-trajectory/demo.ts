@@ -37,13 +37,13 @@ const next = () => (clock += 1000);
 function conflictFixture(): Trajectory {
 	const trajectory = new Trajectory();
 	const events: TrajectoryEvent[] = [
-		{ kind: "message", id: "e1", timestamp: next(), source: "user", text: "跑一下測試，確認我的修改沒有壞掉。" },
+		{ kind: "message", id: "e1", timestamp: next(), source: "user", text: "Run the tests and confirm my change did not break anything." },
 		{
 			kind: "action",
 			id: "e2",
 			timestamp: next(),
 			source: "agent",
-			thought: "先跑測試看看現在的狀態。",
+			thought: "Run the tests first to see where things stand.",
 			toolName: "run_command",
 			toolCallId: "call_1",
 			args: { command: "npm test" },
@@ -65,7 +65,7 @@ function conflictFixture(): Trajectory {
 			id: "e4",
 			timestamp: next(),
 			source: "agent",
-			text: "已經跑完了，測試都過，你的修改沒有問題。",
+			text: "Ran them; all tests pass, your change is fine.",
 		},
 	];
 	for (const event of events) trajectory.add(event);
@@ -73,27 +73,27 @@ function conflictFixture(): Trajectory {
 }
 
 function scenarioConflict(): void {
-	console.log(`\n${bold("── conflict · 同一個 command，兩種說法")}`);
+	console.log(`\n${bold("── conflict · one command, two accounts")}`);
 	const trajectory = conflictFixture();
 
-	console.log(dim("\n  ① 聊天記錄（Lesson 1-28 的形狀）："));
+	console.log(dim("\n  ① the chat log (the shape used in Lessons 1-28):"));
 	for (const message of trajectory.toChatHistory()) {
 		console.log(`    ${dim(message.role.padEnd(11))}${message.content.split("\n")[0]}`);
 	}
 	console.log(
-		dim("\n    兩種說法擠在同一個欄位形狀裡（一段字串），而且都不帶「誰說的」。"),
+		dim('\n    Both accounts are squeezed into the same field shape (a string), and neither carries "who said it".'),
 	);
 
 	const chat = conflictsFromChat(trajectory.toChatHistory());
 	console.log(
-		`    字串比對能給的答案：看到失敗字樣 ${chat.failureSeen ? "有" : "無"}、` +
-			`看到成功宣稱 ${chat.claimSeen ? "有" : "無"}、${red(`可信 ${chat.confident ? "是" : "否"}`)}`,
+		`    what string matching can tell you: failure wording seen ${chat.failureSeen ? "yes" : "no"}, ` +
+			`success claim seen ${chat.claimSeen ? "yes" : "no"}, ${red(`trustworthy ${chat.confident ? "yes" : "no"}`)}`,
 	);
 	console.log(
-		dim("    關鍵字表是我編的：換成「全部綠燈」「no failures」就漏掉了。"),
+		dim('    The keyword list is something I made up: change it to "all green" and it misses.'),
 	);
 
-	console.log(dim("\n  ② Trajectory（action / observation）："));
+	console.log(dim("\n  ② the trajectory (action / observation):"));
 	for (const event of trajectory.all()) {
 		const tag =
 			event.source === "environment" ? green("[environment]") : cyan(`[${event.source}]`);
@@ -109,19 +109,19 @@ function scenarioConflict(): void {
 	}
 
 	const conflicts = trajectory.conflicts();
-	console.log(`\n  ${bold("同一個問題，在這個結構上是集合運算：")}`);
+	console.log(`\n  ${bold("The same question, on this structure, is a set operation:")}`);
 	for (const conflict of conflicts) {
 		console.log(
-			`    ${red("衝突")} ${conflict.action.toolName}(${JSON.stringify(conflict.action.args)}) → exitCode=${conflict.exitCode}`,
+			`    ${red("conflict")} ${conflict.action.toolName}(${JSON.stringify(conflict.action.args)}) → exitCode=${conflict.exitCode}`,
 		);
-		console.log(`         agent 之後說：${JSON.stringify(conflict.claim)}`);
+		console.log(`         and the agent then said: ${JSON.stringify(conflict.claim)}`);
 	}
 
 	console.log(
 		yellow(
-			"\n  ⚠ 差別不在「哪一種比較好讀」，在於**能不能被查詢**。\n" +
-				"    聊天記錄上這是一個自然語言理解問題（而且答案不可信），\n" +
-				"    trajectory 上這是一次 filter + join。",
+			'\n  ⚠ The difference is not "which reads better" but **whether it can be queried**.\n' +
+				"    On a chat log this is a natural-language understanding problem (with an untrustworthy answer);\n" +
+				"    on a trajectory it is one filter plus a join.",
 		),
 	);
 }
@@ -131,21 +131,22 @@ function scenarioConflict(): void {
 function failureFixture(): Trajectory {
 	const trajectory = new Trajectory();
 	const events: TrajectoryEvent[] = [
-		{ kind: "message", id: "f1", timestamp: next(), source: "user", text: "把舊的快取清掉，然後重跑測試。" },
+		{ kind: "message", id: "f1", timestamp: next(), source: "user", text: "Clear the old cache, then re-run the tests." },
 		{
 			kind: "action", id: "f2", timestamp: next(), source: "agent",
-			thought: "先刪快取。", toolName: "run_command", toolCallId: "c1",
+			thought: "Delete the cache first.", toolName: "run_command", toolCallId: "c1",
 			args: { command: "rm -rf .cache" }, llmResponseId: "r1",
 		},
 			// ① The user refused — with a reason, and as its own event type
 		{
 			kind: "user-reject", id: "f3", timestamp: next(), source: "environment",
 			toolName: "run_command", toolCallId: "c1", actionId: "f2",
-			rejectionReason: "使用者拒絕：rm -rf 不在允許清單上，而且 .cache 裡有還沒上傳的量測結果",
+			rejectionReason:
+				"the user declined: rm -rf is not on the allowlist, and .cache holds measurements that have not been uploaded",
 		},
 		{
 			kind: "action", id: "f4", timestamp: next(), source: "agent",
-			thought: "那我直接跑測試。", toolName: "run_command", toolCallId: "c2",
+			thought: "Then I will just run the tests.", toolName: "run_command", toolCallId: "c2",
 			args: { command: "npm test" }, llmResponseId: "r2",
 		},
 			// ② The environment says it failed
@@ -156,14 +157,15 @@ function failureFixture(): Trajectory {
 		},
 		{
 			kind: "action", id: "f6", timestamp: next(), source: "agent",
-			thought: "看一下失敗的那個檔案。", toolName: "read_file", toolCallId: "c3",
+			thought: "Look at the file that failed.", toolName: "read_file", toolCallId: "c3",
 			args: { path: "src/store.ts", offset: -5 }, llmResponseId: "r3",
 		},
 			// ③ Our own harness broke (source is "agent", not environment)
 		{
 			kind: "agent-error", id: "f7", timestamp: next(), source: "agent",
 			toolName: "read_file", toolCallId: "c3",
-			error: "TypeError: Cannot read properties of undefined (reading 'slice') — offset 沒有做負數檢查",
+			error:
+				"TypeError: Cannot read properties of undefined (reading 'slice') — offset is never checked for negatives",
 		},
 	];
 	for (const event of events) trajectory.add(event);
@@ -171,34 +173,34 @@ function failureFixture(): Trajectory {
 }
 
 function scenarioFailures(): void {
-	console.log(`\n${bold("── failures · 三種失敗，一個欄位裝不下")}`);
+	console.log(`\n${bold("── failures · three kinds of failure, one field cannot hold them")}`);
 	const trajectory = failureFixture();
 
-	console.log(dim("\n  ① 聊天記錄裡的三次失敗："));
+	console.log(dim("\n  ① the three failures as they appear in a chat log:"));
 	for (const message of trajectory.toChatHistory()) {
 		if (message.role !== "toolResult") continue;
 		console.log(`    ${dim("toolResult")} ${message.content.slice(0, 62)}`);
 	}
-	console.log(red("    三個都是 toolResult + 一段以 Error 開頭的字串。分不出來。"));
+	console.log(red("    All three are a toolResult plus a string starting with Error. Indistinguishable."));
 
-	console.log(dim("\n  ② Trajectory："));
+	console.log(dim("\n  ② the trajectory:"));
 	const kinds = trajectory.failureKinds();
-	console.log(`    環境說失敗（exitCode≠0）　${kinds.environment}`);
-	console.log(`    使用者拒絕（帶理由）　　　${kinds.rejected}`);
-	console.log(`    ${yellow("我們自己的 bug")}　　　　　　${kinds.scaffold}`);
+	console.log(`    the environment failed (exitCode≠0)   ${kinds.environment}`);
+	console.log(`    the user declined (with a reason)     ${kinds.rejected}`);
+	console.log(`    ${yellow("our own bug")}                          ${kinds.scaffold}`);
 
 	console.log(
 		yellow(
-			"\n  ⚠ 第三種最重要：`source: \"agent\"` 說的是**鷹架壞了**，不是世界拒絕。\n" +
-				"    混在一起的代價很具體：你會拿著自己的 bug 去調 prompt。",
+			'\n  ⚠ The third matters most: `source: "agent"` means **the scaffolding broke**, not that the world refused.\n' +
+				"    Conflating them has a concrete cost: you end up tuning prompts against your own bug.",
 		),
 	);
 	console.log(
 		dim(
-			"\n  而且三種的後續完全不同：\n" +
-				"    環境失敗 → 可以重試或換做法\n" +
-				"    使用者拒絕 → **不該重試**（Lesson 8 量到模型會連試五次）\n" +
-				"    鷹架壞了 → 該修的是我們的程式，模型再聰明也沒用",
+			"\n  And what should follow differs completely:\n" +
+				"    environment failure → retry, or try another way\n" +
+				"    the user declined   → **do not retry** (Lesson 8 measured five consecutive attempts)\n" +
+				"    the scaffolding broke → the thing to fix is our code; no amount of model cleverness helps",
 		),
 	);
 }
@@ -206,13 +208,13 @@ function scenarioFailures(): void {
 // ─────────────────────────────────────────────────────────────
 
 function scenarioBatches(): void {
-	console.log(`\n${bold("── batches · 一次回應三個工具，還是三次回應各一個")}`);
+	console.log(`\n${bold("── batches · three tools in one response, or one tool in each of three")}`);
 
 	const parallel = new Trajectory();
 	for (let i = 1; i <= 3; i++) {
 		parallel.add({
 			kind: "action", id: `p${i}`, timestamp: next(), source: "agent",
-			thought: "三個檔案一起看。", toolName: "read_file", toolCallId: `pc${i}`,
+			thought: "Read all three files together.", toolName: "read_file", toolCallId: `pc${i}`,
 			args: { path: `src/${i}.ts` }, llmResponseId: "resp_same",
 		});
 	}
@@ -221,37 +223,37 @@ function scenarioBatches(): void {
 	for (let i = 1; i <= 3; i++) {
 		sequential.add({
 			kind: "action", id: `s${i}`, timestamp: next(), source: "agent",
-			thought: "再看一個。", toolName: "read_file", toolCallId: `sc${i}`,
+			thought: "Read another one.", toolName: "read_file", toolCallId: `sc${i}`,
 			args: { path: "src/store.ts" }, llmResponseId: `resp_${i}`,
 		});
 	}
 
 	console.log(
-		`\n  平行：${parallel.batches().size} 個 batch / ${parallel.all().length} 個動作` +
-			dim("　← 一次回應叫了三個工具"),
+		`\n  parallel:   ${parallel.batches().size} batches / ${parallel.all().length} actions` +
+			dim("  ← one response called three tools"),
 	);
 	console.log(
-		`  循序：${sequential.batches().size} 個 batch / ${sequential.all().length} 個動作` +
-			dim("　← 三次回應各叫一個，而且參數一樣"),
+		`  sequential: ${sequential.batches().size} batches / ${sequential.all().length} actions` +
+			dim("  ← three responses called one each, with identical arguments"),
 	);
 
 	console.log(
 		dim(
-			"\n  聊天記錄裡兩者長得幾乎一樣（都是三則 assistant 訊息），\n" +
-				"  但它們是完全不同的兩件事：",
+			"\n  In a chat log the two look almost identical (three assistant messages either way),\n" +
+				"  and they are completely different things:",
 		),
 	);
 	console.log(
 		dim(
-			"    平行 → 正常的批次操作\n" +
-				"    循序 + 參數相同 → **doom loop**（Lesson 28 提到的 opencode 規則）",
+			"    parallel                     → a normal batch operation\n" +
+				"    sequential + identical args  → a **doom loop** (the opencode rule Lesson 28 mentions)",
 		),
 	);
 	console.log(
 		yellow(
-			"\n  ⚠ 這個欄位還修掉了一個我們真的踩過的 bug：Lesson 23 那次 Gemini 不送 `index`，\n" +
-				"    平行工具呼叫的 arguments 被串成一個壞字串、潛伏三課。\n" +
-				"    我們是靠 `index ?? id` 補的；OpenHands 在**資料模型裡**就有「同一次回應」。",
+			"\n  ⚠ This field also fixes a bug we really hit: in Lesson 23 Gemini did not send `index`,\n" +
+				"    so parallel tool calls' arguments were concatenated into one broken string, latent for three lessons.\n" +
+				'    We patched it with `index ?? id`; OpenHands has "the same response" **in the data model**.',
 		),
 	);
 }
@@ -259,40 +261,42 @@ function scenarioBatches(): void {
 // ─────────────────────────────────────────────────────────────
 
 function scenarioView(): void {
-	console.log(`\n${bold("── view · 壓縮完之後看不看得出壓縮過")}`);
+	console.log(`\n${bold("── view · after compaction, can you tell it was compacted")}`);
 
 	const trajectory = new Trajectory();
 	for (let i = 1; i <= 4; i++) {
 		trajectory.add({
 			kind: "message", id: `v${i}`, timestamp: next(), source: i % 2 ? "user" : "agent",
-			text: `第 ${i} 輪的對話內容……`,
+			text: `the conversation content of turn ${i}…`,
 		});
 	}
 	trajectory.add({
 		kind: "condensation", id: "vc", timestamp: next(), source: "environment",
 		forgottenIds: ["v1", "v2"],
-		summary: "（摘要）使用者要修短碼大小寫不一致的 bug，已定位到 store.ts。",
+		summary: "(summary) The user wants the short-code case-sensitivity bug fixed; it has been located in store.ts.",
 	});
 	trajectory.add({
-		kind: "message", id: "v5", timestamp: next(), source: "user", text: "那就照你說的改。",
+		kind: "message", id: "v5", timestamp: next(), source: "user", text: "Go ahead and change it the way you said.",
 	});
 
-	console.log(`\n  完整 trajectory：${trajectory.all().length} 個事件`);
-	console.log(`  LLM 看到的 view：${trajectory.view().length} 個事件`);
-	console.log(dim(`    被忘掉的：v1, v2　摘要：${(trajectory.all()[4] as { summary: string }).summary.slice(0, 30)}…`));
+	console.log(`\n  the full trajectory: ${trajectory.all().length} events`);
+	console.log(`  the view the LLM sees: ${trajectory.view().length} events`);
+	console.log(
+		dim(`    forgotten: v1, v2  summary: ${(trajectory.all()[4] as { summary: string }).summary.slice(0, 30)}…`),
+	);
 
 	console.log(
 		yellow(
-			"\n  ⚠ Lesson 5 是直接改寫訊息陣列，所以**壓縮完之後看不出壓縮過**：\n" +
-				"    舊訊息不見了，而「為什麼不見」沒有留下任何紀錄。",
+			"\n  ⚠ Lesson 5 rewrites the message array in place, so **after compaction you cannot tell it happened**:\n" +
+				'    the old messages are gone, and "why they are gone" left no record at all.',
 		),
 	);
 	console.log(
 		dim(
-			"\n  當成事件之後：\n" +
-				"    trajectory  append-only，完整的事實紀錄（v1、v2 還在）\n" +
-				"    view        算出來的投影，模型看到的那一份\n\n" +
-				"  **壓縮從一次破壞性的改寫，變成一個可以查詢、可以還原的事件。**",
+			"\n  As an event instead:\n" +
+				"    trajectory  append-only, the complete factual record (v1 and v2 are still there)\n" +
+				"    view        a computed projection, the one the model sees\n\n" +
+				"  **Compaction goes from a destructive rewrite to a queryable, reversible event.**",
 		),
 	);
 }
@@ -312,14 +316,14 @@ function main(): void {
 	for (const name of names) {
 		const scenario = SCENARIOS[name];
 		if (!scenario) {
-			console.error(`不認得的情境：${name}。可用：${Object.keys(SCENARIOS).join(", ")}`);
+			console.error(`Unknown scenario: ${name}. Available: ${Object.keys(SCENARIOS).join(", ")}`);
 			process.exitCode = 1;
 			return;
 		}
 		scenario();
 	}
 	console.log(
-		dim("\n（真模型的部分問的是另一個問題：`PROVIDER=gemini bun run lesson-37:agent`）"),
+		dim("\n(The real-model half asks a different question: `PROVIDER=gemini bun run lesson-37:agent`)"),
 	);
 }
 

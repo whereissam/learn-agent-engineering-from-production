@@ -30,21 +30,21 @@ function build(): SessionSearchIndex {
 	index.addSession(
 		{
 			sessionId: "sess_real",
-			title: "修 telemetry 取樣率的 bug",
+			title: "fixing the telemetry sample-rate bug",
 			source: "interactive",
 			startedAt: "2026-07-20T10:00:00Z",
 			messageCount: 6,
 		},
 		[
-			user("我們的 telemetry 取樣率設定好像有問題"),
-			assistant("我看一下 config。目前 sample_rate_hz 寫死 50Hz。"),
-			user("對，但 go2-c 那台實際是 100Hz"),
+			user("something looks wrong with our telemetry sample-rate setting"),
+			assistant("Let me look at the config. sample_rate_hz is hardcoded to 50Hz right now."),
+			user("right, but the go2-c unit actually runs at 100Hz"),
 			assistant(
-				"找到了。config.ts 把取樣率寫死了，應該從 session metadata 讀。" +
-					"我改成 meta.sample_rate_hz，並在缺值時 fallback 到 50。",
+				"Found it. config.ts hardcodes the sample rate; it should read it from the session metadata. " +
+					"I changed it to meta.sample_rate_hz, falling back to 50 when the value is missing.",
 			),
-			user("測試過了嗎"),
-			assistant("跑了 bun test，5 pass 0 fail。"),
+			user("did you test it"),
+			assistant("Ran bun test: 5 pass, 0 fail."),
 		],
 	);
 
@@ -53,16 +53,16 @@ function build(): SessionSearchIndex {
 		index.addSession(
 			{
 				sessionId: `sess_cron_${day}`,
-				title: `每日 telemetry 摘要 ${day}`,
+				title: `daily telemetry summary ${day}`,
 				source: "cron",
 				startedAt: `2026-07-${String(day).padStart(2, "0")}T03:00:00Z`,
 				messageCount: 2,
 			},
 			[
-				user("產生每日 telemetry 摘要"),
+				user("generate the daily telemetry summary"),
 				assistant(
-					"今日 telemetry 摘要：取樣率正常，session 數量 14，" +
-						"telemetry 取樣率 50Hz，無異常。telemetry 資料完整。",
+					"Today's telemetry summary: sample rate normal, 14 sessions, " +
+						"telemetry sample rate 50Hz, nothing anomalous. Telemetry data complete.",
 				),
 			],
 		);
@@ -72,32 +72,33 @@ function build(): SessionSearchIndex {
 	index.addSession(
 		{
 			sessionId: "sess_sub",
-			title: "subagent: 檢查 telemetry",
+			title: "subagent: check telemetry",
 			source: "subagent",
 			startedAt: "2026-07-21T10:00:00Z",
 			messageCount: 2,
 		},
-		[user("檢查 telemetry 取樣率"), assistant("取樣率 50Hz。")],
+		[user("check the telemetry sample rate"), assistant("Sample rate 50Hz.")],
 	);
 
 		// A compacted session: the summary lives as an ordinary message
 	index.addSession(
 		{
 			sessionId: "sess_compacted",
-			title: "很長的除錯對話",
+			title: "a very long debugging conversation",
 			source: "interactive",
 			startedAt: "2026-07-19T14:00:00Z",
 			messageCount: 3,
 		},
 		[
 			user(
-				"[以下是這次對話較早部分的摘要。原始訊息已從 context 中移除以節省空間。]\n\n" +
-					"- 使用者回報 telemetry 取樣率問題\n- 檢查了 config.ts、store.ts、server.ts\n" +
-					"- 發現取樣率寫死\n- 嘗試了三種修法\n- " +
-					"（這裡原本還有 2000 字的摘要內容…）",
+				"[The following is a summary of the earlier part of this conversation. " +
+					"The original messages were dropped from the context to save space.]\n\n" +
+					"- the user reported a telemetry sample-rate problem\n- checked config.ts, store.ts, server.ts\n" +
+					"- found the sample rate hardcoded\n- tried three fixes\n- " +
+					"(another 2000 words of summary would follow here…)",
 			),
-			user("所以結論是什麼"),
-			assistant("結論是取樣率應該從 metadata 讀。"),
+			user("so what was the conclusion"),
+			assistant("The conclusion is that the sample rate should be read from metadata."),
 		],
 	);
 
@@ -107,82 +108,84 @@ function build(): SessionSearchIndex {
 // ─────────────────────────────────────────────────────────────
 
 function scenario1(): void {
-	console.log(bold("\n情境 1：三種模式，同一個工具"));
-	console.log(dim("Hermes 的 session_search 沒有 mode 參數，從引數推斷。\n"));
+	console.log(bold("\nScenario 1: three modes, one tool"));
+	console.log(dim("Hermes' session_search has no mode parameter; it infers one from the arguments.\n"));
 
 	const index = build();
 	const s = index.stats();
-	console.log(dim(`  索引：${s.sessions} 個 session、${s.messages} 則訊息、${s.terms} 個詞\n`));
+	console.log(dim(`  index: ${s.sessions} sessions, ${s.messages} messages, ${s.terms} terms\n`));
 
-	console.log(dim("  ① DISCOVERY  給 query"));
-	console.log(dim("  ② SCROLL     給 session_id + around_message_id"));
-	console.log(dim("  ③ BROWSE     什麼都不給\n"));
+	console.log(dim("  ① DISCOVERY  you give a query"));
+	console.log(dim("  ② SCROLL     you give session_id + around_message_id"));
+	console.log(dim("  ③ BROWSE     you give nothing\n"));
 
-	console.log(dim("  BROWSE 的結果（最近的 session）："));
+	console.log(dim("  what BROWSE returns (the most recent sessions):"));
 	for (const meta of index.browse(4)) {
 		console.log(`    ${cyan(meta.sessionId.padEnd(16))} ${dim(meta.source.padEnd(12))} ${meta.title}`);
 	}
-	console.log(dim("\n  注意 sess_sub（subagent）沒有出現，它不屬於使用者的歷史。"));
+	console.log(dim("\n  Note that sess_sub (a subagent) is absent; it is not part of the user's history."));
 }
 
 function scenario2(): void {
-	console.log(bold("\n\n情境 2：recall blindness（真實 bug）"));
-	console.log(dim("排程任務每天講一樣的話，會把使用者的真實對話壓掉。\n"));
+	console.log(bold("\n\nScenario 2: recall blindness (a real bug)"));
+	console.log(dim("Scheduled jobs say the same words every day, and bury the user's real conversation.\n"));
 
 	const index = build();
 
-	console.log(dim("  搜尋「telemetry 取樣率」"));
-	console.log(dim("  資料裡有 1 個使用者對話 + 12 個內容雷同的排程 session\n"));
+	console.log(dim('  searching for "telemetry sample rate"'));
+	console.log(dim("  the data holds 1 user conversation + 12 near-identical scheduled sessions\n"));
 
 	const show = (label: string, list: ReturnType<typeof index.discover>) => {
 		console.log(dim(`  ${label}`));
 		for (const [i, r] of list.entries()) {
 			const tag = r.hit.source === "interactive" ? green("interactive") : yellow("cron       ");
 			console.log(
-				`    ${i + 1}. ${tag}  ${r.hit.sessionTitle.padEnd(24)} ${dim(`score=${r.hit.score.toFixed(1)}`)}`,
+				`    ${i + 1}. ${tag}  ${r.hit.sessionTitle.padEnd(38)} ${dim(`score=${r.hit.score.toFixed(1)}`)}`,
 			);
 		}
 		const top = list[0];
 		const ok = top?.hit.source === "interactive";
-		console.log(`    → 第一名是 ${ok ? green("interactive ✓") : red("cron（recall blindness）✗")}\n`);
+		console.log(`    → the top hit is ${ok ? green("interactive ✓") : red("cron (recall blindness) ✗")}\n`);
 	};
 
 		// First the version without demotion, which is the bug itself
-	show("❌ 所有來源同權（Hermes issue #19434 的狀況）：",
-		index.discover("telemetry 取樣率", 3, 2, { disableSourceWeighting: true }));
+	show(
+		"❌ every source weighted equally (the state of Hermes issue #19434):",
+		index.discover("telemetry sample rate", 3, 2, { disableSourceWeighting: true }),
+	);
 
-	show("✅ cron 降權到 0.25：", index.discover("telemetry 取樣率", 3));
+	show("✅ cron down-weighted to 0.25:", index.discover("telemetry sample rate", 3));
 
-	console.log(dim("\n  Hermes 的修法是**降權而不是排除**："));
-	console.log(dim("    排除 → cron 內容永遠找不到"));
-	console.log(dim("    降權 → cron 是唯一結果時還找得到，但兩者都命中時 interactive 一定贏"));
+	console.log(dim("\n  Hermes' fix is to **down-weight rather than exclude**:"));
+	console.log(dim("    exclude    → cron content becomes unfindable forever"));
+	console.log(dim("    down-weight → cron is still findable when it is the only hit, but interactive always wins a tie"));
 }
 
 function scenario3(): void {
-	console.log(bold("\n\n情境 3：壓縮摘要的迴圈（另一個真實 bug）"));
-	console.log(dim("壓縮摘要是以普通訊息存的，所以搜尋會搜到它。\n"));
+	console.log(bold("\n\nScenario 3: the compaction-summary loop (another real bug)"));
+	console.log(dim("A compaction summary is stored as an ordinary message, so search finds it.\n"));
 
-	console.log(dim("  想一下這個迴圈："));
-	console.log(dim("    1. 舊 session 被壓縮，產生一大段摘要"));
-	console.log(dim("    2. 新 session 搜尋歷史，搜到那段摘要"));
-	console.log(dim("    3. 摘要被塞進新 session 的 context"));
-	console.log(dim("    4. 新 session 變大，又被壓縮…"));
-	console.log(red("\n  搜尋把 Lesson 5 好不容易壓縮掉的東西又搬回來了。\n"));
+	console.log(dim("  consider this loop:"));
+	console.log(dim("    1. an old session is compacted, producing a long summary"));
+	console.log(dim("    2. a new session searches history and finds that summary"));
+	console.log(dim("    3. the summary is pushed into the new session's context"));
+	console.log(dim("    4. the new session grows and is compacted in turn…"));
+	console.log(red("\n  Search dragged back exactly what Lesson 5 worked to remove.\n"));
 
 	const index = build();
-	const results = index.discover("取樣率 結論", 5);
+	const results = index.discover("sample rate conclusion", 5);
 
-	console.log(dim("  搜尋結果裡有沒有壓縮摘要？"));
+	console.log(dim("  is a compaction summary among the results?"));
 	const hasCompaction = results.some(
 		(r) =>
-			r.hit.snippet.includes("以下是這次對話較早部分的摘要") ||
-			r.bookendStart.some((m) => m.text.includes("以下是這次對話較早部分的摘要")),
+			r.hit.snippet.includes("summary of the earlier part") ||
+			r.bookendStart.some((m) => m.text.includes("summary of the earlier part")),
 	);
-	console.log(`    ${hasCompaction ? red("有（防禦失敗）") : green("沒有 ✓")}`);
+	console.log(`    ${hasCompaction ? red("yes (the defence failed)") : green("no ✓")}`);
 
 	const compacted = results.find((r) => r.hit.sessionId === "sess_compacted");
 	if (compacted) {
-		console.log(dim("\n  sess_compacted 有被找到，但 bookend 跳過了摘要那則："));
+		console.log(dim("\n  sess_compacted was found, but the bookend skipped the summary message:"));
 		for (const m of compacted.bookendStart) {
 			console.log(`    ${dim(`[${m.role}] ${m.text.slice(0, 50)}`)}`);
 		}
@@ -190,58 +193,58 @@ function scenario3(): void {
 }
 
 function scenario4(): void {
-	console.log(bold("\n\n情境 4：bookend 提供定位感"));
-	console.log(dim("只給你命中的那一句，你不知道那個 session 本來在幹嘛。\n"));
+	console.log(bold("\n\nScenario 4: bookends give you your bearings"));
+	console.log(dim("Given only the matching line, you cannot tell what that session was about.\n"));
 
 	const index = build();
-	const [result] = index.discover("sample_rate_hz 寫死", 1);
+	const [result] = index.discover("sample_rate_hz hardcoded", 1);
 	if (!result) return;
 
 	console.log(`  ${bold(result.hit.sessionTitle)}  ${dim(result.hit.sessionId)}`);
 
-	console.log(dim("\n  session 開頭（這個對話本來在幹嘛）："));
+	console.log(dim("\n  the start of the session (what this conversation was about):"));
 	for (const m of result.bookendStart) console.log(`    ${dim(`[${m.role}] ${m.text.slice(0, 60)}`)}`);
 
-	console.log(dim("\n  命中處前後（實際發生了什麼）："));
+	console.log(dim("\n  around the hit (what actually happened):"));
 	for (const m of result.window) {
 		const isHit = m.messageId === result.hit.messageId;
 		const line = `    [${m.role}] ${m.text.slice(0, 60)}`;
 		console.log(isHit ? green(line) : dim(line));
 	}
 
-	console.log(dim("\n  session 結尾（最後結論是什麼）："));
+	console.log(dim("\n  the end of the session (what the conclusion was):"));
 	for (const m of result.bookendEnd) console.log(`    ${dim(`[${m.role}] ${m.text.slice(0, 60)}`)}`);
 
-	console.log(dim("\n  三段合起來，模型不用再翻就知道上次發生了什麼。"));
+	console.log(dim("\n  Those three pieces together tell the model what happened last time, with no further digging."));
 }
 
 function scenario5(): void {
-	console.log(bold("\n\n情境 5：為什麼這裡沒有 LLM"));
-	console.log(dim("我原本以為要用「檢索 + LLM 判斷相關性」的兩段式。\n"));
+	console.log(bold("\n\nScenario 5: why there is no LLM here"));
+	console.log(dim('I expected a two-stage "retrieve, then have an LLM judge relevance" design.\n'));
 
-	console.log(dim("  Hermes 的 docstring："));
-	console.log(dim("    「No LLM calls anywhere - every shape returns actual messages from the DB.」"));
-	console.log(dim("\n  而且 History 註記說那是**後來拿掉的**："));
-	console.log(dim("    「PR #20238 seeded a fast/summary dual-mode split; ..."));
+	console.log(dim("  Hermes' docstring:"));
+	console.log(dim('    "No LLM calls anywhere - every shape returns actual messages from the DB."'));
+	console.log(dim("\n  And the History note says it was **removed later**:"));
+	console.log(dim('    "PR #20238 seeded a fast/summary dual-mode split; ...'));
 	console.log(dim("     this module merges all of that into a single calling shape"));
-	console.log(dim("     with no mode parameter, **no summary LLM path**...」"));
+	console.log(dim('     with no mode parameter, **no summary LLM path**..."'));
 
-	console.log(dim("\n  為什麼？因為**呼叫這個工具的本來就是模型**。"));
-	console.log(dim("  你不需要另一個 LLM 幫它判斷相關性，把原始訊息給它就好。"));
-	console.log(dim("  中間那層摘要只是多花一次錢、多一次延遲、多一個會錯的地方。"));
+	console.log(dim("\n  Why? Because **the caller of this tool is already a model**."));
+	console.log(dim("  It does not need another LLM to judge relevance; hand it the raw messages."));
+	console.log(dim("  That middle summarising layer only adds cost, latency, and one more thing that can be wrong."));
 
-	console.log(yellow("\n  跟 Lesson 6 的差別值得想清楚："));
-	console.log(dim("    Lesson 6  find_anomalies：規則負責 recall，模型負責 precision"));
-	console.log(dim("              → 因為那裡的「模型」是要下判斷的那個 agent"));
-	console.log(dim("    Lesson 17 session_search：規則負責全部，不加模型"));
-	console.log(dim("              → 因為結果本來就是要給 agent 看的，它自己會判斷"));
-	console.log(dim("\n  判準：**你是在幫模型縮小範圍，還是在替模型做決定？**"));
-	console.log(dim("  前者值得加一層，後者不值得。"));
+	console.log(yellow("\n  The contrast with Lesson 6 is worth getting straight:"));
+	console.log(dim("    Lesson 6  find_anomalies: rules handle recall, the model handles precision"));
+	console.log(dim("              → because the model there is the agent making the judgement"));
+	console.log(dim("    Lesson 17 session_search: rules handle everything; no model is added"));
+	console.log(dim("              → because the results go to the agent anyway, and it judges for itself"));
+	console.log(dim("\n  The criterion: **are you narrowing the field for the model, or deciding on its behalf?**"));
+	console.log(dim("  The first is worth a layer; the second is not."));
 }
 
 // ─────────────────────────────────────────────────────────────
 
-console.log(bold("Lesson 17：跨 session 搜尋"));
+console.log(bold("Lesson 17: searching across sessions"));
 
 scenario1();
 scenario2();
@@ -249,6 +252,6 @@ scenario3();
 scenario4();
 scenario5();
 
-console.log(bold("\n\n一句話總結"));
-console.log(dim("搜尋品質大部分不是靠加模型，是靠排序衛生：\n"));
-console.log(dim("  哪些來源不該出現、哪些該降權、哪些是自己產生的雜訊。\n"));
+console.log(bold("\n\nIn one sentence"));
+console.log(dim("Search quality mostly does not come from adding a model; it comes from ranking hygiene:\n"));
+console.log(dim("  which sources must not appear, which to down-weight, and which noise you generated yourself.\n"));

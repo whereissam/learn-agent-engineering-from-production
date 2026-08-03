@@ -112,7 +112,7 @@ export async function compact(
 		{
 			system: SUMMARY_SYSTEM_PROMPT,
 			messages: [{ role: "user", text: transcript }],
-			tools: [], // 摘要不需要工具
+			tools: [], // a summary needs no tools
 			maxTokens: config.summaryMaxTokens,
 		},
 		signal,
@@ -123,7 +123,7 @@ export async function compact(
 			.filter((b) => b.type === "text")
 			.map((b) => b.text)
 			.join("\n")
-			.trim() || "(摘要產生失敗)";
+			.trim() || "(summary generation failed)";
 
 	// The summary goes back as a **user message**.
 	//
@@ -133,9 +133,10 @@ export async function compact(
 	const summaryMessage: Message = {
 		role: "user",
 		text:
-			"[以下是這次對話較早部分的摘要。原始訊息已從 context 中移除以節省空間。]\n\n" +
+			"[The following is a summary of the earlier part of this conversation. " +
+			"The original messages were dropped from the context to save space.]\n\n" +
 			summary +
-			"\n\n[摘要結束。以下是最近的對話原文。]",
+			"\n\n[End of summary. What follows is the recent conversation verbatim.]",
 	};
 
 	const compactedMessages = [summaryMessage, ...recent];
@@ -154,7 +155,7 @@ export async function compact(
 			summary,
 			tokensBefore,
 			tokensAfter: tokensBefore,
-			compactedCount: 0, // 0 代表「算了，沒壓」
+			compactedCount: 0, // 0 means "never mind, nothing was compacted"
 		};
 	}
 

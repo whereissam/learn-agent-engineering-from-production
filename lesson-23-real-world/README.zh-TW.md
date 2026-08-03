@@ -26,9 +26,9 @@
 但你現在不一樣。你已經：
 
 ```text
-Lesson 20  看過模型自己生出 site: 和 OR，然後在 BM25 上完全失效
-Lesson 21  因為抽取器丟掉 <table>，燒掉兩次 16 步上限
-Lesson 22  猜錯去重門檻，還被一個「平均分數上升」蓋掉一次崩塌
+Lesson 20  watched the model invent site: and OR, then fail completely against BM25
+Lesson 21  burned two 16-step caps because the extractor dropped <table>
+Lesson 22  guessed the dedup threshold wrong, and a rising mean score hid a collapse
 ```
 
 帶著這些傷去讀，同一行程式碼的意思完全不同。
@@ -83,14 +83,14 @@ bun run lesson-23:check
 ```
 
 ```
-✓ L20 query 生成：不要用搜尋運算子
+✓ L20 query generation: no search operators
   gpt-researcher/gpt_researcher/prompts.py:250
-✓ L21 抽取：整塊丟掉的標籤
+✓ L21 extraction: tags dropped wholesale
   crawl4ai/crawl4ai/content_filter_strategy.py:101
-~ L24 下一輪的 query 是上一輪的產物
-  deep-research/src/deep-research.ts:251 → 實際在第 252 行
+~ L24 the next round's queries are produced by the previous round
+  deep-research/src/deep-research.ts:251 → actually on line 252
 
-23 條正確  0 條行號漂了  0 條找不到
+23 correct  0 line numbers drifted  0 not found
 ```
 
 設計原則 4 說「對照原始碼的行號要驗證過」。與其寫一份看起來很精確、
@@ -175,10 +175,10 @@ crawl4ai 的白名單長這樣：
 # crawl4ai/crawl4ai/content_filter_strategy.py:50
 self.included_tags = {
     "article", "main", "section", "div",
-    "ul", "ol", "li", "dl", "dt", "dd",          # ← 清單
-    "p", "span", "blockquote", "pre", "code",     # ← 程式碼
+    "ul", "ol", "li", "dl", "dt", "dd",          # ← lists
+    "p", "span", "blockquote", "pre", "code",     # ← code
     "h1"..."h6",
-    "table", "thead", "tbody", "tr", "td", "th",  # ← 表格
+    "table", "thead", "tbody", "tr", "td", "th",  # ← tables
     ...
 }
 ```
@@ -200,7 +200,7 @@ self.included_tags = {
 ```python
 # crawl4ai/crawl4ai/content_filter_strategy.py:568
 threshold: float = 0.48
-# 評分權重
+# scoring weights
 "text_density": 0.4, "link_density": 0.2, "tag_weight": 0.2,
 "class_id_weight": 0.1, "text_length": 0.1
 ```
@@ -219,7 +219,7 @@ const excludeNonMainTags = [
   "header", "footer", "nav", "aside", ".header", ".top", ".navbar", "#header",
   ".footer", ".bottom", "#footer", ".sidebar", ".side", ".aside", "#sidebar",
   ".modal", ".popup", "#modal", ".overlay", ".ad", ".ads", ".advert", "#ad",
-  ...  // 48 條
+  ...  // 48 of them
 ];
 ```
 
@@ -279,15 +279,15 @@ Tavily / Google 已經做完關鍵字匹配，他們拿到的候選已經是相�
 這是一個架構選擇，不是偷懶：
 
 ```text
-我們（Lesson 22）      自己建索引 → 所以 sparse + dense + 融合 + 排序都要自己做
-GPT Researcher         用別人的搜尋引擎 → 只需要做「頁內過濾」
+us (Lesson 22)      we build the index → so sparse + dense + fusion + ranking are all ours to do
+GPT Researcher      uses somebody else's search engine → only needs within-page filtering
 ```
 
 而且注意他們用的是**門檻**（threshold）不是**排名**（top-k）：
 
 ```text
-排名：不管多爛，前五名一定會給你五個
-門檻：全部都爛的話，就回空的
+ranking:   however bad they are, the top five always hands you five
+threshold: if they are all bad, it returns nothing
 ```
 
 對 agent 來說門檻常常更好，因為「找不到」是一個它應該知道的事實。
@@ -337,27 +337,27 @@ if (newDepth > 0) {
 模型從頭到尾沒有「要不要繼續」的發言權。
 
 ```text
-breadth=4, depth=2   →   4 條 query
-                          每條再展開 2 條（4/2）
-                          depth 到 0，停
+breadth=4, depth=2   →   4 queries
+                          each expands into 2 more (4/2)
+                          depth reaches 0, stop
 ```
 
 搭配另外三個設計，整個 loop 就閉合了：
 
 ```ts
-// :252  下一輪的 query 是上一輪的產物，不是原始問題
+// :252  the next round's queries are produced by the previous round, not the original question
 const nextQuery = `
   Previous research goal: ${serpQuery.researchGoal}
   Follow-up research directions: ${newLearnings.followUpQuestions.map(...)}
 `;
 
-// :102  流動的是 learnings，不是網頁
+// :102  what flows through is learnings, not web pages
 `generate a list of learnings from the contents ... max of ${numLearnings}`
 
-// :30   並行度是一個寫死的小數字
+// :30   concurrency is a small hardcoded number
 const ConcurrencyLimit = Number(process.env.FIRECRAWL_CONCURRENCY) || 2;
 
-// :282  單一分支失敗不能弄垮整輪
+// :282  one failing branch must not take down the round
 catch (e) { return { learnings: [], visitedUrls: [] }; }
 ```
 
@@ -415,7 +415,7 @@ async def _get_new_urls(self, url_set_input):
 工具沒改、loop 沒改、檢索管線沒改。然後跑 Lesson 22 那個一直失敗的問題：
 
 ```
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
 | | Lesson 22（各跑兩次） | Lesson 23（各跑兩次） |
@@ -441,7 +441,7 @@ retarget-anything 標明 v2.0 已棄用及原因，還引用了論壇那條腳�
 >   → web_search()
   ✗ query is empty. Pass what you are looking for.
 
-[串流失敗] 400 status code (no body)
+[stream failed] 400 status code (no body)
 ```
 
 跑兩次，兩次都一樣。而 Lesson 20-22 從來沒發生過。
@@ -462,11 +462,11 @@ retarget-anything 標明 v2.0 已棄用及原因，還引用了論壇那條腳�
 然後逐項改 payload 二分：
 
 ```
-✗ 原封不動（基準）                    400
-✗ 拿掉 thought_signature              400
-✓ arguments 改成有內容的 JSON         200   ← 找到了
-✗ arguments 改成空字串                400
-✗ 同時：拿掉簽章 + 填 arguments       400   "Function call is missing a thought signature"
+✗ untouched (the baseline)                400
+✗ thought_signature removed               400
+✓ arguments replaced with non-empty JSON  200   ← found it
+✗ arguments replaced with an empty string 400
+✗ both: signature removed + arguments filled  400   "Function call is missing a thought signature"
 ```
 
 問題在 `arguments`。把它印出來：
@@ -551,8 +551,8 @@ const key =
 而且沒有標 `UNVERIFIED`。
 
 ```text
-「不要用某種語法」    → 可以用 prompt 約束，因為那是一個明確的格式規則
-「不要想你記得的事」  → prompt 約束不了，因為那是模型的先驗
+"do not use this syntax"        → a prompt can enforce it; it is an explicit formatting rule
+"do not think of what you remember"  → a prompt cannot; that is the model's prior
 ```
 
 **這正是為什麼 deep-research 不用 prompt 去要求模型停止，
@@ -572,8 +572,8 @@ Lesson 22 Step 5（訊號有偏誤）是一次，這是第三次。
 | 症狀 | 原因 | 解法 |
 |---|---|---|
 | `bun run lesson-23:check` 印出 clone 指令 | 參考專案還沒抓下來 | 照著它給的指令 clone |
-| 一堆 `~ 行號漂了` | 上游改版了 | 正常。去看他們為什麼改，通常比原本那行更有價值 |
-| `✗ 找不到` | 那段程式碼被刪或大改 | 同上。這一課的內容以上表的 commit 為準 |
+| 一堆 `~ line numbers drifted` | 上游改版了 | 正常。去看他們為什麼改，通常比原本那行更有價值 |
+| `✗ not found` | 那段程式碼被刪或大改 | 同上。這一課的內容以上表的 commit 為準 |
 | `400 status code (no body)` | 平行工具呼叫的累積 bug | 見 Step 6，已修 |
 | clone 出現在 `git status` | `.git/info/exclude` 沒設 | 見上面「不進版控」那段 |
 
@@ -653,10 +653,10 @@ Lesson 22 Step 5（訊號有偏誤）是一次，這是第三次。
 自己實作一次。
 
 ```text
-breadth / depth 的結構性預算      ← 不問模型「要不要繼續」
-learnings 而不是網頁在 loop 裡流動  ← context 不會爆
-visited_urls 跨層共用              ← 不重複抓
-單一分支失敗不弄垮整輪
+a structural breadth / depth budget   ← never asks the model "should I continue"
+learnings, not web pages, flow through the loop  ← the context does not blow up
+visited_urls shared across levels     ← nothing is fetched twice
+one failing branch does not take down the round
 ```
 
 Lesson 22 Step 8 那個「兩次都撞上步數上限」的問題，到那一課才會真的解決——

@@ -25,34 +25,34 @@ bun run lesson-26:probe
 真的跑出來的（Gemini 3.6 Flash）：
 
 ```
-案例               input  output   total      差額      低估倍數  stopReason
+case                   input  output   total     gap underest.  stopReason
 ────────────────────────────────────────────────────────────────────────
-極短 (100)            13       1     107      93      7.6x  end
-一句話 (400)           16      13     412     383     14.2x  max_tokens
-一句話 (4000)          16      47     686     623     10.9x  end
-長篇 (2000)           26     643    2022    1353      3.0x  max_tokens
+very short (100)          14       1     109      94      7.3x  end
+one sentence (400)        17      16     413     380     12.5x  max_tokens
+one sentence (4000)       17      41     520     462      9.0x  end
+long answer (2000)        28     746    2024    1250      2.6x  max_tokens
 ```
 
 第一列：你問「只回答一個字：hi」，模型回了 1 個 token。
 `input + output = 14`。
 
-實際計費的 total 是 107。
+實際計費的 total 是 109。
 
-中間那 93 個是 **thinking token**。它不在 `completion_tokens` 裡，
+中間那 94 個是 **thinking token**。它不在 `completion_tokens` 裡，
 但你要付錢，而且通常是照 output 價計費——也就是最貴的那一種。
 
-用 `input + output` 算成本，這一筆會**低估 7.6 倍**。
+用 `input + output` 算成本，這一筆會**低估 7.3 倍**。
 
 ### 換一家 provider，同一個欄位的意思就變了
 
 同一支 probe 打 OpenAI：
 
 ```
-案例               input  output   total      差額      低估倍數  stopReason
-極短 (100)           121     100     221       0      1.0x  max_tokens
-一句話 (400)          124     195     319       0      1.0x  end
-一句話 (4000)         124     260     384       0      1.0x  end
-長篇 (2000)          134    2000    2134       0      1.0x  max_tokens
+case                   input  output   total     gap underest.  stopReason
+very short (100)         118     100     218       0      1.0x  max_tokens
+one sentence (400)       120     177     297       0      1.0x  end
+one sentence (4000)      120     113     233       0      1.0x  end
+long answer (2000)       129    1926    2055       0      1.0x  end
 ```
 
 差額全部是 0。
@@ -62,8 +62,8 @@ bun run lesson-26:probe
 Gemini 不算進去，但算進 `total_tokens`。
 
 ```text
-OpenAI    completion_tokens 已含 reasoning   →  total = input + output
-Gemini    completion_tokens 不含 thinking    →  total > input + output
+OpenAI    completion_tokens already includes reasoning  →  total = input + output
+Gemini    completion_tokens excludes thinking            →  total > input + output
 ```
 
 > 同一個欄位名，兩家的語意不一樣。這就是 provider 抽象最難的地方，
@@ -80,12 +80,12 @@ tokenizer 不同、系統開銷不同，**跨 provider 比 token 數沒有意義
 看「一句話」那兩列：同一個問題，只有 `maxTokens` 不同。
 
 ```
-額度 400   → output 13 個 token，stopReason = max_tokens   ← 被砍斷
-額度 4000  → output 47 個 token，stopReason = end          ← 正常說完
+budget 400   → output 16 tokens, stopReason = max_tokens   ← cut off
+budget 4000  → output 41 tokens, stopReason = end           ← finished normally
 ```
 
-一句話的答案只需要 47 個 token，但額度 400 不夠——
-因為 383 個額度被拿去想了。
+一句話的答案只需要 41 個 token，但額度 400 不夠——
+因為 380 個額度被拿去想了。
 
 > **對推理型模型來說，`maxTokens` 不是「輸出長度上限」，
 > 是「想 + 寫的總額度」。**
@@ -123,8 +123,8 @@ gpt-researcher 的做法是把 `cost_callback` 傳進每一個會呼叫模型的
 ### 失敗的呼叫也要記帳
 
 ```ts
-// 串流中斷或出錯時不會有 done 事件。這種呼叫一樣要付錢。
-if (!recorded) meter.calls.push({ label: `${classify(request)} (未完成)`, ... });
+// An interrupted or failed stream never emits done. That call still costs money.
+if (!recorded) meter.calls.push({ label: `${classify(request)} (incomplete)`, ... });
 ```
 
 不記的話，你會以為「失敗的呼叫是免費的」。它不是。
@@ -144,32 +144,31 @@ PRICE_INPUT=0.30 PRICE_OUTPUT=2.50 bun run lesson-26 -- --shapes
 
 ```
 breadth=2 depth=1
-  預估上界：搜尋 2、抓取 4、模型呼叫 4    實際：搜尋 2、抓取 4、模型呼叫 4
-  證據 6 條
-  步驟                    次數   total token      占比          美元
-  extractLearnings       2         5,503   55.9%    $0.00846
-  writeReport            1         3,595   36.5%    $0.00742
-  generateQueries        1           752    7.6%    $0.00134
-  ─ 合計 input 3,364、output 1,859、total 9,850（thinking 佔 47%）
-  合計 $0.0172
+  estimated ceiling: 2 searches, 4 fetches, 4 model calls  actual: 2 searches, 4 fetches, 4 model calls
+  6 pieces of evidence
+  step               calls   total token   share         USD
+  extractLearnings       2         6,377   54.7%    $0.01064
+  writeReport            1         4,510   38.7%    $0.00963
+  generateQueries        1           774    6.6%    $0.00140
+  ─ totals: input 3,399, output 1,689, total 11,661 (thinking is 56%)
+  total $0.0217
 
 breadth=3 depth=2
-  預估上界：搜尋 9、抓取 18、模型呼叫 13   實際：搜尋 7、抓取 8、模型呼叫 11
-  證據 16 條
-  步驟                    次數   total token      占比          美元
-  extractLearnings       6        12,520   47.2%    $0.02255
-  writeReport            1         7,363   27.7%    $0.01540
-  generateQueries        4         6,669   25.1%    $0.01121
-  ─ 合計 input 7,826、output 2,724、total 26,552（thinking 佔 60%）
-  合計 $0.0492
-  ⚠ 2 次呼叫被 maxTokens 截斷
+  estimated ceiling: 9 searches, 18 fetches, 13 model calls  actual: 7 searches, 6 fetches, 7 model calls
+  9 pieces of evidence
+  step               calls   total token   share         USD
+  extractLearnings       3         8,186   45.4%    $0.01381
+  writeReport            1         5,421   30.1%    $0.01148
+  generateQueries        3         4,416   24.5%    $0.00760
+  ─ totals: input 5,532, output 2,337, total 18,023 (thinking is 56%)
+  total $0.0329
 ```
 
 三個發現：
 
 ### 1. 最貴的不是寫報告，是讀網頁做摘要
 
-`extractLearnings` 佔 47-56%，`writeReport` 只佔 28-37%。
+`extractLearnings` 佔 45-55%，`writeReport` 只佔 30-39%。
 
 直覺會覺得「寫三頁報告」最貴，但實際上**把六頁網頁壓成三條結論**才是大宗，
 因為那一步的 input 很長（整頁正文）而且要跑很多次。
@@ -180,18 +179,18 @@ breadth=3 depth=2
 ### 2. thinking 佔比隨深度上升
 
 ```
-breadth=2 depth=1   thinking 佔 47%
-breadth=3 depth=2   thinking 佔 60%
+breadth=2 depth=1   thinking is 56%
+breadth=3 depth=2   thinking is 56%
 ```
 
-越深，模型要考慮的東西越多，想得越久。**成本不是照 token 線性成長的，
-它照「模型要做多難的判斷」成長。**
+在這個模型上，你付的 token 有一半以上從來沒有人看到。**成本不是照「看得見的
+輸出」線性成長的，開跑之前就有一半以上是看不見的。**
 
 ### 3. 但每條證據的單價幾乎沒變
 
 ```
-breadth=2 depth=1    $0.0172 / 6 條  =  $0.0029 / 條
-breadth=3 depth=2    $0.0492 / 16 條 =  $0.0031 / 條
+breadth=2 depth=1    $0.0217 / 6 items  =  $0.0036 each
+breadth=3 depth=2    $0.0329 / 9 items  =  $0.0037 each
 ```
 
 多跑一層沒有變貴。這是這一課最實用的一個數字：
@@ -204,7 +203,7 @@ breadth=3 depth=2    $0.0492 / 16 條 =  $0.0031 / 條
 
 ## Step 3：又一次漏帳（這次在自己的 provider 裡）
 
-計量接上去之後，probe 的後三個案例都印「這個 provider 沒有回報 usage」。
+計量接上去之後，probe 的後三個案例都印「this provider reports no usage」。
 
 追下去發現：`shared/streaming/openai.ts` 在 `stopReason === "max_tokens"`
 的時候會提早 `return`，而那條路徑**沒有帶上 usage**。
@@ -213,7 +212,7 @@ breadth=3 depth=2    $0.0492 / 16 條 =  $0.0031 / 條
   if (stopReason === "max_tokens") {
       yield { type: "done", response: {
           blocks: ..., raw: ..., stopReason,
-+         usage,   // ← 漏了三課
++         usage,   // ← missing for three lessons
       }};
       return;
   }
@@ -238,15 +237,15 @@ breadth=3 depth=2    $0.0492 / 16 條 =  $0.0031 / 條
 所以這一課的立場是：
 
 ```text
-token 是可以量測的事實      → 一定顯示
-錢是需要外部資訊的推算      → 你自己填，而且要記下確認日期
+tokens are a measurable fact          → always shown
+money is an estimate needing outside information → you fill it in, and record when you checked
 ```
 
 ```ts
 export interface Price {
-  input: number;   // 每百萬 token 美元
+  input: number;   // USD per million tokens
   output: number;
-  verifiedOn: string;  // 沒有這個欄位的價格不值得相信
+  verifiedOn: string;  // a price without this field is not worth trusting
 }
 ```
 
@@ -258,8 +257,8 @@ export interface Price {
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| 「沒有價目表，只顯示 token」 | 這是預設行為 | `PRICE_INPUT=… PRICE_OUTPUT=… bun run lesson-26` |
-| 「這個 provider 沒有回報 usage」 | 沒開 `stream_options.include_usage` | 已在 `shared/streaming/openai.ts` 開啟 |
+| 「No price table, so only tokens are shown」 | 這是預設行為 | `PRICE_INPUT=… PRICE_OUTPUT=… bun run lesson-26` |
+| 「this provider reports no usage」 | 沒開 `stream_options.include_usage` | 已在 `shared/streaming/openai.ts` 開啟 |
 | `PROVIDER=fake` 沒有 token 數 | 假 provider 不產生 usage | 正常。fake 只用來看結構 |
 | Anthropic 沒有 usage | `shared/streaming/anthropic.ts` 還沒接 | 練習 1 |
 
@@ -324,8 +323,8 @@ export interface Price {
 接到自己的檔案上。
 
 ```text
-本地文件沒有 URL，「來源」是什麼？（檔名 + 第幾段）
-本地文件沒有新鮮度和權威度，排序公式要怎麼改？
-本地和網路說得不一樣時，相信誰？
-PDF、docx 怎麼變成 chunk？
+local documents have no URL, so what is a "source"? (a filename plus a paragraph number)
+local documents have no freshness or authority, so how does the ranking formula change?
+when local and web disagree, which do you believe?
+how do PDF and docx become chunks?
 ```

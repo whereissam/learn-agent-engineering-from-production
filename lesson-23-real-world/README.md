@@ -28,9 +28,9 @@ of `if`s and parameters, thought "hmm, seems reasonable", and learned nothing.
 But you are different now. You have already:
 
 ```text
-Lesson 20  看過模型自己生出 site: 和 OR，然後在 BM25 上完全失效
-Lesson 21  因為抽取器丟掉 <table>，燒掉兩次 16 步上限
-Lesson 22  猜錯去重門檻，還被一個「平均分數上升」蓋掉一次崩塌
+Lesson 20  watched the model invent site: and OR, then fail completely against BM25
+Lesson 21  burned two 16-step caps because the extractor dropped <table>
+Lesson 22  guessed the dedup threshold wrong, and a rising mean score hid a collapse
 ```
 
 Read with those injuries and the same line of code means something completely
@@ -87,14 +87,14 @@ bun run lesson-23:check
 ```
 
 ```
-✓ L20 query 生成：不要用搜尋運算子
+✓ L20 query generation: no search operators
   gpt-researcher/gpt_researcher/prompts.py:250
-✓ L21 抽取：整塊丟掉的標籤
+✓ L21 extraction: tags dropped wholesale
   crawl4ai/crawl4ai/content_filter_strategy.py:101
-~ L24 下一輪的 query 是上一輪的產物
-  deep-research/src/deep-research.ts:251 → 實際在第 252 行
+~ L24 the next round's queries are produced by the previous round
+  deep-research/src/deep-research.ts:251 → actually on line 252
 
-23 條正確  0 條行號漂了  0 條找不到
+23 correct  0 line numbers drifted  0 not found
 ```
 
 Design principle 4 says citations into other people's source must be verified.
@@ -185,10 +185,10 @@ crawl4ai's allowlist looks like this:
 # crawl4ai/crawl4ai/content_filter_strategy.py:50
 self.included_tags = {
     "article", "main", "section", "div",
-    "ul", "ol", "li", "dl", "dt", "dd",          # ← 清單
-    "p", "span", "blockquote", "pre", "code",     # ← 程式碼
+    "ul", "ol", "li", "dl", "dt", "dd",          # ← lists
+    "p", "span", "blockquote", "pre", "code",     # ← code
     "h1"..."h6",
-    "table", "thead", "tbody", "tr", "td", "th",  # ← 表格
+    "table", "thead", "tbody", "tr", "td", "th",  # ← tables
     ...
 }
 ```
@@ -211,7 +211,7 @@ the structure of the real world rather than anybody's personal taste.**
 ```python
 # crawl4ai/crawl4ai/content_filter_strategy.py:568
 threshold: float = 0.48
-# 評分權重
+# scoring weights
 "text_density": 0.4, "link_density": 0.2, "tag_weight": 0.2,
 "class_id_weight": 0.1, "text_length": 0.1
 ```
@@ -231,7 +231,7 @@ const excludeNonMainTags = [
   "header", "footer", "nav", "aside", ".header", ".top", ".navbar", "#header",
   ".footer", ".bottom", "#footer", ".sidebar", ".side", ".aside", "#sidebar",
   ".modal", ".popup", "#modal", ".overlay", ".ad", ".ads", ".advert", "#ad",
-  ...  // 48 條
+  ...  // 48 of them
 ];
 ```
 
@@ -294,15 +294,15 @@ passages within a page".
 This is an architectural choice, not laziness:
 
 ```text
-我們（Lesson 22）      自己建索引 → 所以 sparse + dense + 融合 + 排序都要自己做
-GPT Researcher         用別人的搜尋引擎 → 只需要做「頁內過濾」
+us (Lesson 22)      we build the index → so sparse + dense + fusion + ranking are all ours to do
+GPT Researcher      uses somebody else's search engine → only needs within-page filtering
 ```
 
 And note that they use a **threshold**, not a **rank** (top-k):
 
 ```text
-排名：不管多爛，前五名一定會給你五個
-門檻：全部都爛的話，就回空的
+ranking:   however bad they are, the top five always hands you five
+threshold: if they are all bad, it returns nothing
 ```
 
 For an agent a threshold is often better, because "nothing found" is a fact it
@@ -356,27 +356,27 @@ Each level deeper halves the breadth and decrements the depth. At zero it ends.
 The model never gets a say in whether to continue.
 
 ```text
-breadth=4, depth=2   →   4 條 query
-                          每條再展開 2 條（4/2）
-                          depth 到 0，停
+breadth=4, depth=2   →   4 queries
+                          each expands into 2 more (4/2)
+                          depth reaches 0, stop
 ```
 
 Together with three other decisions, the loop closes:
 
 ```ts
-// :252  下一輪的 query 是上一輪的產物，不是原始問題
+// :252  the next round's queries are produced by the previous round, not the original question
 const nextQuery = `
   Previous research goal: ${serpQuery.researchGoal}
   Follow-up research directions: ${newLearnings.followUpQuestions.map(...)}
 `;
 
-// :102  流動的是 learnings，不是網頁
+// :102  what flows through is learnings, not web pages
 `generate a list of learnings from the contents ... max of ${numLearnings}`
 
-// :30   並行度是一個寫死的小數字
+// :30   concurrency is a small hardcoded number
 const ConcurrencyLimit = Number(process.env.FIRECRAWL_CONCURRENCY) || 2;
 
-// :282  單一分支失敗不能弄垮整輪
+// :282  one failing branch must not take down the round
 catch (e) { return { learnings: [], visitedUrls: [] }; }
 ```
 
@@ -437,7 +437,7 @@ Tools unchanged, loop unchanged, retrieval pipeline unchanged. Then run the
 question Lesson 22 kept failing:
 
 ```
-> 有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？
+> Which open source projects can retarget video motion onto a Unitree G1?
 ```
 
 | | Lesson 22 (two runs each) | Lesson 23 (two runs each) |
@@ -466,7 +466,7 @@ this:
 >   → web_search()
   ✗ query is empty. Pass what you are looking for.
 
-[串流失敗] 400 status code (no body)
+[stream failed] 400 status code (no body)
 ```
 
 Twice, identically. And Lessons 20-22 never did this.
@@ -487,11 +487,11 @@ the whole request got dumped and replayed with native `fetch`:
 Then a bisect over the payload, one field at a time:
 
 ```
-✗ 原封不動（基準）                    400
-✗ 拿掉 thought_signature              400
-✓ arguments 改成有內容的 JSON         200   ← 找到了
-✗ arguments 改成空字串                400
-✗ 同時：拿掉簽章 + 填 arguments       400   "Function call is missing a thought signature"
+✗ untouched (the baseline)                400
+✗ thought_signature removed               400
+✓ arguments replaced with non-empty JSON  200   ← found it
+✗ arguments replaced with an empty string 400
+✗ both: signature removed + arguments filled  400   "Function call is missing a thought signature"
 ```
 
 The problem is `arguments`. Printing it:
@@ -579,8 +579,8 @@ It searched for remembered names anyway. And in one run, `Pink` and `Pinocchio`
 recommendations, without an `UNVERIFIED` tag.
 
 ```text
-「不要用某種語法」    → 可以用 prompt 約束，因為那是一個明確的格式規則
-「不要想你記得的事」  → prompt 約束不了，因為那是模型的先驗
+"do not use this syntax"        → a prompt can enforce it; it is an explicit formatting rule
+"do not think of what you remember"  → a prompt cannot; that is the model's prior
 ```
 
 **Which is exactly why deep-research does not use a prompt to ask the model to
@@ -600,8 +600,8 @@ Lesson 22 Step 5 (the biased signal) was twice, and this is the third.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `bun run lesson-23:check` prints clone commands | the reference projects are not checked out | clone with the commands it gives |
-| lots of `~ 行號漂了` | upstream changed | normal. Go see why they changed it; that is usually more valuable than the original line |
-| `✗ 找不到` | that code was deleted or heavily rewritten | as above. This lesson's content is anchored to the commits listed |
+| lots of `~ line numbers drifted` | upstream changed | normal. Go see why they changed it; that is usually more valuable than the original line |
+| `✗ not found` | that code was deleted or heavily rewritten | as above. This lesson's content is anchored to the commits listed |
 | `400 status code (no body)` | the parallel tool-call accumulation bug | see Step 6, fixed |
 | the clones show up in `git status` | `.git/info/exclude` is not set | see the "stays out of version control" section above |
 
@@ -690,10 +690,10 @@ asking.
 four mechanisms read in Step 4.
 
 ```text
-breadth / depth 的結構性預算      ← 不問模型「要不要繼續」
-learnings 而不是網頁在 loop 裡流動  ← context 不會爆
-visited_urls 跨層共用              ← 不重複抓
-單一分支失敗不弄垮整輪
+a structural breadth / depth budget   ← never asks the model "should I continue"
+learnings, not web pages, flow through the loop  ← the context does not blow up
+visited_urls shared across levels     ← nothing is fetched twice
+one failing branch does not take down the round
 ```
 
 Lesson 22 Step 8's "hit the step ceiling both times" is only genuinely solved

@@ -69,7 +69,7 @@ function envPrice(): Price | undefined {
 	const input = Number(process.env.PRICE_INPUT);
 	const output = Number(process.env.PRICE_OUTPUT);
 	if (!Number.isFinite(input) || !Number.isFinite(output)) return undefined;
-	return { input, output, verifiedOn: "(來自環境變數)" };
+	return { input, output, verifiedOn: "(from environment variables)" };
 }
 
 export function hasPrices(): boolean {

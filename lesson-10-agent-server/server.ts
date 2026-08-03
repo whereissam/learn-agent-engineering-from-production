@@ -283,7 +283,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 					});
 					session.messages.push({
 						role: "user",
-						text: "[你上一則回覆被我中斷了。等我的下一個指示，不要自己接續。]",
+						text: "[I interrupted your last reply. Wait for my next instruction; do not resume on your own.]",
 					});
 				}
 				emit(session, { type: "turn_done", reason: "aborted" });
@@ -294,7 +294,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 		}
 
 		if (!response) {
-			emit(session, { type: "turn_done", reason: "error", message: "串流沒有正常結束" });
+			emit(session, { type: "turn_done", reason: "error", message: "the stream did not end cleanly" });
 			return;
 		}
 
@@ -361,7 +361,7 @@ async function runTurn(session: Session, signal: AbortSignal): Promise<void> {
 			emit(session, { type: "interrupted", where: "tools" });
 			session.messages.push({
 				role: "user",
-				text: "[我中斷了你的工具執行。等我的下一個指示。]",
+				text: "[I interrupted your tool execution. Wait for my next instruction.]",
 			});
 			emit(session, { type: "turn_done", reason: "aborted" });
 			return;
@@ -573,7 +573,7 @@ const server = createServer((req, res) => {
 		if (action === "/interrupt") {
 				// Interruption is Lesson 3's three lines, with the signal source changed from SIGINT to HTTP.
 			if (!session.controller || session.controller.signal.aborted) {
-				json(res, 409, { error: "沒有正在跑的 turn" });
+				json(res, 409, { error: "no turn is running" });
 				return;
 			}
 			session.controller.abort();
@@ -590,11 +590,11 @@ const server = createServer((req, res) => {
 				return;
 			}
 			if (typeof text !== "string" || text.trim() === "") {
-				json(res, 400, { error: "text 必須是非空字串" });
+				json(res, 400, { error: "text must be a non-empty string" });
 				return;
 			}
 			if (text.length > MAX_TEXT_CHARS) {
-				json(res, 413, { error: "text 太長" });
+				json(res, 413, { error: "text is too long" });
 				return;
 			}
 
@@ -602,9 +602,9 @@ const server = createServer((req, res) => {
 			if (!tryMarkRunning(session)) {
 				broadcast(session, {
 					type: "input_rejected",
-					error: "這個 session 正在跑一輪。等它跑完，或先中斷它。",
+					error: "This session is already running a turn. Wait for it, or interrupt it first.",
 				});
-				json(res, 409, { error: "已經在跑了" });
+				json(res, 409, { error: "already running" });
 				return;
 			}
 
@@ -626,6 +626,6 @@ server.listen(PORT, "127.0.0.1", () => {
 	const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 	const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 	console.log(dim(`agent server → http://127.0.0.1:${PORT}`));
-	if (NAIVE) console.log(yellow("NAIVE=1：重連不重送狀態、turn 中途不存檔"));
-	console.log(dim(`另開一個終端機跑：bun run lesson-10:client`));
+	if (NAIVE) console.log(yellow("NAIVE=1: no state replay on reconnect, and no mid-turn persistence"));
+	console.log(dim(`In another terminal, run: bun run lesson-10:client`));
 });

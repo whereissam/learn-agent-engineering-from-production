@@ -52,22 +52,22 @@ interface Step {
 
 const STEPS: Step[] = [
 	{
-		text: "先看這個 session 的資料品質。",
+		text: "First, check this session's data quality.",
 		tool: "get_session",
 		args: (session) => ({ session_id: session }),
 	},
 	{
-		text: "資料完整。用門檻掃一次，找出候選區間。",
+		text: "The data is complete. Sweep it with thresholds to find candidate windows.",
 		tool: "find_anomalies",
 		args: (session) => ({ session_id: session }),
 	},
 	{
-		text: "有一段 pitch 異常。放大來看，重點是 foot_contact。",
+		text: "One stretch of pitch looks wrong. Zoom in; foot_contact is the thing to watch.",
 		tool: "query_telemetry",
 		args: (session) => ({ session_id: session, start_ms: 5000, end_ms: 6500 }),
 	},
 	{
-		text: "腳沒有離地。用影片再確認一次。",
+		text: "The feet never left the ground. Confirm it against the video.",
 		tool: "get_video_frame",
 		args: (session) => ({ session_id: session, t_ms: 5620 }),
 	},
@@ -80,12 +80,12 @@ const REPORT_ARGS = (session: string) => ({
 	window_start_ms: 5360,
 	window_end_ms: 6500,
 	evidence: [
-		"imu_pitch_deg 峰值 37.70°（正常行走 0-5°）",
-		"joint_torque_max 峰值 51.36 Nm（正常行走 15-25 Nm）",
-		"全程至少一隻腳著地，airborne 樣本為 0",
-		"t>6500ms 後恢復正常行走",
+		"imu_pitch_deg peaked at 37.70° (0-5° in normal walking)",
+		"joint_torque_max peaked at 51.36 Nm (15-25 Nm in normal walking)",
+		"at least one foot stayed down throughout; 0 airborne samples",
+		"normal walking resumed after t>6500ms",
 	],
-	caveats: ["這是假 provider 產生的罐頭報告，數字取自 README 的實測紀錄"],
+	caveats: ["A canned report from the fake provider; the numbers come from the measured run in the README"],
 });
 
 export function fakeTelemetryProvider(): StreamingProvider {
@@ -120,7 +120,7 @@ export function fakeTelemetryProvider(): StreamingProvider {
 			}
 
 			if (turn === STEPS.length) {
-				const text = "腳全程著地，所以這不是跌倒。寫報告。";
+				const text = "The feet stayed down the whole time, so this was not a fall. Writing the report.";
 				const call = { id: "freport", name: "create_incident_report", args: REPORT_ARGS(session) };
 				yield* say(text, signal);
 				if (signal?.aborted) return yield aborted();
@@ -140,10 +140,11 @@ export function fakeTelemetryProvider(): StreamingProvider {
 			}
 
 			const outro =
-				`${session} 判定為 near_miss：pitch 到了 37.70°，看起來像跌倒，\n` +
-				"但四隻腳全程至少有一隻著地，而且事後恢復正常行走。\n\n" +
-				"（這是寫死的腳本，不是模型的判斷。真模型的實際軌跡在 README Step 0。\n" +
-				"這支假 provider 的用途是讓沒有 API key 的人也能看到工具怎麼串起來。）";
+				`${session} is classified near_miss: pitch reached 37.70°, which looks like a fall,\n` +
+				"but at least one of the four feet was down throughout, and normal walking resumed afterwards.\n\n" +
+				"(This is a hardcoded script, not the model's judgement. A real model's actual trajectory is in\n" +
+				"README Step 0. This fake provider exists so that people without an API key can still see how\n" +
+				"the tools chain together.)";
 			yield* say(outro, signal);
 			if (signal?.aborted) return yield aborted();
 			yield {

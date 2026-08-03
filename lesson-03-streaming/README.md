@@ -27,15 +27,16 @@ Ask anything. The first two turns call tools, then it starts a long answer.
 Press Ctrl+C in the middle of it:
 
 ```
-這是一段刻意寫得很長的回覆，目的是讓你有足夠的時間按下 Ctrl+C 試試看中斷。
+This reply is deliberately long, to give you enough time to press Ctrl+C and
+try interrupting it.
 
-當你按下去的時候，注意三件事：
-第一，文字會立刻停在某個字的中間，
-                                    ← 按下 Ctrl+C 的瞬間停在這裡
+When you do, watch for three things:
+First, the text stops immediately, mid-wo
+                                         ← Ctrl+C landed right here
 
-[已中斷]
+[interrupted]
 
->                                   ← 提示符號回來了，可以繼續對話
+>                                        ← the prompt is back; keep talking
 ```
 
 Three things happened:
@@ -169,11 +170,11 @@ Interruption is not one thing, it is three. Each leaves the conversation
 history in a different partial state.
 
 ```
-呼叫模型 ──────────────► 收到工具呼叫 ──────► 執行工具 ──────► 下一輪
-    ▲                                          ▲                 ▲
-    │                                          │                 │
-   [A]                                        [B]               [C]
- 模型講到一半                              工具跑到一半      工具跑完但要停
+call the model ────────► tool calls arrive ────► run the tools ────► next turn
+      ▲                                          ▲                 ▲
+      │                                          │                 │
+     [A]                                        [B]               [C]
+ mid-sentence                                mid-tool        tools done, stopping
 ```
 
 ### Point A: mid-sentence
@@ -187,7 +188,7 @@ if (partialText.trim()) {
   });
   messages.push({
     role: "user",
-    text: "[你上一則回覆被我中斷了。等我的下一個指示，不要自己接續。]",
+    text: "[I interrupted your last reply. Wait for my next instruction; do not resume on your own.]",
   });
 }
 ```
@@ -248,7 +249,7 @@ a note:
 ```ts
 messages.push({
   role: "user",
-  text: "[我中斷了你的工具執行。等我的下一個指示。]",
+  text: "[I interrupted your tool execution. Wait for my next instruction.]",
 });
 ```
 
@@ -278,13 +279,13 @@ easier than cleaning up after it.
 After Ctrl+C, keep talking:
 
 ```
-> 你好
-這是一段刻意寫得很長的回覆...
-第一，文字會立刻停在某個字的中間，
-[已中斷]
+> hello
+This reply is deliberately long...
+First, the text stops immediately, mid-wo
+[interrupted]
 
-> 還在嗎          ← 繼續對話
-這是一段刻意寫得很長的回覆...
+> still there?          ← the conversation continues
+This reply is deliberately long...
 ```
 
 The second turn working is the proof that the history stayed legal.

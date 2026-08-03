@@ -16,27 +16,35 @@
  * Reading this report by eye already turned up one suspicious citation (the licensing line carries three URLs,
  * and the forum one never mentions licensing). This lesson's checker has to find it by itself.
  */
-export const REAL_REPORT = `### 核心答案
+export const REAL_REPORT = `### Direct Answer
 
-目前有兩個主要的 Open Source 專案可用於將影片動作重定向（retarget）至 Unitree G1：**\`kinelabs/humanoid-mimic\`** 與 **\`openmotion/retarget-anything\`**。
+Two open-source software projects include motion retargeting pipelines for the Unitree G1: **humanoid-mimic** and **openmotion/retarget-anything** (https://github.com/kinelabs/humanoid-mimic, https://github.com/openmotion/retarget-anything). 
 
-* **\`kinelabs/humanoid-mimic\`（現在可用）**：0.7 版本支援 2026 年 SDK 的關節順序，並經過實體硬體測試 (https://github.com/kinelabs/humanoid-mimic)。
-* **\`openmotion/retarget-anything\`（現在無法直接用於 G1）**：其 Unitree G1 設定檔已遭棄用且停止維護；因其仍採用 2024 年舊版 URDF 關節順序，在 2026 年 SDK 上運行會直接觸發保護性停機（protective stop）(https://github.com/openmotion/retarget-anything, https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)。
+* **humanoid-mimic**: **Works.** Version 0.7 (released June 2026) supports current Unitree G1 hardware running the 2026 SDK (https://github.com/kinelabs/humanoid-mimic, https://blog.kinelabs.dev/humanoid-mimic-0-7).
+* **retarget-anything**: **Does not work.** The Unitree G1 profile was deprecated in v2.0 (March 2026) because it targets an outdated 2024 URDF joint ordering that causes immediate protective stops on current 2026 firmware (https://github.com/openmotion/retarget-anything, https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
 
-#### 1. kinelabs/humanoid-mimic
-* **版本與發布日期**：專案於 2026 年 6 月釋出 Version 0.7 (https://github.com/kinelabs/humanoid-mimic)。
-* **軟體授權**：代碼庫本身採用 MIT 授權發布，但其運作所需的預訓練姿勢骨幹模型權重（pretrained pose backbone weights）必須單獨下載，且屬於非商業授權（non-commercial license）(https://github.com/kinelabs/humanoid-mimic, https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211, https://blog.kinelabs.dev/humanoid-mimic-0-7)。
-* **效能與相容性**：0.7 版本加入了專門針對 2026 SDK 關節順序設計且經過硬體驗證的 Unitree G1 設定檔，在 Nvidia RTX 4070 上能以約 18 ms 的端到端延遲串流 50 Hz 的關節目標 (https://github.com/kinelabs/humanoid-mimic)。
+---
+
+### Evidence and System Details
+
+#### 1. humanoid-mimic
+* **License & Compatibility**: Released under an MIT license, version 0.7 added hardware-validated support for the 2026 SDK joint ordering on the 23 degree-of-freedom (DoF) Unitree G1 (https://github.com/kinelabs/humanoid-mimic, https://blog.kinelabs.dev/humanoid-mimic-0-7, https://www.unitree.com/g1/developer).
+* **Runtime & Hardware Specs**: Running on an NVIDIA RTX 4070 GPU, the pipeline outputs 50 Hz joint targets with ~18 ms end-to-end latency (https://github.com/kinelabs/humanoid-mimic). (Note: The G1 developer SDK supports control up to 500 Hz at the joint level) (https://www.unitree.com/g1/developer).
+* **Control Approach**: The system prioritizes physics feasibility over strict pose matching, achieving a 71% hardware success rate on the Unitree H1 compared to 44% for pose-similarity baselines (https://arxiv.org/abs/2603.04417).
 
 #### 2. openmotion/retarget-anything
-* **版本與授權**：專案於 2026 年 3 月發布 v2.0，採用 Apache License Version 2.0（2004 年 1 月版）(https://github.com/openmotion/retarget-anything, https://github.com/openmotion/retarget-anything/blob/main/LICENSE, https://openmotion.dev/docs/retarget-anything/getting-started)。
-* **管道與執行環境**：此專案可將單眼影片轉換為人形機器人關節軌跡，內建 Unitree G1、Unitree H1、Booster T1 及通用 23-DoF 等設定檔 (https://openmotion.dev/docs/retarget-anything/getting-started)。執行需使用 Python 3.11 與 CUDA 12，純 CPU 推論速度比 GPU 推論慢約 40 倍 (https://github.com/openmotion/retarget-anything, https://openmotion.dev/docs/retarget-anything/getting-started)。
-* **棄用與 SDK 變更**：2026 年 Unitree G1 SDK 更改了關節索引映射（例如將 \`left_hip_pitch\` 從索引 7 改為 1，\`left_knee\` 從 9 改為 3 並反轉方向符號），並基於修正後的散熱模型調低關節速度上限（如 \`left_knee\` 從 17 rad/s 降至 15 rad/s）(https://www.unitree.com/g1/developer)。
+* **License & Pipeline**: Licensed under Apache-2.0 (dated January 2004), this framework converts monocular video into joint trajectories by executing pose estimation, URDF kinematic solving, and a physics feasibility pass (https://github.com/openmotion/retarget-anything, https://openmotion.dev/docs/retarget-anything/getting-started, https://github.com/openmotion/retarget-anything/blob/main/LICENSE). Its stack targets Python 3.11 and CUDA 12 (https://github.com/openmotion/retarget-anything, https://openmotion.dev/docs/retarget-anything/getting-started).
+* **Reason for Failure**: The 2026 Unitree G1 SDK update reindexed joints—such as moving \`left_hip_pitch\` from index 7 to 1 and \`left_knee\` from index 9 to 3—and reduced the \`left_knee\` velocity limit from 17 rad/s to 15 rad/s (https://www.unitree.com/g1/developer). Because \`retarget-anything\` v2.0 targets the 2024 URDF ordering, trajectory loading fails and triggers protective hardware stops on 2026 firmware (https://github.com/openmotion/retarget-anything, https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
+* **Status**: The G1 profile was officially deprecated in the March 2026 v2.0 release, directing users to the Unitree H1 profile instead (https://github.com/openmotion/retarget-anything, https://openmotion.dev/docs/retarget-anything/getting-started).
 
-### 注意事項與限制（Caveats）
+---
 
-* **腳部滑動問題**：在 Unitree G1 上使用 \`humanoid-mimic 0.7\` 時，若執行快速腳步動作（fast footwork）會出現腳部滑動（foot sliding）的現象；開發者在展示時透過將播放速度降低至 0.8x 來緩解此問題 (https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)。
-* **硬體保護停機**：若強行在 2026 SDK 韌體下執行 \`retarget-anything\`，會因傳送舊版 2024 URDF 的關節順序而導致機器人立即觸發保護性停機 (https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)。`;
+### Caveats and Operational Constraints
+
+* **Backbone Weights Licensing**: While the \`humanoid-mimic\` codebase is MIT-licensed, its underlying pose backbone weights are distributed under a separate non-commercial license (https://blog.kinelabs.dev/humanoid-mimic-0-7).
+* **Kinematic Foot Sliding**: Deploying \`humanoid-mimic\` 0.7 on the Unitree G1 causes foot sliding during fast footwork because its real-time contact solver assumes a flat sole (https://github.com/kinelabs/humanoid-mimic, https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211). A practical workaround requires slowing trajectory playback speed to 0.8x (https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211).
+* **Hardware Dependency**: \`retarget-anything\` pose estimation runs approximately 40x slower when executed on CPU hardware instead of CUDA 12 (https://github.com/openmotion/retarget-anything).
+* **Outdated Benchmarks**: A third-party review of seven motion retargeting tools claims \`retarget-anything\` works out-of-the-box for the G1 while \`humanoid-mimic\` supports only the H1; this conflicts with the June 2026 \`humanoid-mimic\` 0.7 release and \`retarget-anything\` v2.0 deprecation logs (https://robotblog.example.com/best-retargeting-tools, https://github.com/kinelabs/humanoid-mimic, https://github.com/openmotion/retarget-anything).`;
 
 export interface Fixture {
 	id: string;
@@ -66,8 +74,8 @@ const GRAFTED = REAL_REPORT.replace(
 	"(https://www.unitree.com/g1/developer)",
 	"(https://www.unitree.com/g1/developer, https://cookingwith.example.com/sous-vide-guide)",
 ).replace(
-	"若執行快速腳步動作（fast footwork）會出現腳部滑動（foot sliding）的現象；開發者在展示時透過將播放速度降低至 0.8x 來緩解此問題 (https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)",
-	"若執行快速腳步動作（fast footwork）會出現腳部滑動（foot sliding）的現象；開發者在展示時透過將播放速度降低至 0.8x 來緩解此問題 (https://technews.example.com/2026/07/humanoid-robot-funding-round)",
+	"A practical workaround requires slowing trajectory playback speed to 0.8x (https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211)",
+	"A practical workaround requires slowing trajectory playback speed to 0.8x (https://technews.example.com/2026/07/humanoid-robot-funding-round)",
 );
 
 /** A bare assertion: strip the citations entirely and keep the sentence. */
@@ -80,7 +88,7 @@ const BARE = REAL_REPORT.split("\n")
 export const FIXTURES: Fixture[] = [
 	{
 		id: "real",
-		label: "Lesson 24 的真實輸出（一個字沒改）",
+		label: "Lesson 24's real output, not a word changed",
 		report: REAL_REPORT,
 			// No expect here, because the right answer is unknown —
 			// **this one's purpose is "what the checker says about real output", not passing a test.**
@@ -88,24 +96,24 @@ export const FIXTURES: Fixture[] = [
 	},
 	{
 		id: "drifted",
-		label: "數字漂移",
+		label: "number drift",
 		report: DRIFTED,
-		injected: "0.8x → 0.5x、18 ms → 8 ms、50 Hz → 120 Hz",
+		injected: "0.8x → 0.5x, 18 ms → 8 ms, 50 Hz → 120 Hz",
 		expect: { unsupportedAtomsAtLeast: 3 },
 	},
 	{
 		id: "grafted",
-		label: "引用嫁接",
+		label: "citation grafting",
 		report: GRAFTED,
 		injected:
-			"關節索引那條多掛一個烹飪網站；腳步滑動那條改掛一篇無關的募資新聞",
+			"the joint-index line gains a cooking site; the foot-sliding line is re-attached to an unrelated funding story",
 		expect: { graftedAtLeast: 2 },
 	},
 	{
 		id: "bare",
-		label: "裸露斷言",
+		label: "bare assertions",
 		report: BARE,
-		injected: "把一半行數的引用整個拔掉",
+		injected: "citations stripped from every other line",
 		expect: { uncitedAtLeast: 5 },
 	},
 ];

@@ -194,7 +194,7 @@ export class SessionProcessor {
 	async cleanup(reason: AssistantMessage["finish"]): Promise<void> {
 		if (this.options.cleanup === false) {
 				// The broken version: the stream stopped, so end. Do nothing.
-			this.options.log?.("  （CLEANUP=off：不收尾）");
+			this.options.log?.("  (CLEANUP=off: no cleanup)");
 			return;
 		}
 
@@ -211,14 +211,14 @@ export class SessionProcessor {
 		if (this.inFlight.size > 0) {
 			if (reason === "end") {
 				await Promise.allSettled([...this.inFlight.values()]);
-				this.options.log?.("  （正常結束：等所有工具真的跑完）");
+				this.options.log?.("  (normal end: waiting for every tool to really finish)");
 			} else {
 				const grace = this.options.graceMs ?? 250;
 				await Promise.race([
 					Promise.allSettled([...this.inFlight.values()]),
 					new Promise((resolve) => setTimeout(resolve, grace)),
 				]);
-				this.options.log?.(`  （中斷：等了 ${grace}ms 的寬限窗口）`);
+				this.options.log?.(`  (interrupted: waited a ${grace}ms grace window)`);
 			}
 		}
 

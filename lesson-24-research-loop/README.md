@@ -25,37 +25,41 @@ bun run lesson-24
 ```
 
 ```
-問題：有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？現在還能用嗎？
+Question: Which open source projects can retarget video motion onto a Unitree G1, and do they still work?
 
-預算：breadth=3 depth=2 pages=2  →  最多 9 次搜尋、18 次抓取、約 13 次模型呼叫
-（這個上界是開跑前就算得出來的。對照 Lesson 22：那個 agent 的上界是「撞到步數上限」）
+budget: breadth=3 depth=2 pages=2  →  at most 9 searches, 18 fetches, about 13 model calls
+(That ceiling is computable before the run starts. Compare Lesson 22, where the ceiling was "it hit the step cap")
 
-研究過程
-[depth=2 breadth=3] 3 條 query
-  ? Unitree G1 video human motion retargeting open source github
+The research
+[depth=2 breadth=3] 3 queries
+  ? open source video motion capture retargeting unitree g1 humanoid robot
       ✓ https://arxiv.org/abs/2603.04417
       ✓ https://github.com/openmotion/retarget-anything
-      → 3 條結論，3 個後續問題
-  ? Unitree G1 pose estimation teleoperation retargeting framework
-      ✓ https://openmotion.dev/docs/retarget-anything/getting-started
+      → 3 conclusions, 3 follow-up questions
+  ? github video pose estimation motion retargeting unitree g1
+      ✓ https://github.com/kinelabs/humanoid-mimic
       ✓ https://www.unitree.com/g1/developer
-      → 3 條結論，3 個後續問題
-  ? human motion capture to Unitree G1 humanoid robot retargeting code
-      → 沒有新頁面可讀（都讀過了或都抓不到）
-  [depth=1 breadth=2] 2 條 query
-    ? retarget anything CPU installation dependencies and Booster T1 support
-        ✓ https://github.com/openmotion/retarget-anything/blob/main/LICENSE
+      → 3 conclusions, 3 follow-up questions
+  [depth=1 breadth=2] 2 queries
+    ? humanoid mimic real robot hardware success rate unitree g1
+        → no new pages to read (all seen already, or none could be fetched)
+    ? unitree g1 2026 sdk update three finger hand joint indexing thermal limits
+        ✓ https://openmotion.dev/docs/retarget-anything/getting-started
+        → 3 conclusions, 3 follow-up questions
+    ? humanoid mimic pose backbone weights license foot sliding contact solver workaround
         ✓ https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211
-        → 3 條結論，3 個後續問題
-    ? Unitree G1 23 DoF SDK joint index mapping 2024 vs 2026
         ✓ https://blog.kinelabs.dev/humanoid-mimic-0-7
-        ✓ https://github.com/kinelabs/humanoid-mimic
-        → 3 條結論，3 個後續問題
+        → 3 conclusions, 3 follow-up questions
+    ? openmotion retarget anything tech report paper citation
+        ✗ https://huggingface.co/datasets/openmotion/human-motion-video (no body text extracted; possibly JS-rendered)
+        ✓ https://github.com/openmotion/retarget-anything/blob/main/LICENSE
+        ✓ https://robotblog.example.com/best-retargeting-tools
+        → 2 conclusions, 3 follow-up questions
 
-實際用掉
-  搜尋 7  抓取 9  模型呼叫 9  耗時 28.0s
-  擋掉重複：URL 22 次、query 0 次
-  證據 13 條，來自 9 個不重複的網址
+Actually spent
+  searches 7  fetches 10  model calls 9  elapsed 29.6s
+  duplicates blocked: 19 URLs, 0 queries
+  14 pieces of evidence, from 10 distinct URLs
 ```
 
 Same question: Lesson 22's agent ran twice, hit the 16-step ceiling both times,
@@ -78,12 +82,12 @@ The most important sentence in this lesson:
 
 ```text
 Agent loop（Lesson 1-23）
-  while (模型還在呼叫工具) { 問模型下一步 }
-  ↑ 控制流在模型手上。它覺得要再搜一次，你就得再搜一次。
+  while (the model is still calling tools) { ask the model what to do next }
+  ↑ the control flow belongs to the model. If it wants another search, you run another search.
 
-Research loop（這一課）
-  for (每一層) { 生 query → 平行搜尋 → 抓 → 壓成結論 → 深一層 }
-  ↑ 控制流在程式手上。模型只被叫來做四件小事，每件都有明確的輸入輸出。
+Research loop (this lesson)
+  for (each level) { generate queries → search in parallel → fetch → compress into conclusions → go deeper }
+  ↑ the control flow belongs to the program. The model is called for four small jobs, each with defined inputs and outputs.
 ```
 
 Four steps (`steps.ts`):
@@ -119,14 +123,14 @@ say in whether to continue at any point.
 Why halve the breadth? Because without it the cost is `breadth^depth`:
 
 ```text
-breadth=4, depth=3, 不砍半    4 + 16 + 64 = 84 次搜尋
-breadth=4, depth=3, 砍半      4 + 8 + 8   = 20 次搜尋
+breadth=4, depth=3, no halving   4 + 16 + 64 = 84 searches
+breadth=4, depth=3, halving      4 + 8 + 8   = 20 searches
 ```
 
 And with a fixed rule, `estimateCost()` becomes writable:
 
 ```
-預算：breadth=3 depth=2 pages=2  →  最多 9 次搜尋、18 次抓取、約 13 次模型呼叫
+budget: breadth=3 depth=2 pages=2  →  at most 9 searches, 18 fetches, about 13 model calls
 ```
 
 > This is a completely different thing from `MAX_STEPS = 16`.
@@ -146,10 +150,10 @@ Research runs three levels deep; why does context not explode? Because each
 level's pages are compressed into conclusions before being passed down.
 
 ```text
-搜尋 → 抓 2 頁正文（幾千字）
+search → fetch 2 pages of body text (a few thousand words)
       → extractLearnings
-      → 最多 3 條一句話結論 + 3 個後續問題
-      → 下一層只帶結論走
+      → at most 3 one-sentence conclusions + 3 follow-up questions
+      → only the conclusions travel to the next level
 ```
 
 Against `deep-research.ts:102`, the shape is identical.
@@ -233,7 +237,7 @@ The first real-model run after writing this lesson had two broken things, and
     ✓ github.com/kinelabs/humanoid-mimic
     ✓ github.com/openmotion/retarget-anything
     ✓ www.unitree.com/g1/developer
-    → 0 條結論，0 個後續問題
+    → 0 conclusions, 0 follow-up questions
 ```
 
 Four pages fetched, extraction succeeded, and then nothing. No exception, no
@@ -243,16 +247,16 @@ There are three possible causes, and the code at the time **could not tell them
 apart**:
 
 ```text
-模型根本沒回出可解析的 JSON
-模型回了結論但覺得沒東西可講
-模型回了結論，但引用了沒抓過的網址，被我們的來源過濾丟掉
+the model returned no parseable JSON at all
+the model returned conclusions but found nothing worth saying
+the model returned conclusions citing URLs it never fetched, and our source filter dropped them
 ```
 
 The fix is forcing it to state the reason (`Extraction.failure` in `steps.ts`):
 
 ```
-→ 0 條結論，0 個後續問題 （模型沒有回出可解析的 JSON）
-→ 0 條結論，0 個後續問題 （2 條被丟掉：引用了沒抓過的網址）
+→ 0 conclusions, 0 follow-up questions (the model did not return parseable JSON)
+→ 0 conclusions, 0 follow-up questions (2 dropped: they cited URLs that were never fetched)
 ```
 
 ### Failure two: the report stopped in the middle of a URL
@@ -260,7 +264,7 @@ The fix is forcing it to state the reason (`Extraction.failure` in `steps.ts`):
 The first run's report ended like this:
 
 ```
-...會導致足部滑移 (https://github.com/kin
+...causes foot sliding (https://github.com/kin
 ```
 
 13 pieces of evidence do not fit in `maxTokens: 3000`. And **it looks exactly
@@ -270,7 +274,7 @@ like it finished**.
 
 ```ts
 if (response.stopReason === "max_tokens") {
-  state.trace.push(`⚠ 輸出撞到 ${maxTokens} token 上限，內容不完整`);
+  state.trace.push(`⚠ output hit the ${maxTokens} token cap; the content is incomplete`);
   state.budget.truncatedOutputs++;
 }
 ```
@@ -280,10 +284,10 @@ if (response.stopReason === "max_tokens") {
 Because they are the same disease, and this is the fourth time in the series:
 
 ```text
-Lesson 21 Step 5   抽取器丟掉表格，沒有任何訊號       → 燒掉兩次 16 步上限
-Lesson 22 Step 5   訊號有偏誤，被平均分數蓋住          → 一題從 1.000 崩到 0.131
-Lesson 23 Step 6   平行工具呼叫被合併，潛伏三課        → 400 no body
-Lesson 24 Step 5   萃取 0 條、報告被截斷，都不出聲     → 你以為它做完了
+Lesson 21 Step 5   the extractor dropped tables, with no signal at all   → burned two 16-step caps
+Lesson 22 Step 5   a biased signal, hidden by the mean score              → one query collapsed 1.000 → 0.131
+Lesson 23 Step 6   parallel tool calls merged, latent for three lessons   → 400 no body
+Lesson 24 Step 5   0 extractions and a truncated report, both silent      → you think it finished
 ```
 
 > A failure that explodes is not frightening; a silent one is.
@@ -333,7 +337,7 @@ from which URL.
 The `Learning` here also stores `sources`, and enforces a check in code:
 
 ```ts
-// steps.ts：只留真的抓過的網址
+// steps.ts: keep only URLs that were actually fetched
 sources: rawSources.filter((s) => known.has(s))
 ```
 
@@ -357,10 +361,10 @@ Verifying that requires comparing sentence against body text, **which is Lesson
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
-| `這段文字不在 embedding 快取裡` | the model generated a new query and you have no key | `PROVIDER=fake bun run lesson-24`, or set a key |
+| `Lesson 20's corpus not found` | the corpus is not generated | `bun run lesson-20:corpus` |
+| `This text is not in the embedding cache` | the model generated a new query and you have no key | `PROVIDER=fake bun run lesson-24`, or set a key |
 | 0 pieces of evidence | read the reason in parentheses in the trace | see Step 5; the three causes are reported separately |
-| `輸出被 token 上限截斷` | too much evidence for the report to finish | lower `--breadth`/`--depth`, or raise `writeReport`'s maxTokens |
+| `output hit the token cap` | too much evidence for the report to finish | lower `--breadth`/`--depth`, or raise `writeReport`'s maxTokens |
 | it takes a long time | the defaults are breadth=3 depth=2 | `--breadth 2 --depth 1` is much cheaper |
 
 ---
@@ -449,10 +453,10 @@ evidence here carries a URL, but **nobody checked that the page really says that
 sentence**.
 
 ```text
-引用的句子在來源正文裡真的存在嗎？
-數字有沒有在轉述中被改掉？
-報告裡有沒有哪一句話沒有任何證據支持？
-換模型、調 breadth 之後，這些指標有沒有退步？
+does the cited sentence really exist in the source body?
+did a number get changed in the paraphrase?
+is there a sentence in the report with no evidence behind it at all?
+after switching models or changing breadth, did any of these regress?
 ```
 
 The scoring will be **deterministic** as in Lesson 7, not another model handing

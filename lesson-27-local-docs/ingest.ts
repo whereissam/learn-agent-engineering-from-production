@@ -177,7 +177,7 @@ function loadIndex(): LocalIndex {
 export function readIndex(): LocalIndex {
 	const index = loadIndex();
 	if (index.chunks.length === 0) {
-		throw new Error("本地索引是空的。先跑：bun run lesson-27:ingest");
+		throw new Error("The local index is empty. Run bun run lesson-27:ingest first");
 	}
 	return index;
 }
@@ -215,18 +215,18 @@ if (import.meta.main) {
 
 	writeFileSync(INDEX_PATH, `${JSON.stringify({ hashes, chunks }, null, 0)}\n`, "utf8");
 
-	console.log(`索引：${files.length} 個檔案、${chunks.length} 個 chunk`);
-	console.log(dim(`  沿用 ${reused}、重切 ${rebuilt}、移除 ${removed.length}`));
-	if (removed.length > 0) console.log(dim(`  移除：${removed.join(", ")}`));
+	console.log(`indexed: ${files.length} files, ${chunks.length} chunks`);
+	console.log(dim(`  reused ${reused}, rebuilt ${rebuilt}, removed ${removed.length}`));
+	if (removed.length > 0) console.log(dim(`  removed: ${removed.join(", ")}`));
 
 	const bytes = chunks.reduce((sum, c) => sum + c.text.length, 0);
-	console.log(dim(`  正文共 ${bytes.toLocaleString()} 字元`));
-	console.log(dim(`  最大的檔案：${largest(chunks)}`));
+	console.log(dim(`  ${bytes.toLocaleString()} characters of body text`));
+	console.log(dim(`  largest files: ${largest(chunks)}`));
 }
 
 function largest(chunks: LocalChunk[]): string {
 	const byPath = new Map<string, number>();
 	for (const chunk of chunks) byPath.set(chunk.path, (byPath.get(chunk.path) ?? 0) + 1);
 	const top = [...byPath.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-	return top.map(([path, count]) => `${path} (${count} 塊)`).join("、");
+	return top.map(([path, count]) => `${path} (${count} chunks)`).join(", ");
 }

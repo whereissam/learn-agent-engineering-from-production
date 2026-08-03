@@ -151,11 +151,11 @@ export async function embed(texts: string[]): Promise<number[][]> {
 		const api = detectApi();
 		if (!api) {
 			throw new Error(
-				`這段文字不在 embedding 快取裡，而且沒有可用的金鑰：\n` +
+				`This text is not in the embedding cache and no key is available:\n` +
 					`  "${missing[0]?.slice(0, 60)}…"\n\n` +
-					"兩條路：\n" +
-					"  1. 設定 GEMINI_API_KEY 或 OPENAI_API_KEY，然後 bun run lesson-22:embed\n" +
-					"  2. 換一個已經在快取裡的 query（eval/queries.ts 那八個都在）",
+					"Two options:\n" +
+					"  1. set GEMINI_API_KEY or OPENAI_API_KEY, then run bun run lesson-22:embed\n" +
+					"  2. use a query that is already cached (all eight in eval/queries.ts are)",
 			);
 		}
 
@@ -173,7 +173,7 @@ export async function embed(texts: string[]): Promise<number[][]> {
 
 	return texts.map((t) => {
 		const vector = store.vectors[t];
-		if (!vector) throw new Error(`embedding 遺失：${t.slice(0, 40)}`);
+		if (!vector) throw new Error(`embedding missing: ${t.slice(0, 40)}`);
 		return vector;
 	});
 }

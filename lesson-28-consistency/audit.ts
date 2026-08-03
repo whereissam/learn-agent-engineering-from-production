@@ -54,7 +54,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 			out.push({
 				kind: "in-flight-in-storage",
 				where: `${part.type}:${part.id}`,
-				detail: `工具 ${part.name} 存檔時是 ${part.state.status}，沒有人會再把它推進下一個狀態`,
+				detail: `Tool ${part.name} was saved as ${part.state.status}, and nobody will ever move it to the next state`,
 			});
 		}
 
@@ -63,14 +63,14 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 			out.push({
 				kind: "unfinished-span",
 				where: `${part.type}:${part.id}`,
-				detail: `${part.type} 有 created 沒有 completed，下游算不出它花了多久`,
+				detail: `${part.type} has created but no completed, so nothing downstream can compute its duration`,
 			});
 		}
 		if (part.type === "tool" && part.time.ran !== undefined && part.time.completed === undefined) {
 			out.push({
 				kind: "unfinished-span",
 				where: `tool:${part.id}`,
-				detail: `工具開始執行了（ran）但沒有 completed`,
+				detail: `the tool started running but has no completed`,
 			});
 		}
 
@@ -83,14 +83,14 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 				out.push({
 					kind: "terminal-without-result",
 					where: `tool:${part.id}`,
-					detail: `completed 但 output 是空的`,
+					detail: `completed with an empty output`,
 				});
 			}
 			if (part.state.status === "error" && part.state.error.trim() === "") {
 				out.push({
 					kind: "terminal-without-result",
 					where: `tool:${part.id}`,
-					detail: `error 但沒有錯誤訊息`,
+					detail: `error with no error message`,
 				});
 			}
 		}
@@ -101,7 +101,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 		out.push({
 			kind: "message-never-completed",
 			where: `message:${message.id}`,
-			detail: "訊息沒有 completed 時間：載回來之後這個 session 會被當成還在跑",
+			detail: "The message has no completed timestamp, so on reload this session looks like it is still running",
 		});
 	}
 
@@ -113,7 +113,7 @@ export function audit({ message, changedFiles }: AuditInput): Violation[] {
 				out.push({
 					kind: "unrecorded-patch",
 					where: `file:${file}`,
-					detail: `${file} 真的變了，但這一輪的紀錄裡沒有它`,
+					detail: `${file} really changed, and this turn's record does not mention it`,
 				});
 			}
 		}

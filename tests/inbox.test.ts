@@ -20,30 +20,30 @@ function makeItem(store: InboxStore, sessionId = "s1") {
 	});
 }
 
-describe("狀態機（Lesson 9）", () => {
-	test("新項目是 pending", async () => {
+describe("the state machine (Lesson 9)", () => {
+	test("a new item is pending", async () => {
 		const store = new InboxStore();
 		const item = await makeItem(store);
 		assert.equal(item.state, "pending");
 		assert.equal(store.pending("s1").length, 1);
 	});
 
-	test("resolve 只成功一次，第一個回答的人贏", async () => {
+	test("resolve succeeds once; the first answer wins", async () => {
 		const store = new InboxStore();
 		const item = await makeItem(store);
 
 		assert.equal(await store.resolve(item.id, "allow"), true);
-		assert.equal(await store.resolve(item.id, "deny"), false, "第二次應該是 no-op");
+		assert.equal(await store.resolve(item.id, "deny"), false, "the second call should be a no-op");
 
-		assert.equal(store.get(item.id)?.resolution, "allow", "第一個答案不該被覆蓋");
+		assert.equal(store.get(item.id)?.resolution, "allow", "the first answer must not be overwritten");
 	});
 
-	test("resolve 不存在的項目回 false，不 throw", async () => {
+	test("resolving a non-existent item returns false rather than throwing", async () => {
 		const store = new InboxStore();
 		assert.equal(await store.resolve("itm_9999", "allow"), false);
 	});
 
-	test("wait 會被 resolve 喚醒", async () => {
+	test("wait is woken by resolve", async () => {
 		const store = new InboxStore();
 		const item = await makeItem(store);
 
@@ -53,7 +53,7 @@ describe("狀態機（Lesson 9）", () => {
 		assert.equal(await waiting, "allow");
 	});
 
-	test("已經 resolved 的項目，wait 立刻回傳（不會卡住）", async () => {
+	test("wait on an already-resolved item returns immediately (it does not hang)", async () => {
 		const store = new InboxStore();
 		const item = await makeItem(store);
 		await store.resolve(item.id, "deny");
@@ -62,7 +62,7 @@ describe("狀態機（Lesson 9）", () => {
 		assert.equal(await store.wait(item.id), "deny");
 	});
 
-	test("多個等待者都會被喚醒", async () => {
+	test("every waiter is woken", async () => {
 		const store = new InboxStore();
 		const item = await makeItem(store);
 
@@ -73,8 +73,8 @@ describe("狀態機（Lesson 9）", () => {
 	});
 });
 
-describe("孤兒回收（Lesson 9 Step 5）", () => {
-	test("刪 session 會釋放所有等待者", async () => {
+describe("reclaiming orphans (Lesson 9 Step 5)", () => {
+	test("deleting a session releases every waiter", async () => {
 		const store = new InboxStore();
 		const a = await makeItem(store, "doomed");
 		const b = await makeItem(store, "doomed");
@@ -86,12 +86,12 @@ describe("孤兒回收（Lesson 9 Step 5）", () => {
 		assert.equal(closed, 2);
 			// Without the release this line would hang forever
 		assert.deepEqual(await Promise.all(waiting), ["session deleted", "session deleted"]);
-		assert.equal(store.get(other.id)?.state, "pending", "不該影響其他 session");
+		assert.equal(store.get(other.id)?.state, "pending", "other sessions must be unaffected");
 	});
 });
 
-describe("回來時的 recap（Lesson 9 Step 6）", () => {
-	test("同時給待處理與已處理", async () => {
+describe("the recap on return (Lesson 9 Step 6)", () => {
+	test("returns both pending and resolved", async () => {
 		const store = new InboxStore();
 		const done = await makeItem(store, "s1");
 		await store.resolve(done.id, "allow");
@@ -104,8 +104,8 @@ describe("回來時的 recap（Lesson 9 Step 6）", () => {
 	});
 });
 
-describe("approver 可互換（Lesson 9 Step 2）", () => {
-	test("inbox approver 把回答對應成 outcome", async () => {
+describe("approvers are interchangeable (Lesson 9 Step 2)", () => {
+	test("the inbox approver maps an answer to an outcome", async () => {
 		const store = new InboxStore();
 		const approve = inboxApprover(store, "s1");
 
@@ -113,19 +113,19 @@ describe("approver 可互換（Lesson 9 Step 2）", () => {
 			sessionId: "s1",
 			toolName: "send_email",
 			args: { to: "a@b.c" },
-			reason: "需要批准",
+			reason: "approval needed",
 		});
 
 			// Wait for it to create the item
 		await new Promise((r) => setTimeout(r, 10));
 		const item = store.pending("s1")[0];
-		assert.ok(item, "應該要有一個待處理項目");
+		assert.ok(item, "there should be one pending item");
 
 		await store.resolve(item.id, "always");
 		assert.equal(await running, "always");
 	});
 
-	test("auto approver 是同一個介面", async () => {
+	test("the auto approver is the same interface", async () => {
 		const outcome = await autoApprover("once")({
 			sessionId: "s1",
 			toolName: "x",
@@ -137,12 +137,12 @@ describe("approver 可互換（Lesson 9 Step 2）", () => {
 });
 
 describe("argsPreview", () => {
-	test("壓成一行", () => {
+	test("collapses to one line", () => {
 		const out = argsPreview({ path: "a.md", content: "line1\nline2\n\nline3" });
 		assert.ok(!out.includes("\n"));
 	});
 
-	test("長值會截斷", () => {
+	test("long values are truncated", () => {
 		const out = argsPreview({ content: "x".repeat(500) });
 		assert.ok(out.length < 300);
 	});

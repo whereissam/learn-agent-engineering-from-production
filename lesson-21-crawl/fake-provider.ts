@@ -23,7 +23,7 @@ const DELAY_MS = Number(process.env.FAKE_DELAY_MS ?? 8);
 
 const STEPS = [
 	{
-		text: "我先搜尋一下有哪些相關專案。",
+		text: "Let me search for the relevant projects first.",
 		call: {
 			id: "f1",
 			name: "web_search",
@@ -31,7 +31,7 @@ const STEPS = [
 		},
 	},
 	{
-		text: "snippet 說 retarget-anything 支援 G1，但 snippet 不等於整頁。我把它打開來確認。",
+		text: "The snippet says retarget-anything supports the G1, but a snippet is not the page. Let me open it and check.",
 		call: {
 			id: "f2",
 			name: "fetch_page",
@@ -39,7 +39,7 @@ const STEPS = [
 		},
 	},
 	{
-		text: "果然不一樣。第四段寫著 G1 profile 在 v2.0 已經棄用。再看另一個專案。",
+		text: "As suspected, it differs. The fourth paragraph says the G1 profile was deprecated in v2.0. Now the other project.",
 		call: {
 			id: "f3",
 			name: "fetch_page",
@@ -48,25 +48,28 @@ const STEPS = [
 	},
 ];
 
-const ANSWER = `讀完兩個 repo 的正文之後，結論跟 snippet 給的印象相反：
+const ANSWER = `After reading the body text of both repos, the conclusion is the opposite of what the snippets suggested:
 
-**你要的是 humanoid-mimic，不是 retarget-anything。**
+**What you want is humanoid-mimic, not retarget-anything.**
 
 1. **kinelabs/humanoid-mimic** — https://github.com/kinelabs/humanoid-mimic
-   v0.7（2026 年 6 月）加入了 Unitree G1 profile，是對著 2026 SDK 的關節順序寫的，
-   而且在實機上測過，不只是模擬。授權 MIT。
-   [CONFIRMED：fetch_page 讀到正文第二段]
+   v0.7 (June 2026) added a Unitree G1 profile written against the 2026 SDK's joint
+   ordering, and tested on real hardware rather than only in simulation. Licence MIT.
+   [CONFIRMED: fetch_page, second paragraph of the body]
 
-   注意：pose backbone 的權重是另外下載的，帶非商業授權。要出商品的話這點要先確認。
-   [CONFIRMED：正文第五段]
+   Note: the pose backbone weights are a separate download under a non-commercial
+   licence. Check that first if you intend to ship a product.
+   [CONFIRMED: fifth paragraph of the body]
 
 2. **openmotion/retarget-anything** — https://github.com/openmotion/retarget-anything
-   snippet 說它「支援 Unitree G1」，但整頁讀下來，第四段是一則棄用公告：
-   G1 profile 在 v2.0（2026 年 3 月）已棄用且不再維護，因為 2026 SDK 改了關節順序，
-   舊 profile 產生的軌跡在現行韌體上載入不了，官方也說不打算修。
-   [CONFIRMED：fetch_page 讀到正文第四段]
+   The snippet says it "supports the Unitree G1", but read the whole page and the
+   fourth paragraph is a deprecation notice: the G1 profile was deprecated and
+   unmaintained as of v2.0 (March 2026), because the 2026 SDK changed the joint
+   ordering. Trajectories from the old profile will not load on current firmware,
+   and upstream says it will not be fixed.
+   [CONFIRMED: fetch_page, fourth paragraph of the body]
 
-**如果只看 snippet，這兩條結論都會反過來。**`;
+**Read only the snippets and both conclusions flip.**`;
 
 export function fakeCrawlProvider(): StreamingProvider {
 	let step = 0;
@@ -108,8 +111,8 @@ export function fakeCrawlProvider(): StreamingProvider {
 			}
 
 			const outro =
-				"（這個假 provider 只有一段寫死的腳本，演完了。\n" +
-				"想繼續問，換成真模型：bun run lesson-21）";
+				"(This fake provider has one hardcoded script and it just finished.\n" +
+				"To keep asking, switch to a real model: bun run lesson-21)";
 			yield* say(outro, signal);
 			if (signal?.aborted) return yield aborted();
 			yield {

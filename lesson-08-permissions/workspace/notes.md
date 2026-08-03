@@ -1,5 +1,5 @@
-# 工作筆記
+# Working notes
 
-- [x] 把 parser 拆出來
-- [ ] src/app.ts 的錯誤處理還很亂，想整個重寫
-- [ ] 部署腳本還沒寫
+- [x] split the parser out
+- [ ] error handling in src/app.ts is still a mess; tempted to rewrite it wholesale
+- [ ] deploy script not written yet

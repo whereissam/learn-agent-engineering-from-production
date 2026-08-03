@@ -71,13 +71,13 @@ const results = CITATIONS.map((citation) => ({ citation, ...check(citation) }));
 const missingRepos = [...new Set(results.filter((r) => r.status === "norepo").map((r) => r.citation.repo))];
 
 if (missingRepos.length > 0) {
-	console.log(dim("這一課要對照真實原始碼，先把參考專案 clone 到 repo 根目錄：\n"));
+	console.log(dim("This lesson reads real source, so clone the reference projects into the repo root first:\n"));
 	for (const repo of missingRepos) {
 		const info = REPOS[repo];
-		console.log(`  git clone --depth 1 ${info.url} ${repo}    ${dim(`# 我讀的是 ${info.commit}`)}`);
+		console.log(`  git clone --depth 1 ${info.url} ${repo}    ${dim(`# I read ${info.commit}`)}`);
 	}
-	console.log(dim("\n它們已經在 .git/info/exclude 裡，不會進版控。"));
-	console.log(dim("（沒有寫進 .gitignore，因為那是給所有讀者的，這幾份只是你本機的參考資料）\n"));
+	console.log(dim("\nThey are already in .git/info/exclude, so they will not be committed."));
+	console.log(dim("(Not in .gitignore, because that file is for every reader; these are only your local reference copies)\n"));
 }
 
 let ok = 0;
@@ -102,12 +102,12 @@ for (const result of results) {
 	} else if (result.status === "drifted") {
 		drifted++;
 		console.log(
-			`${yellow("~")} ${result.citation.topic}\n  ${dim(where)} ${yellow(`→ 實際在第 ${result.actualLine} 行`)}`,
+			`${yellow("~")} ${result.citation.topic}\n  ${dim(where)} ${yellow(`→ actually on line ${result.actualLine}`)}`,
 		);
 	} else {
 		missing++;
 		console.log(
-			`${red("✗")} ${result.citation.topic}\n  ${dim(where)} ${red(`找不到 "${result.citation.contains}"`)}`,
+			`${red("✗")} ${result.citation.topic}\n  ${dim(where)} ${red(`could not find "${result.citation.contains}"`)}`,
 		);
 	}
 }
@@ -115,10 +115,10 @@ for (const result of results) {
 if (results.some((r) => r.status !== "norepo")) {
 	console.log();
 	console.log(
-		`${green(`${ok} 條正確`)}  ${drifted > 0 ? yellow(`${drifted} 條行號漂了`) : dim("0 條漂移")}  ` +
-			`${missing > 0 ? red(`${missing} 條找不到`) : dim("0 條遺失")}`,
+		`${green(`${ok} correct`)}  ${drifted > 0 ? yellow(`${drifted} line numbers drifted`) : dim("0 drifted")}  ` +
+			`${missing > 0 ? red(`${missing} not found`) : dim("0 missing")}`,
 	);
 	if (drifted > 0 || missing > 0) {
-		console.log(dim("漂移或遺失代表上游改過。去看一眼他們為什麼改，那通常比原本那行更有價值。"));
+		console.log(dim("Drift or a miss means upstream changed. Go and see why; that is usually worth more than the original line."));
 	}
 }

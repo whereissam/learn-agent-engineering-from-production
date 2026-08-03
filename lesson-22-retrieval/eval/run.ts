@@ -100,12 +100,11 @@ function shingle(text: string, n = 3): Set<string> {
  * **"It runs offline" has to cover the demonstration inputs too, not just the evaluation.**
  */
 const DEMO_QUERIES = [
-	"有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？",
-	"把影片動作 retarget 到 Unitree G1 的開源專案",
+	"open source video to humanoid retargeting for unitree g1",
 	"unitree g1 retargeting",
 	"open source video to humanoid retargeting",
 	"humanoid-mimic g1 support",
-	"retarget-anything 還能用在 2026 SDK 嗎",
+	"retarget-anything g1 profile deprecated 2026 sdk",
 ];
 
 // Six configurations, layered one at a time.
@@ -113,7 +112,7 @@ const DEMO_QUERIES = [
 // **add one thing at a time, then look at the numbers.**
 const CONFIGS: Array<{ label: string; stages: Stages }> = [
 	{
-		label: "BM25 only（Lesson 20）",
+		label: "BM25 (L20)",
 		stages: { bm25: true, dense: false, dedupe: false, signals: false, diversity: false },
 	},
 	{
@@ -121,19 +120,19 @@ const CONFIGS: Array<{ label: string; stages: Stages }> = [
 		stages: { bm25: false, dense: true, dedupe: false, signals: false, diversity: false },
 	},
 	{
-		label: "+ RRF 融合",
+		label: "+ RRF",
 		stages: { bm25: true, dense: true, dedupe: false, signals: false, diversity: false },
 	},
 	{
-		label: "+ 去重",
+		label: "+ dedup",
 		stages: { bm25: true, dense: true, dedupe: true, signals: false, diversity: false },
 	},
 	{
-		label: "+ 品質訊號",
+		label: "+ quality",
 		stages: { bm25: true, dense: true, dedupe: true, signals: true, diversity: false },
 	},
 	{
-		label: "+ 來源多樣性",
+		label: "+ diversity",
 		stages: { bm25: true, dense: true, dedupe: true, signals: true, diversity: true },
 	},
 ];
@@ -149,11 +148,11 @@ if (process.argv.includes("--rerank")) {
 async function showOne(queryId: string): Promise<void> {
 	const query = QUERIES.find((q) => q.id === queryId || q.id.startsWith(queryId));
 	if (!query) {
-		throw new Error(`找不到 ${queryId}。可用：${QUERIES.map((q) => q.id).join(", ")}`);
+		throw new Error(`${queryId} not found. Available: ${QUERIES.map((q) => q.id).join(", ")}`);
 	}
 
 	console.log(bold(`\n${query.query}`));
-	console.log(dim(`測的是：${query.tests}\n`));
+	console.log(dim(`what it tests: ${query.tests}\n`));
 
 	for (const config of CONFIGS) {
 		const result = await retrieve(query.query, config.stages, 5);
@@ -161,7 +160,7 @@ async function showOne(queryId: string): Promise<void> {
 		const score = ndcg(urls, query.relevant);
 
 		console.log(`${bold(config.label.padEnd(24))} nDCG@5 = ${score.toFixed(3)}`);
-		if (result.bm25Empty) console.log(dim("    BM25 回 0 筆（query 斷不出英文字）"));
+		if (result.bm25Empty) console.log(dim("    BM25 returned 0 results (the query tokenises to no English words)"));
 
 		for (const hit of result.hits) {
 			const rel = query.relevant[hit.url] ?? 0;
@@ -180,7 +179,7 @@ async function showOne(queryId: string): Promise<void> {
 			);
 		}
 		for (const group of result.duplicates) {
-			console.log(dim(`    去重：${group.dropped.join(", ")} ≈ ${group.kept} (${group.similarity.toFixed(2)})`));
+			console.log(dim(`    dedup: ${group.dropped.join(", ")} ≈ ${group.kept} (${group.similarity.toFixed(2)})`));
 		}
 		console.log();
 	}
@@ -188,9 +187,9 @@ async function showOne(queryId: string): Promise<void> {
 
 async function runAll(): Promise<void> {
 	const stats = cacheStats();
-	console.log(dim(`embedding: ${stats.model || "(快取)"}  ${stats.dims} 維  ${stats.count} 筆\n`));
+	console.log(dim(`embedding: ${stats.model || "(cached)"}  ${stats.dims} dims  ${stats.count} entries\n`));
 
-	const header = `${"query".padEnd(18)}${CONFIGS.map((c) => c.label.slice(0, 10).padStart(12)).join("")}`;
+	const header = `${"query".padEnd(18)}${CONFIGS.map((c) => c.label.slice(0, 11).padStart(12)).join("")}`;
 	console.log(dim(header));
 
 	const totals = CONFIGS.map(() => ({ ndcg: 0, recall: 0, novelty: 0 }));
@@ -218,16 +217,16 @@ async function runAll(): Promise<void> {
 	const n = QUERIES.length;
 	console.log(dim("─".repeat(18 + 12 * CONFIGS.length)));
 	console.log(
-		`${bold("平均 nDCG@5".padEnd(18))}${totals.map((t) => (t.ndcg / n).toFixed(3).padStart(12)).join("")}`,
+		`${bold("mean nDCG@5".padEnd(18))}${totals.map((t) => (t.ndcg / n).toFixed(3).padStart(12)).join("")}`,
 	);
 	console.log(
-		`${"平均 recall@5".padEnd(18)}${totals.map((t) => (t.recall / n).toFixed(3).padStart(12)).join("")}`,
+		`${"mean recall@5".padEnd(18)}${totals.map((t) => (t.recall / n).toFixed(3).padStart(12)).join("")}`,
 	);
 	console.log(
-		`${"平均 novelty@5".padEnd(17)}${totals.map((t) => (t.novelty / n).toFixed(3).padStart(12)).join("")}`,
+		`${"mean novelty@5".padEnd(18)}${totals.map((t) => (t.novelty / n).toFixed(3).padStart(12)).join("")}`,
 	);
 	console.log();
-	console.log(dim('看某一題的細節：bun run lesson-22:eval --show q1'));
+	console.log(dim('To see one query in detail: bun run lesson-22:eval --show q1'));
 }
 
 if (import.meta.main) {
@@ -238,10 +237,10 @@ if (import.meta.main) {
 		await warmCorpusEmbeddings();
 		await embed([...QUERIES.map((q) => q.query), ...DEMO_QUERIES]);
 		const stats = cacheStats();
-		console.log(`embedding 快取已更新：${stats.count} 筆，${stats.dims} 維，model=${stats.model}`);
+		console.log(`embedding cache updated: ${stats.count} entries, ${stats.dims} dims, model=${stats.model}`);
 	} else if (args.includes("--show")) {
 		const id = args[args.indexOf("--show") + 1];
-		if (!id) throw new Error("--show 後面要接 query id，例如 q1");
+		if (!id) throw new Error("--show needs a query id, for example q1");
 		await showOne(id);
 	} else {
 		await runAll();

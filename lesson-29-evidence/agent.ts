@@ -11,7 +11,7 @@
  *
  * Run:
  *   PROVIDER=gemini ANSWER=n bun run lesson-29:agent
- *   PROVIDER=gemini MODE=auto bun run lesson-29:agent "把 handle 跟 shorten 都整理一下"
+ *   PROVIDER=gemini MODE=auto bun run lesson-29:agent "tidy up both handle and shorten"
  *   RUNS=3 PROVIDER=gemini ANSWER=n bun run lesson-29:agent      # principle 8: three runs do not count
  *
  * Without PROVIDER it runs the same path with the scripted provider (no key needed).
@@ -46,7 +46,7 @@ Working rules:
 
 Answer in the same language the user writes in.`;
 
-const DEFAULT_PROMPT = "src/app.ts 寫得很亂，幫我砍掉重來。";
+const DEFAULT_PROMPT = "src/app.ts is a mess. Wipe it and start over.";
 const MODE = (process.env.MODE?.toLowerCase() as Mode | undefined) ?? Mode.INTERACTIVE;
 const ANSWER = process.env.ANSWER?.toLowerCase();
 const CAPTURE = (process.env.CAPTURE as CapturePoint | undefined) ?? "pre-stream";
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
 
 			const provider = useReal
 				? selectStreamingProvider()
-				: // 沒有 key 時走 `denied` 那個劇本，路徑跟真模型完全一樣。
+				: // With no key, follow the `denied` script; the path is identical to a real model.
 					scriptedProvider((SCENARIOS.find((s) => s.id === "denied") as (typeof SCENARIOS)[number]).script);
 
 			const snapshot = new Snapshot({ workspace: WORKSPACE, gitdir: GITDIR });
@@ -100,10 +100,10 @@ async function main(): Promise<void> {
 
 			if (run === 1) {
 				console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-				console.log(dim(`模式: ${MODE}　批准: ${ANSWER ?? "互動詢問"}　抓取點: ${CAPTURE}`));
+				console.log(dim(`mode: ${MODE}  approve: ${ANSWER ?? "ask interactively"}  capture point: ${CAPTURE}`));
 			}
-			console.log(`\n${bold(`── 第 ${run} 次`)}`);
-			console.log(`${cyan("你")} ${prompt}`);
+			console.log(`\n${bold(`── run ${run}`)}`);
+			console.log(`${cyan("you")} ${prompt}`);
 
 			const messages: Message[] = [{ role: "user", text: prompt }];
 			const outcome = await runTurn({
@@ -117,27 +117,27 @@ async function main(): Promise<void> {
 				capture: CAPTURE,
 				signal: controller.signal,
 				ask: async (decision, toolName, args) => {
-					console.log(`\n${yellow("┌ 需要批准")}`);
+					console.log(`\n${yellow("┌ approval needed")}`);
 					console.log(`${yellow("│")} ${toolName}(${Object.keys(args).join(", ")})`);
 					console.log(`${yellow("│")} ${dim(decision.reason)}`);
 					console.log(yellow("└"));
 					if (ANSWER) {
-						console.log(dim(`  （ANSWER=${ANSWER}，自動回答）`));
+						console.log(dim(`  (ANSWER=${ANSWER}, answered automatically)`));
 						return ANSWER === "y" || ANSWER === "yes";
 					}
-					const line = await reader.next(`  ${yellow("[y]")} 允許  ${yellow("[n]")} 拒絕 › `);
+					const line = await reader.next(`  ${yellow("[y]")} allow  ${yellow("[n]")} deny › `);
 					return line !== null && line.trim().toLowerCase().startsWith("y");
 				},
 			});
 
 			const { record, findings } = outcome;
 
-			console.log(`\n  ${bold("三份紀錄")}`);
-			console.log(`    模型說　　  ${JSON.stringify(oneLine(record.claim))}`);
+			console.log(`\n  ${bold("three records")}`);
+			console.log(`    the model says      ${JSON.stringify(oneLine(record.claim))}`);
 			console.log(
-				`    工具說　　  ${
+				`    the tools say       ${
 					record.toolResults.filter((r) => r.mutating).length === 0
-						? dim("（沒有會改東西的工具呼叫）")
+						? dim("(no mutating tool calls)")
 						: record.toolResults
 								.filter((r) => r.mutating)
 								.map((r) => `${r.ok ? green("✓") : red("✗")} ${r.name}(${r.path ?? "?"})`)
@@ -145,22 +145,22 @@ async function main(): Promise<void> {
 				}`,
 			);
 			console.log(
-				`    檔案系統說  ${
+				`    the filesystem says ${
 					record.patch.files.length === 0
-						? red("（沒有任何檔案變更）")
+						? red("(no file changed at all)")
 						: green(record.patch.files.join("  "))
 				}`,
 			);
 
-			console.log(`\n  ${bold("分歧")}`);
-			if (findings.length === 0) console.log(`    ${green("沒有分歧")}`);
+			console.log(`\n  ${bold("divergence")}`);
+			if (findings.length === 0) console.log(`    ${green("no divergence")}`);
 			for (const finding of findings) {
 				const tag =
 					finding.strength === "structural" ? red(`[${finding.kind}]`) : yellow(`[${finding.kind}]`);
 				console.log(`    ${tag} ${finding.detail}`);
 			}
 			if (outcome.exhausted) {
-				console.log(dim(`    （撞到步數上限，patch 只代表「到目前為止」）`));
+				console.log(dim(`    (hit the step cap, so the patch only covers "so far")`));
 			}
 
 			rows.push({
@@ -175,19 +175,19 @@ async function main(): Promise<void> {
 	}
 
 	if (RUNS > 1) {
-		console.log(`\n${bold("── 總表")}`);
-		console.log(dim("   次數  變更檔數  結構性分歧  模型最後說的話"));
+		console.log(`\n${bold("── summary")}`);
+		console.log(dim("   run  files changed  structural divergence  what the model said at the end"));
 		for (const row of rows) {
 			console.log(
 				`   ${String(row.run).padEnd(6)}${String(row.files).padEnd(10)}${
-					row.structural ? red("有") : green("無")
+					row.structural ? red("yes") : green("no ")
 				}          ${dim(row.claim)}`,
 			);
 		}
 	}
 
 	await resetWorkspace();
-	console.log(dim("\n（workspace 已復原）"));
+	console.log(dim("\n(the workspace has been restored)"));
 }
 
 function oneLine(text: string): string {

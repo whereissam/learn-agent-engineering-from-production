@@ -80,7 +80,7 @@ export class McpConnection {
 			// or they wait out a timeout that serves no purpose.
 		child.on("exit", (code) => {
 			this.closed = true;
-			this.failAll(new Error(`MCP server "${this.serverName}" 結束了（code ${code}）`));
+			this.failAll(new Error(`MCP server "${this.serverName}" exited (code ${code})`));
 		});
 	}
 
@@ -179,7 +179,7 @@ export class McpConnection {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this.pending.delete(id);
-				reject(new Error(`${method} 逾時（${timeoutMs}ms）`));
+				reject(new Error(`${method} timed out (${timeoutMs}ms)`));
 			}, timeoutMs);
 
 			this.pending.set(id, { resolve, reject, timer });
@@ -204,7 +204,7 @@ export class McpConnection {
 			try {
 				message = JSON.parse(line);
 			} catch {
-				continue; // server 吐了非 JSON，通常是它自己 console.log 了
+				continue; // the server emitted non-JSON, usually its own console.log
 			}
 
 			if (message.id === undefined) continue;

@@ -49,20 +49,20 @@ context.
 The approach is two layers:
 
 ```
-索引（index）  每個 skill 一行 name + description   ← 每次請求都載入
-本文（body）   完整的操作步驟                        ← 模型要求時才載入
+index   one line per skill: name + description   ← loaded on every request
+body    the full procedure                       ← loaded only when the model asks
 ```
 
 Measured:
 
 ```
-每次請求都會載入的「索引」：
+the "index" loaded on every request:
   - replay-fall-window: Replay a robot session around a detected fall.
   - compare-sessions: Compare two robot sessions field by field.
 
-索引成本：275 字元，每一輪都要付
-本文只有在模型呼叫 load_skill 時才載入：
-  16 行、540 字元（沒被呼叫就不佔 context）
+index cost: 275 characters, paid every turn
+the body only loads when the model calls load_skill:
+  16 lines, 540 characters (costing no context until called)
 ```
 
 Therefore:
@@ -93,13 +93,13 @@ Hermes's authoring standard is unusually fierce about this one:
 Measured with an overlong description:
 
 ```
-原始描述（129 字元）：
+original description (129 characters):
   A comprehensive and powerful skill that seamlessly replays robot sessions
   around detected falls with advanced telemetry analysis.
 
-模型實際看到的：
+what the model actually sees:
   - replay-fall-window: A comprehensive and powerful skill that seamlessly …
-  ↑ 第 60 字之後被切掉了，而且沒有任何錯誤訊息
+  ↑ everything past character 60 was cut, with no error message at all
 ```
 
 The consequence: the model sees an unfinished piece of marketing copy, never
@@ -108,10 +108,10 @@ learns what the skill does, and therefore never calls it. And you get no error.
 So there is an automatic check:
 
 ```
-✗ description: 129 字元，超過 60。超出的部分會被靜靜切掉，
-               這個 skill 可能永遠不會被叫用。
-! description: 含行銷詞（powerful, comprehensive, seamless, advanced）。
-               描述要講能力，不是講品質。
+✗ description: 129 characters, over the 60 limit. The overflow is silently cut,
+               and this skill may never be invoked.
+! description: Contains marketing words (powerful, comprehensive, seamless, advanced).
+               A description states capability, not quality.
 ```
 
 > Hermes has another interesting rule: `author` is always the fixed value
@@ -139,7 +139,8 @@ The verdict is deterministic: did the model call
 `load_skill("replay-fall-window")`. The question deliberately avoids words from
 the skill's name:
 
-> 機器人 R-204 昨天在倉庫跌倒了，我想看看牠倒下去前後那段時間的感測器數值。
+> Robot R-204 fell over in the warehouse yesterday. I want to see the sensor
+> values around the moment it went down.
 
 ### Round one: the claim did not reproduce
 
@@ -203,7 +204,7 @@ it, and on how similar the other skills are. Three conditions have to hold at
 once:
 
 ```
-名字沒有語意  +  描述前 60 字沒有資訊  +  有長得像的替代品
+a semantically empty name  +  no information in the first 60 characters  +  similar-looking alternatives
 ```
 
 Which makes the practical advice more actionable than the original:
@@ -249,12 +250,12 @@ would be an unsupervised complete agent. The allowlist means it can write
 skills and cannot also run a shell:
 
 ```
-允許  propose_skill
-允許  remember
-允許  read_file
-拒絕  run_command
-拒絕  write_file
-拒絕  send_email
+allow  propose_skill
+allow  remember
+allow  read_file
+deny   run_command
+deny   write_file
+deny   send_email
 ```
 
 Same idea as Lesson 8's risk classes, applied to a background copy of itself.
@@ -278,7 +279,7 @@ Hermes's controls are "limit the scope, allow repair afterwards". This lesson
 demonstrates a more conservative version:
 
 ```
-agent 提議 → 人類審核 → 版本化保存 → 測試通過才啟用
+the agent proposes → a human reviews → it is version-controlled → it goes live only once tests pass
 ```
 
 Why? Because writing skills automatically is riskier than writing memory:
@@ -301,7 +302,7 @@ that does not take effect:
 
 ```ts
 async propose(skill, from): Promise<Proposal> {
-  // 只寫進 proposedDir
+  // writes into proposedDir only
   await writeFile(join(this.proposedDir, `${name}.md`), renderSkill(stamped));
 }
 ```
@@ -309,9 +310,9 @@ async propose(skill, from): Promise<Proposal> {
 And `buildIndex()` reads only the active directory:
 
 ```
-目前索引裡有 0 個 skill
-等待審核的有 1 個
-→ 提議中的 skill 對模型「不存在」，這就是閘門的實際位置
+the index currently holds 0 skill(s)
+1 awaiting review
+→ a proposed skill does not exist to the model; that is where the gate really sits
 ```
 
 Same shape as Lessons 8 and 9: the agent proposes, a human gates, and the
@@ -330,12 +331,12 @@ and why you said no.
 The example from measured scenario 5:
 
 ```
-agent 提議了 "fast-deploy"
+the agent proposed "fast-deploy"
   ## Procedure
   1. Skip the test suite to save time.
   2. Push directly to production.
 
-[人類] 拒絕：跳過測試不是可重用的做法，是一次性的權宜
+[human] rejected: skipping tests is not a reusable practice; it was a one-off expedient
 ```
 
 Delete that proposal outright and you lose a signal. A few months of
@@ -349,7 +350,7 @@ behavioural drift.
 ```ts
 proposedFrom: {
   sessionId: "sess_042",
-  summary: "使用者請我分析 sess_001 的跌倒，我用了 get_session → find_anomalies → query_telemetry",
+  summary: "The user asked me to analyse the fall in sess_001; I used get_session → find_anomalies → query_telemetry",
   createdAt: "...",
 }
 ```
@@ -426,7 +427,7 @@ See how it feels to have that `fast-deploy` skill take effect immediately.
 Approval currently activates immediately. Add an intermediate state:
 
 ```
-proposed → approved → (跑測試) → active
+proposed → approved → (run tests) → active
 ```
 
 The test can be: have the agent run one of Lesson 7's evaluation cases using

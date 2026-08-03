@@ -145,7 +145,7 @@ async function runQuery(
 
 		const { title, text } = extractMain(result.html, { includeStructures: true });
 		if (text.trim().length === 0) {
-			lines.push(`${indent}      ✗ ${hit.url} (抽不到正文，可能是 JS 渲染)`);
+			lines.push(`${indent}      ✗ ${hit.url} (no body text extracted; possibly JS-rendered)`);
 			continue;
 		}
 
@@ -154,7 +154,7 @@ async function runQuery(
 	}
 
 	if (pages.length === 0) {
-		lines.push(`${indent}      → 沒有新頁面可讀（都讀過了或都抓不到）`);
+		lines.push(`${indent}      → no new pages to read (all seen already, or none could be fetched)`);
 		state.trace.push(...lines);
 		return [];
 	}
@@ -167,14 +167,14 @@ async function runQuery(
 	// "Read four pages and produced 0 conclusions" with no message is the hardest kind of failure to diagnose.
 	const why =
 		extraction.failure === "parse-failed"
-			? "（模型沒有回出可解析的 JSON）"
+			? "(the model did not return parseable JSON)"
 			: extraction.failure === "sources-filtered"
-				? `（${extraction.droppedForSources} 條被丟掉：引用了沒抓過的網址）`
+				? `(${extraction.droppedForSources} dropped: they cited URLs that were never fetched)`
 				: extraction.failure === "no-learnings"
-					? "（模型認為這幾頁沒有可用的結論）"
+					? "(the model found no usable conclusion on these pages)"
 					: "";
 	lines.push(
-		`${indent}      → ${learnings.length} 條結論，${followUps.length} 個後續問題 ${why}`,
+		`${indent}      → ${learnings.length} conclusions, ${followUps.length} follow-up questions ${why}`,
 	);
 	state.trace.push(...lines);
 
@@ -204,7 +204,7 @@ export async function research(
 
 	const indent = "  ".repeat(options.depth - depth);
 	const queries = await generateQueries(provider, state, seed, breadth);
-	state.trace.push(`${indent}[depth=${depth} breadth=${breadth}] ${queries.length} 條 query`);
+	state.trace.push(`${indent}[depth=${depth} breadth=${breadth}] ${queries.length} queries`);
 
 		// Queries already run are blocked outright. The prompt says so too, and a prompt is only a plea.
 	const seen = new Set(state.queriesRun.map(normalizeQuery));
@@ -212,7 +212,7 @@ export async function research(
 		const key = normalizeQuery(planned.query);
 		if (seen.has(key)) {
 			state.budget.skippedQueries++;
-			state.trace.push(`${indent}  ↺ 跳過重複的 query：${planned.query}`);
+			state.trace.push(`${indent}  ↺ skipped a duplicate query: ${planned.query}`);
 			return false;
 		}
 		seen.add(key);
@@ -244,7 +244,7 @@ export async function research(
 						// One failed query must not take down the whole research run.
 						// deep-research.ts:275-285 does the same: catch, return an empty result, and other branches continue.
 					const message = error instanceof Error ? error.message : String(error);
-					state.trace.push(`${indent}  ✗ query 失敗：${message.slice(0, 80)}`);
+					state.trace.push(`${indent}  ✗ query failed: ${message.slice(0, 80)}`);
 				}
 			}),
 		),

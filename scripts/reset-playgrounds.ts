@@ -42,13 +42,13 @@ const STORE_FIXUPS: Fixup[] = [
 		file: "src/store.ts",
 		patterns: [/entries\.set\(code(?:\.toLowerCase\(\))?, url\);/],
 		buggy: "entries.set(code, url);",
-		what: "save 存原始大小寫",
+		what: "save stores the original case",
 	},
 	{
 		file: "src/store.ts",
 		patterns: [/return entries\.get\(code(?:\.toLowerCase\(\))?\);/],
 		buggy: "return entries.get(code.toLowerCase());",
-		what: "lookup 轉小寫（不一致就在這）",
+		what: "lookup lowercases (this is where the mismatch is)",
 	},
 ];
 
@@ -58,13 +58,13 @@ const ANALYTICS_FIXUPS: Fixup[] = [
 		file: "src/analytics.ts",
 		patterns: [/clicks\.push\(\{ code(?:: code\.toLowerCase\(\))?, at: Date\.now\(\), referer, userAgent \}\);/],
 		buggy: "clicks.push({ code, at: Date.now(), referer, userAgent });",
-		what: "record 存原始大小寫",
+		what: "record stores the original case",
 	},
 	{
 		file: "src/analytics.ts",
 		patterns: [/const key = code(?:\.toLowerCase\(\))?;/],
 		buggy: "const key = code.toLowerCase();",
-		what: "statsFor 轉小寫（第二個不一致）",
+		what: "statsFor lowercases (the second mismatch)",
 	},
 ];
 
@@ -93,4 +93,6 @@ for (const lesson of LESSONS) {
 	}
 }
 
-console.log(changed === 0 ? "playground 已經是原始（有 bug）的狀態" : `已復原 ${changed} 處`);
+console.log(
+	changed === 0 ? "playgrounds are already in their original (buggy) state" : `reverted ${changed} spots`,
+);

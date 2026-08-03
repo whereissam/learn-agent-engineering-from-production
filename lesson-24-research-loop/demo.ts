@@ -34,7 +34,8 @@ function selectProvider(): StreamingProvider {
 	return selectStreamingProvider();
 }
 
-const DEFAULT_QUESTION = "有哪些 open source 專案可以把影片動作 retarget 到 Unitree G1？現在還能用嗎？";
+const DEFAULT_QUESTION =
+	"Which open source projects can retarget video motion onto a Unitree G1, and do they still work?";
 
 async function main(): Promise<void> {
 	const positional = process.argv.slice(2).filter((a) => !a.startsWith("--") && Number.isNaN(Number(a)));
@@ -53,52 +54,56 @@ async function main(): Promise<void> {
 	const estimate = estimateCost(options);
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
-	console.log(bold(`\n問題：${question}\n`));
+	console.log(bold(`\nQuestion: ${question}\n`));
 	console.log(
 		dim(
-			`預算：breadth=${options.breadth} depth=${options.depth} pages=${options.pagesPerQuery}` +
-				`  →  最多 ${estimate.searches} 次搜尋、${estimate.fetches} 次抓取、約 ${estimate.llmCalls} 次模型呼叫`,
+			`budget: breadth=${options.breadth} depth=${options.depth} pages=${options.pagesPerQuery}` +
+				`  →  at most ${estimate.searches} searches, ${estimate.fetches} fetches, about ${estimate.llmCalls} model calls`,
 		),
 	);
-	console.log(dim("（這個上界是開跑前就算得出來的。對照 Lesson 22：那個 agent 的上界是「撞到步數上限」）\n"));
+	console.log(
+		dim(
+			'(That ceiling is computable before the run starts. Compare Lesson 22, where the ceiling was "it hit the step cap")\n',
+		),
+	);
 
 	if (process.argv.includes("--ask")) {
 		const questions = await clarify(provider, state);
-		console.log(bold("研究之前，模型想先問清楚："));
+		console.log(bold("Before researching, the model wants to clarify:"));
 		for (const q of questions) console.log(`  - ${q}`);
-		console.log(dim("\n（deep-research/src/feedback.ts 會真的等你回答。這裡只印出來給你看）\n"));
+		console.log(dim("\n(deep-research/src/feedback.ts really waits for your answer. Here they are only printed.)\n"));
 	}
 
 	const started = Date.now();
 	await research(provider, state, question, options);
 	const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
-	console.log(bold("研究過程"));
+	console.log(bold("The research"));
 	for (const line of state.trace) console.log(dim(line));
 
-	console.log(bold("\n證據"));
+	console.log(bold("\nEvidence"));
 	for (const [i, learning] of state.learnings.entries()) {
 		console.log(`  ${green(`[${i + 1}]`)} ${learning.text}`);
 		console.log(dim(`      ${learning.sources.join(", ")}  (depth ${learning.depth})`));
 	}
 
 	const report = await writeReport(provider, state);
-	console.log(bold("\n報告\n"));
+	console.log(bold("\nReport\n"));
 	console.log(report);
 
 	const { budget } = state;
-	console.log(bold("\n實際用掉"));
+	console.log(bold("\nActually spent"));
 	console.log(
 		dim(
-			`  搜尋 ${budget.searches}  抓取 ${budget.fetches}  模型呼叫 ${budget.llmCalls}  耗時 ${elapsed}s\n` +
-				`  擋掉重複：URL ${budget.skippedDuplicates} 次、query ${budget.skippedQueries} 次` +
+			`  searches ${budget.searches}  fetches ${budget.fetches}  model calls ${budget.llmCalls}  elapsed ${elapsed}s\n` +
+				`  duplicates blocked: ${budget.skippedDuplicates} URLs, ${budget.skippedQueries} queries` +
 				(budget.truncatedOutputs > 0
-					? `\n  ⚠ ${budget.truncatedOutputs} 次輸出被 token 上限截斷`
+					? `\n  ⚠ ${budget.truncatedOutputs} outputs were cut by the token cap`
 					: ""),
 		),
 	);
 	console.log(
-		dim(`  證據 ${state.learnings.length} 條，來自 ${state.visited.size} 個不重複的網址`),
+		dim(`  ${state.learnings.length} pieces of evidence, from ${state.visited.size} distinct URLs`),
 	);
 }
 

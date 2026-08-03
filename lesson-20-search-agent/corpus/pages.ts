@@ -63,7 +63,7 @@ export const PAGES: Page[] = [
 		published: "2026-05-12",
 		kind: "repo",
 		groundTruth:
-			"G1 profile 在 v2.0 已棄用且不再維護。只讀 snippet 會以為它支援 G1。授權 Apache-2.0。",
+			"The G1 profile was deprecated in v2.0 and is no longer maintained. Reading only the snippet suggests it supports the G1. Licence Apache-2.0.",
 		paragraphs: [
 			"retarget-anything turns monocular video of a human into joint trajectories for a " +
 				"humanoid robot. Out of the box it ships retargeting profiles for the Unitree G1, " +
@@ -96,7 +96,7 @@ export const PAGES: Page[] = [
 		published: "2026-05-14",
 		kind: "docs",
 		groundTruth:
-			"跟 GitHub README 幾乎同一份內容（近似重複）。Lesson 22 的去重要處理這一對。",
+			"Almost the same content as the GitHub README (a near-duplicate). Lesson 22's deduplication has to handle this pair.",
 		paragraphs: [
 			"retarget-anything turns monocular video of a human into joint trajectories for a " +
 				"humanoid robot. It ships retargeting profiles for the Unitree G1, the Unitree H1, " +
@@ -123,7 +123,7 @@ export const PAGES: Page[] = [
 		published: "2026-06-30",
 		kind: "repo",
 		groundTruth:
-			"這才是目前真的支援 G1 的專案（v0.7, 2026-06 加入）。但第一段只提 H1，snippet 會誤導成不支援 G1。授權 MIT。",
+			"This is the project that actually supports the G1 today (v0.7, added 2026-06). But the first paragraph mentions only the H1, so the snippet misleads you into thinking the G1 is unsupported. Licence MIT.",
 		paragraphs: [
 			"humanoid-mimic is a real-time motion imitation stack originally built for the Unitree " +
 				"H1. It takes a video stream or a mocap feed and produces joint targets at 50 Hz.",
@@ -149,7 +149,7 @@ export const PAGES: Page[] = [
 		title: "Video-to-Humanoid Motion Retargeting without Paired Data",
 		published: "2026-03-09",
 		kind: "paper",
-		groundTruth: "程式碼連結只出現在正文最後一段，snippet 看不到。",
+		groundTruth: "The code link appears only in the last paragraph of the body; the snippet cannot see it.",
 		paragraphs: [
 			"We present a method for retargeting human motion from monocular video to humanoid " +
 				"robots without paired human-robot demonstrations. Existing approaches require a " +
@@ -176,7 +176,8 @@ export const PAGES: Page[] = [
 		title: "7 best open source motion retargeting tools for Unitree robots",
 		published: "2025-01-22",
 		kind: "blog",
-		groundTruth: "2025-01 的文章，內容已過時（說 humanoid-mimic 不支援 G1）。關鍵字密度高，容易排前面。",
+		groundTruth:
+			"A 2025-01 article whose content is out of date (it says humanoid-mimic does not support the G1). High keyword density, so it ranks easily.",
 		paragraphs: [
 			"Looking for open source motion retargeting for your Unitree robot? We rounded up the " +
 				"7 best retargeting tools for the Unitree G1, the Unitree H1 and other humanoid " +
@@ -200,7 +201,8 @@ export const PAGES: Page[] = [
 		title: "Unitree G1 retargeting: best open source video to humanoid retargeting 2026",
 		published: "2026-07-01",
 		kind: "spam",
-		groundTruth: "SEO 農場。關鍵字密度最高，BM25 會把它排到很前面，但完全沒有資訊。",
+		groundTruth:
+			"An SEO farm. The highest keyword density of all, so BM25 ranks it near the top, and it contains no information whatsoever.",
 		paragraphs: [
 			"Unitree G1 retargeting is the best open source video to humanoid retargeting solution " +
 				"for 2026. If you are looking for Unitree G1 retargeting, open source retargeting, " +
@@ -223,7 +225,8 @@ export const PAGES: Page[] = [
 		title: "G1 retargeting: foot sliding with retarget-anything, switched to humanoid-mimic",
 		published: "2026-07-08",
 		kind: "forum",
-		groundTruth: "第一手實務經驗，證實 retarget-anything 的 G1 profile 在 2026 SDK 上已經不能用。",
+		groundTruth:
+			"First-hand practical experience, confirming that retarget-anything's G1 profile no longer works on the 2026 SDK.",
 		paragraphs: [
 			"We spent two weeks trying to get retarget-anything's G1 profile working on a 2026 SDK " +
 				"G1 and eventually gave up. The trajectories load but the joint ordering is wrong, " +
@@ -246,7 +249,8 @@ export const PAGES: Page[] = [
 		title: "legacy-robotics/mocap2robot: mocap to robot joint trajectories",
 		published: "2023-11-02",
 		kind: "repo",
-		groundTruth: "2023 年封存，早於 G1 上市。看起來像是可用的選項，但已經沒有維護。",
+		groundTruth:
+			"Archived in 2023, before the G1 shipped. It looks like a usable option and is unmaintained.",
 		paragraphs: [
 			"mocap2robot converts mocap BVH files into joint trajectories for legged and humanoid " +
 				"robots. Supports the Unitree A1, Go1 and a generic humanoid template.",
@@ -266,7 +270,8 @@ export const PAGES: Page[] = [
 		title: "Unitree G1 - developer resources and SDK",
 		published: "2026-04-18",
 		kind: "docs",
-		groundTruth: "官方，說明 2026 SDK 改了關節順序——這是兩個專案分歧的根因。",
+		groundTruth:
+			"Official, explaining that the 2026 SDK changed the joint ordering — the root cause of the two projects diverging.",
 		paragraphs: [
 			"The Unitree G1 humanoid ships with a 23 degree-of-freedom configuration and an optional " +
 				"three-finger hand. The developer SDK exposes joint-level position, velocity and " +
@@ -290,7 +295,7 @@ export const PAGES: Page[] = [
 		title: "humanoid-mimic 0.7: Unitree G1 support, on hardware",
 		published: "2026-06-30",
 		kind: "blog",
-		groundTruth: "G1 支援的一手公告，日期 2026-06-30，MIT 授權。",
+		groundTruth: "The first-hand announcement of G1 support, dated 2026-06-30, MIT licence.",
 		paragraphs: [
 			"humanoid-mimic 0.7 is out. The headline feature is a Unitree G1 profile built against " +
 				"the 2026 SDK joint ordering, validated on hardware rather than only in simulation.",
@@ -329,7 +334,8 @@ export const PAGES: Page[] = [
 		title: "Humanoid robot startups raise record funding as Unitree expands",
 		published: "2026-07-19",
 		kind: "news",
-		groundTruth: "跟檢索問題無關，但 Unitree / humanoid 出現很多次，是 precision 的考驗。",
+		groundTruth:
+			"Irrelevant to the retrieval question, but Unitree / humanoid appear many times, which tests precision.",
 		paragraphs: [
 			"Humanoid robot startups raised a record amount in the first half of 2026, with Unitree " +
 				"expanding its humanoid lineup and several competitors announcing new humanoid " +

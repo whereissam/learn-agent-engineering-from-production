@@ -240,20 +240,22 @@ for (const { name, en, zh } of pairs()) {
 	problems.push(...compare(name, readFileSync(en, "utf8"), readFileSync(zh, "utf8")));
 }
 
-console.log(`翻譯對照檢查　${checked} 份文件有兩個版本，${untranslated.length} 份還缺一個語言`);
+console.log(
+	`translation cross-check  ${checked} documents have both versions, ${untranslated.length} still missing a language`,
+);
 
 if (untranslated.length > 0) {
-	console.log(yellow(`\n還缺一個語言（${untranslated.length}）`));
+	console.log(yellow(`\nmissing a language (${untranslated.length})`));
 	for (const lesson of untranslated) console.log(dim(`  ${lesson}`));
 }
 
 if (problems.length > 0) {
-	console.log(red(`\n不一致（${problems.length}）`));
+	console.log(red(`\nmismatches (${problems.length})`));
 	for (const problem of problems) {
 		console.log(`  ${problem.lesson}  ${yellow(`[${problem.kind}]`)} ${dim(problem.detail)}`);
 	}
 } else if (checked > 0) {
-	console.log(green("\n兩個版本的標題、程式碼區塊、數字、行號引用、連結全部一致"));
+	console.log(green("\nheadings, code blocks, numbers, line citations and links all match across both versions"));
 }
 
 // A missing translation is progress rather than a failure; only a mismatch fails.

@@ -25,34 +25,34 @@ bun run lesson-26:probe
 What actually ran (Gemini 3.6 Flash):
 
 ```
-案例               input  output   total      差額      低估倍數  stopReason
+case                   input  output   total     gap underest.  stopReason
 ────────────────────────────────────────────────────────────────────────
-極短 (100)            13       1     107      93      7.6x  end
-一句話 (400)           16      13     412     383     14.2x  max_tokens
-一句話 (4000)          16      47     686     623     10.9x  end
-長篇 (2000)           26     643    2022    1353      3.0x  max_tokens
+very short (100)          14       1     109      94      7.3x  end
+one sentence (400)        17      16     413     380     12.5x  max_tokens
+one sentence (4000)       17      41     520     462      9.0x  end
+long answer (2000)        28     746    2024    1250      2.6x  max_tokens
 ```
 
 The first row: you ask "answer in one word only: hi", and the model returns 1
 token. `input + output = 14`.
 
-The billed total is 107.
+The billed total is 109.
 
-The 93 in between are **thinking tokens**. They are not in `completion_tokens`,
+The 94 in between are **thinking tokens**. They are not in `completion_tokens`,
 but you pay for them, usually at the output rate — the most expensive kind.
 
-Computing cost as `input + output` **underestimates this call 7.6x**.
+Computing cost as `input + output` **underestimates this call 7.3x**.
 
 ### Change provider and the same field means something else
 
 The same probe against OpenAI:
 
 ```
-案例               input  output   total      差額      低估倍數  stopReason
-極短 (100)           121     100     221       0      1.0x  max_tokens
-一句話 (400)          124     195     319       0      1.0x  end
-一句話 (4000)         124     260     384       0      1.0x  end
-長篇 (2000)          134    2000    2134       0      1.0x  max_tokens
+case                   input  output   total     gap underest.  stopReason
+very short (100)         118     100     218       0      1.0x  max_tokens
+one sentence (400)       120     177     297       0      1.0x  end
+one sentence (4000)      120     113     233       0      1.0x  end
+long answer (2000)       129    1926    2055       0      1.0x  end
 ```
 
 Every difference is 0.
@@ -63,8 +63,8 @@ Not because gpt-5 does no reasoning, but because it counts reasoning tokens
 there, but does include them in `total_tokens`.
 
 ```text
-OpenAI    completion_tokens 已含 reasoning   →  total = input + output
-Gemini    completion_tokens 不含 thinking    →  total > input + output
+OpenAI    completion_tokens already includes reasoning  →  total = input + output
+Gemini    completion_tokens excludes thinking            →  total > input + output
 ```
 
 > Same field name, different semantics per vendor. This is the hardest part of a
@@ -81,12 +81,12 @@ counts across providers is meaningless; compare money.**
 Look at the two "one sentence" rows: same question, only `maxTokens` differs.
 
 ```
-額度 400   → output 13 個 token，stopReason = max_tokens   ← 被砍斷
-額度 4000  → output 47 個 token，stopReason = end          ← 正常說完
+budget 400   → output 16 tokens, stopReason = max_tokens   ← cut off
+budget 4000  → output 41 tokens, stopReason = end           ← finished normally
 ```
 
-A one-sentence answer needs only 47 tokens, but an allowance of 400 is not
-enough — because 383 of it went into thinking.
+A one-sentence answer needs only 41 tokens, but an allowance of 400 is not
+enough — because 380 of it went into thinking.
 
 > **For a reasoning model, `maxTokens` is not "the output length limit" but "the
 > total allowance for thinking plus writing".**
@@ -128,8 +128,8 @@ from the prompt. Slightly crude, but the crude part **stays entirely inside Less
 ### Failed calls need accounting too
 
 ```ts
-// 串流中斷或出錯時不會有 done 事件。這種呼叫一樣要付錢。
-if (!recorded) meter.calls.push({ label: `${classify(request)} (未完成)`, ... });
+// An interrupted or failed stream never emits done. That call still costs money.
+if (!recorded) meter.calls.push({ label: `${classify(request)} (incomplete)`, ... });
 ```
 
 Without that, you will believe failed calls are free. They are not.
@@ -149,32 +149,31 @@ What actually ran:
 
 ```
 breadth=2 depth=1
-  預估上界：搜尋 2、抓取 4、模型呼叫 4    實際：搜尋 2、抓取 4、模型呼叫 4
-  證據 6 條
-  步驟                    次數   total token      占比          美元
-  extractLearnings       2         5,503   55.9%    $0.00846
-  writeReport            1         3,595   36.5%    $0.00742
-  generateQueries        1           752    7.6%    $0.00134
-  ─ 合計 input 3,364、output 1,859、total 9,850（thinking 佔 47%）
-  合計 $0.0172
+  estimated ceiling: 2 searches, 4 fetches, 4 model calls  actual: 2 searches, 4 fetches, 4 model calls
+  6 pieces of evidence
+  step               calls   total token   share         USD
+  extractLearnings       2         6,377   54.7%    $0.01064
+  writeReport            1         4,510   38.7%    $0.00963
+  generateQueries        1           774    6.6%    $0.00140
+  ─ totals: input 3,399, output 1,689, total 11,661 (thinking is 56%)
+  total $0.0217
 
 breadth=3 depth=2
-  預估上界：搜尋 9、抓取 18、模型呼叫 13   實際：搜尋 7、抓取 8、模型呼叫 11
-  證據 16 條
-  步驟                    次數   total token      占比          美元
-  extractLearnings       6        12,520   47.2%    $0.02255
-  writeReport            1         7,363   27.7%    $0.01540
-  generateQueries        4         6,669   25.1%    $0.01121
-  ─ 合計 input 7,826、output 2,724、total 26,552（thinking 佔 60%）
-  合計 $0.0492
-  ⚠ 2 次呼叫被 maxTokens 截斷
+  estimated ceiling: 9 searches, 18 fetches, 13 model calls  actual: 7 searches, 6 fetches, 7 model calls
+  9 pieces of evidence
+  step               calls   total token   share         USD
+  extractLearnings       3         8,186   45.4%    $0.01381
+  writeReport            1         5,421   30.1%    $0.01148
+  generateQueries        3         4,416   24.5%    $0.00760
+  ─ totals: input 5,532, output 2,337, total 18,023 (thinking is 56%)
+  total $0.0329
 ```
 
 Three findings:
 
 ### 1. The most expensive step is not writing the report but summarising pages
 
-`extractLearnings` takes 47-56% and `writeReport` only 28-37%.
+`extractLearnings` takes 45-55% and `writeReport` only 30-39%.
 
 Intuition says "writing three pages of report" is the expensive part, but
 **compressing six web pages into three conclusions** is the bulk, because that
@@ -186,18 +185,19 @@ text fed to `extractLearnings` first, rather than asking the report to be shorte
 ### 2. The thinking share rises with depth
 
 ```
-breadth=2 depth=1   thinking 佔 47%
-breadth=3 depth=2   thinking 佔 60%
+breadth=2 depth=1   thinking is 56%
+breadth=3 depth=2   thinking is 56%
 ```
 
-Deeper means more for the model to weigh, so it thinks longer. **Cost does not
-grow linearly with tokens; it grows with how hard the judgements are.**
+Over half the tokens you pay for on this model are never shown to anybody.
+**Cost does not grow linearly with visible output; more than half of it is
+invisible before you start.**
 
 ### 3. But the unit price per piece of evidence barely moves
 
 ```
-breadth=2 depth=1    $0.0172 / 6 條  =  $0.0029 / 條
-breadth=3 depth=2    $0.0492 / 16 條 =  $0.0031 / 條
+breadth=2 depth=1    $0.0217 / 6 items  =  $0.0036 each
+breadth=3 depth=2    $0.0329 / 9 items  =  $0.0037 each
 ```
 
 One more level did not get more expensive. This is the lesson's most practical
@@ -220,7 +220,7 @@ Tracing it: `shared/streaming/openai.ts` returns early when
   if (stopReason === "max_tokens") {
       yield { type: "done", response: {
           blocks: ..., raw: ..., stopReason,
-+         usage,   // ← 漏了三課
++         usage,   // ← missing for three lessons
       }};
       return;
   }
@@ -248,15 +248,15 @@ invent:
 So this lesson's position is:
 
 ```text
-token 是可以量測的事實      → 一定顯示
-錢是需要外部資訊的推算      → 你自己填，而且要記下確認日期
+tokens are a measurable fact          → always shown
+money is an estimate needing outside information → you fill it in, and record when you checked
 ```
 
 ```ts
 export interface Price {
-  input: number;   // 每百萬 token 美元
+  input: number;   // USD per million tokens
   output: number;
-  verifiedOn: string;  // 沒有這個欄位的價格不值得相信
+  verifiedOn: string;  // a price without this field is not worth trusting
 }
 ```
 
@@ -268,8 +268,8 @@ Everything runs with no prices filled in; it just does not show amounts.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "沒有價目表，只顯示 token" | default behaviour | `PRICE_INPUT=… PRICE_OUTPUT=… bun run lesson-26` |
-| "這個 provider 沒有回報 usage" | `stream_options.include_usage` is off | already enabled in `shared/streaming/openai.ts` |
+| "No price table, so only tokens are shown" | default behaviour | `PRICE_INPUT=… PRICE_OUTPUT=… bun run lesson-26` |
+| "this provider reports no usage" | `stream_options.include_usage` is off | already enabled in `shared/streaming/openai.ts` |
 | `PROVIDER=fake` has no token counts | the fake provider produces no usage | normal; fake is only for seeing the structure |
 | Anthropic has no usage | `shared/streaming/anthropic.ts` is not wired up | Exercise 1 |
 
@@ -343,8 +343,8 @@ engineering.
 point Lesson 22's retrieval at your own files.
 
 ```text
-本地文件沒有 URL，「來源」是什麼？（檔名 + 第幾段）
-本地文件沒有新鮮度和權威度，排序公式要怎麼改？
-本地和網路說得不一樣時，相信誰？
-PDF、docx 怎麼變成 chunk？
+local documents have no URL, so what is a "source"? (a filename plus a paragraph number)
+local documents have no freshness or authority, so how does the ranking formula change?
+when local and web disagree, which do you believe?
+how do PDF and docx become chunks?
 ```

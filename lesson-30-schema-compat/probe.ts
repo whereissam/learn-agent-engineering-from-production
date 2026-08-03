@@ -57,11 +57,11 @@ export const CASES: Case[] = [
 			properties: { note: { type: ["string", "null"], description: "A note, or null" } },
 			required: ["note"],
 		},
-		prompt: "記錄一筆沒有備註的事件，備註欄請填 null。",
+		prompt: "Record an event with no note; set the note field to null.",
 		check: (args) =>
 			args.note === null || typeof args.note === "string"
 				? undefined
-				: `note 應該是 string 或 null，拿到 ${typeof args.note}`,
+				: `note should be string or null, got ${typeof args.note}`,
 	},
 	{
 		key: "union",
@@ -82,7 +82,7 @@ export const CASES: Case[] = [
 			},
 			required: ["window"],
 		},
-		prompt: "排一個從 2026-08-01T02:00:00Z 開始、3 小時的時段。用物件形式。",
+		prompt: "Schedule a 3-hour window starting 2026-08-01T02:00:00Z. Use the object form.",
 		check: (args) => {
 			const w = args.window;
 			if (typeof w === "string") return undefined;
@@ -90,9 +90,9 @@ export const CASES: Case[] = [
 				const o = w as Record<string, unknown>;
 				return typeof o.start === "string" && typeof o.hours === "number"
 					? undefined
-					: "window 是物件但缺 start / hours";
+					: "window is an object but is missing start / hours";
 			}
-			return `window 既不是 string 也不是合法物件（${typeof w}）`;
+			return `window is neither a string nor a valid object (${typeof w})`;
 		},
 	},
 	{
@@ -112,11 +112,11 @@ export const CASES: Case[] = [
 		},
 			// The sentence deliberately does not mention the length. Length is the schema's responsibility,
 			// and stating it would turn this into a test of the prompt rather than the schema.
-		prompt: "幫這次事故產生一個識別碼。",
+		prompt: "Generate an identifier for this incident.",
 		check: (args) => {
 			const code = args.code;
-			if (typeof code !== "string") return `code 不是字串（${typeof code}）`;
-			return code.length === 8 ? undefined : `code 長度應為 8，拿到 ${code.length}（"${code}"）`;
+			if (typeof code !== "string") return `code is not a string (${typeof code})`;
+			return code.length === 8 ? undefined : `code should be 8 long, got ${code.length} ("${code}")`;
 		},
 	},
 	{
@@ -129,13 +129,13 @@ export const CASES: Case[] = [
 			},
 			required: ["severity"],
 		},
-		prompt: "這是一起非常嚴重、災難級的事故，請給它一個嚴重度。",
+		prompt: "This is an extremely serious, catastrophic incident; give it a severity.",
 		check: (args) => {
 			const value = args.severity;
 			if (typeof value !== "number" || !Number.isInteger(value)) {
-				return `severity 不是整數（${JSON.stringify(value)}）`;
+				return `severity is not an integer (${JSON.stringify(value)})`;
 			}
-			return value >= 1 && value <= 5 ? undefined : `severity 應在 1..5，拿到 ${value}`;
+			return value >= 1 && value <= 5 ? undefined : `severity should be 1..5, got ${value}`;
 		},
 	},
 	{
@@ -148,15 +148,15 @@ export const CASES: Case[] = [
 			},
 			required: ["status"],
 		},
-		prompt: "這起事故已經處理完畢並且結案了，請設定狀態。",
+		prompt: "This incident has been handled and closed; set the status.",
 		check: (args) =>
 			["open", "mitigated", "closed"].includes(String(args.status))
 				? undefined
-				: `status 不在 enum 內：${JSON.stringify(args.status)}`,
+				: `status is not in the enum: ${JSON.stringify(args.status)}`,
 	},
 	{
 		key: "nested",
-		construct: "巢狀物件 + 選填欄位",
+		construct: "nested object + optional field",
 		schema: {
 			type: "object",
 			properties: {
@@ -175,14 +175,14 @@ export const CASES: Case[] = [
 			},
 			required: ["incident"],
 		},
-		prompt: "回報一起事故：編號 INC-9，機器人 R-204。地點不知道。",
+		prompt: "Report an incident: id INC-9, robot R-204. The location is unknown.",
 		check: (args) => {
 			const incident = args.incident as Record<string, unknown> | undefined;
-			if (!incident || typeof incident !== "object") return "incident 不是物件";
-			if (typeof incident.id !== "string") return "incident.id 缺少";
+			if (!incident || typeof incident !== "object") return "incident is not an object";
+			if (typeof incident.id !== "string") return "incident.id is missing";
 			const robot = incident.robot as Record<string, unknown> | undefined;
-			if (!robot || typeof robot !== "object") return "incident.robot 不是物件";
-			return typeof robot.id === "string" ? undefined : "incident.robot.id 缺少";
+			if (!robot || typeof robot !== "object") return "incident.robot is not an object";
+			return typeof robot.id === "string" ? undefined : "incident.robot.id is missing";
 		},
 	},
 ];
@@ -197,7 +197,7 @@ export const CASES: Case[] = [
 export const HARD_CASES: Case[] = [
 	{
 		key: "pattern",
-		construct: "pattern（正規表示式）",
+		construct: "pattern (a regular expression)",
 		schema: {
 			type: "object",
 			properties: {
@@ -206,15 +206,15 @@ export const HARD_CASES: Case[] = [
 			required: ["ticket"],
 		},
 			// Deliberately silent about the format. The format is the schema's responsibility.
-		prompt: "幫這次事故開一張工單，給我工單編號。",
+		prompt: "Open a ticket for this incident and give me the ticket number.",
 		check: (args) =>
 			/^[A-Z]{3}-[0-9]{4}$/.test(String(args.ticket))
 				? undefined
-				: `ticket 不符合 ^[A-Z]{3}-[0-9]{4}$：${JSON.stringify(args.ticket)}`,
+				: `ticket does not match ^[A-Z]{3}-[0-9]{4}$: ${JSON.stringify(args.ticket)}`,
 	},
 	{
 		key: "maxlen-tight",
-		construct: "maxLength 跟自然答案衝突",
+		construct: "maxLength conflicts with the natural answer",
 		schema: {
 			type: "object",
 			properties: {
@@ -225,12 +225,13 @@ export const HARD_CASES: Case[] = [
 			// A request for a detailed explanation paired with a 20-character limit.
 			// When schema and prompt contradict each other, who wins?
 		prompt:
-			"詳細說明這起事故：R-204 在倉庫東側行走時，因為地面積水導致左腳打滑，" +
-			"整台向左前方傾倒，撞到旁邊的貨架，左手臂外殼破損。",
+			"Describe this incident in detail: while walking in the east warehouse, R-204's left foot " +
+			"slipped on standing water, the whole unit tipped forward-left into a shelving rack, and the " +
+			"left arm's shell was damaged.",
 		check: (args) => {
 			const s = args.summary;
-			if (typeof s !== "string") return `summary 不是字串`;
-			return s.length <= 20 ? undefined : `summary 長度應 ≤ 20，拿到 ${s.length}`;
+			if (typeof s !== "string") return `summary is not a string`;
+			return s.length <= 20 ? undefined : `summary should be ≤ 20 long, got ${s.length}`;
 		},
 	},
 	{
@@ -243,16 +244,16 @@ export const HARD_CASES: Case[] = [
 			},
 			required: ["downtime_minutes"],
 		},
-		prompt: "這次停機大概一小時又十分鐘，登記一下停機時間。",
+		prompt: "The downtime was about an hour and ten minutes; record it.",
 		check: (args) => {
 			const v = args.downtime_minutes;
-			if (typeof v !== "number") return "downtime_minutes 不是數字";
-			return v % 15 === 0 ? undefined : `應為 15 的倍數，拿到 ${v}`;
+			if (typeof v !== "number") return "downtime_minutes is not a number";
+			return v % 15 === 0 ? undefined : `should be a multiple of 15, got ${v}`;
 		},
 	},
 	{
 		key: "tuple",
-		construct: "tuple（items 是陣列）",
+		construct: "tuple (items is an array)",
 		schema: {
 			type: "object",
 			properties: {
@@ -266,20 +267,20 @@ export const HARD_CASES: Case[] = [
 			},
 			required: ["coordinate"],
 		},
-		prompt: "事故位置在 warehouse-east，座標 x=12.5、y=3.0。",
+		prompt: "The incident location is warehouse-east, coordinates x=12.5, y=3.0.",
 		check: (args) => {
 			const c = args.coordinate;
-			if (!Array.isArray(c)) return `coordinate 不是陣列（${typeof c}）`;
-			if (c.length !== 3) return `coordinate 長度應為 3，拿到 ${c.length}`;
-			if (typeof c[0] !== "string") return "coordinate[0] 應為 string";
+			if (!Array.isArray(c)) return `coordinate is not an array (${typeof c})`;
+			if (c.length !== 3) return `coordinate should have length 3, got ${c.length}`;
+			if (typeof c[0] !== "string") return "coordinate[0] should be a string";
 			if (typeof c[1] !== "number" || typeof c[2] !== "number")
-				return "coordinate[1..2] 應為 number";
+				return "coordinate[1..2] should be numbers";
 			return undefined;
 		},
 	},
 	{
 		key: "bigenum",
-		construct: "很大的 enum（120 個值）",
+		construct: "a large enum (120 values)",
 		schema: {
 			type: "object",
 			properties: {
@@ -290,17 +291,17 @@ export const HARD_CASES: Case[] = [
 			},
 			required: ["component"],
 		},
-		prompt: "受損的是編號 87 的元件，登記一下。",
+		prompt: "The damaged part is component number 87; record it.",
 		check: (args) => {
 			const v = String(args.component);
 			return /^component_\d{3}$/.test(v) && Number(v.slice(-3)) < 120
 				? undefined
-				: `component 不在 enum 內：${JSON.stringify(args.component)}`;
+				: `component is not in the enum: ${JSON.stringify(args.component)}`;
 		},
 	},
 	{
 		key: "ref",
-		construct: "$ref / $defs（遞迴）",
+		construct: "$ref / $defs (recursive)",
 		schema: {
 			type: "object",
 			$defs: {
@@ -316,11 +317,11 @@ export const HARD_CASES: Case[] = [
 			properties: { tree: { $ref: "#/$defs/node" } },
 			required: ["tree"],
 		},
-		prompt: "登記受影響的部位樹：left_arm 底下有 shell 和 servo。",
+		prompt: "Record the affected-part tree: left_arm contains shell and servo.",
 		check: (args) => {
 			const tree = args.tree as Record<string, unknown> | undefined;
-			if (!tree || typeof tree !== "object") return "tree 不是物件";
-			return typeof tree.name === "string" ? undefined : "tree.name 缺少";
+			if (!tree || typeof tree !== "object") return "tree is not an object";
+			return typeof tree.name === "string" ? undefined : "tree.name is missing";
 		},
 	},
 ];
@@ -368,7 +369,7 @@ export async function probeCase(
 
 async function main(): Promise<void> {
 	if (!process.env.PROVIDER) {
-		console.log(red("這支程式要量的就是真 provider 的行為，所以需要 PROVIDER 和金鑰。"));
+		console.log(red("This program measures a real provider's behaviour, so it needs PROVIDER and a key."));
 		console.log(dim("  PROVIDER=gemini bun run lesson-30:probe"));
 		process.exit(1);
 	}
@@ -376,8 +377,8 @@ async function main(): Promise<void> {
 	const provider = selectStreamingProvider();
 	const compat = process.env.COMPAT === "1";
 	console.log(
-		bold(`\nSchema 相容性探針  ${provider.name} / ${provider.model}`) +
-			(compat ? green("  [相容層開啟]") : dim("  [沒有相容層]")),
+		bold(`\nSchema compatibility probe  ${provider.name} / ${provider.model}`) +
+			(compat ? green("  [compat layer on]") : dim("  [no compat layer]")),
 	);
 
 	const tier = (process.env.TIER ?? "all").toLowerCase();
@@ -397,29 +398,29 @@ async function main(): Promise<void> {
 					describeWith("", compatSchema(testCase.schema, target).notes),
 				)
 			: await probeCase(provider, testCase);
-		const label = `${testCase.key.padEnd(10)} ${dim(testCase.construct.padEnd(26))}`;
+		const label = `${testCase.key.padEnd(14)} ${dim(testCase.construct.padEnd(42))}`;
 
 		switch (outcome.kind) {
 			case "ok":
 				console.log(`  ${green("✓")} ${label} ${dim(JSON.stringify(outcome.args))}`);
 				break;
 			case "api-error":
-				console.log(`  ${red("✗ API 拒絕")} ${label}`);
+				console.log(`  ${red("✗ rejected by the API")} ${label}`);
 				console.log(red(`      ${outcome.message.split("\n")[0]}`));
 				break;
 			case "violation":
-				console.log(`  ${yellow("⚠ 安靜地違反")} ${label}`);
+				console.log(`  ${yellow("⚠ silently violated")} ${label}`);
 				console.log(yellow(`      ${outcome.why}`));
 				break;
 			case "no-call":
-				console.log(`  ${dim("－ 模型沒有呼叫工具")} ${label}`);
+				console.log(`  ${dim("－ the model called no tool")} ${label}`);
 				break;
 		}
 	}
 
 	console.log(dim("─".repeat(72)));
-	console.log(dim("✗ = 請求被打回來（吵，看得見）"));
-	console.log(dim("⚠ = 請求過了但值不對（安靜，這才是這一課的主題）"));
+	console.log(dim("✗ = the request was rejected (loud, visible)"));
+	console.log(dim("⚠ = the request went through with a wrong value (silent, and the subject of this lesson)"));
 }
 
 if (import.meta.main) await main();

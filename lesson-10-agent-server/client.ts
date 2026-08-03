@@ -44,9 +44,9 @@ function render(event: ServerEvent): void {
 	switch (event.type) {
 		case "ready":
 			console.log(
-				dim(`已連上 session ${event.sessionId}  provider: ${event.provider}  model: ${event.model}`),
+				dim(`connected to session ${event.sessionId}  provider: ${event.provider}  model: ${event.model}`),
 			);
-			if (event.naive) console.log(yellow("server 跑在 NAIVE 模式：重連不會補畫面"));
+			if (event.naive) console.log(yellow("the server is in NAIVE mode: reconnecting will not restore the screen"));
 			break;
 
 			// ── the key to reconnecting ───────────────────────
@@ -55,17 +55,17 @@ function render(event: ServerEvent): void {
 			// and it has no "which entries did I miss" problem, because it never needs to know.
 		case "state":
 			if (event.messages.length > 0) {
-				console.log(dim("─── 這個 session 目前的內容 ───"));
+				console.log(dim("─── what this session holds right now ───"));
 				for (const line of transcript(event.messages)) console.log(line);
 				console.log(dim("──────────────────────────────"));
 			}
 			running = event.running;
-			if (running) console.log(yellow("（有一輪正在跑，接下來的事件會即時進來）"));
+			if (running) console.log(yellow("(a turn is running; further events will arrive live)"));
 			break;
 
 		case "turn_start":
 			running = true;
-			console.log(`\n${cyan("你")} ${event.text}`);
+			console.log(`\n${cyan("you")} ${event.text}`);
 			break;
 
 		case "text_start":
@@ -93,18 +93,18 @@ function render(event: ServerEvent): void {
 			break;
 
 		case "interrupted":
-			console.log(yellow(`\n[已中斷：${event.where === "stream" ? "模型講到一半" : "工具跑到一半"}]`));
+			console.log(yellow(`\n[interrupted: ${event.where === "stream" ? "mid-sentence" : "mid-tool"}]`));
 			break;
 
 		case "turn_done":
 			running = false;
-			if (event.reason === "error") console.log(red(`\n[失敗] ${event.message ?? ""}`));
-			if (event.reason === "max_steps") console.log(red("\n[撞到步數上限]"));
+			if (event.reason === "error") console.log(red(`\n[failed] ${event.message ?? ""}`));
+			if (event.reason === "max_steps") console.log(red("\n[hit the step cap]"));
 			process.stdout.write("\n");
 			break;
 
 		case "input_rejected":
-			console.log(red(`\n[被拒絕] ${event.error}`));
+			console.log(red(`\n[refused] ${event.error}`));
 			break;
 	}
 }
@@ -114,7 +114,7 @@ function transcript(messages: Message[]): string[] {
 	const lines: string[] = [];
 	for (const message of messages) {
 		if (message.role === "user") {
-			lines.push(`${cyan("你")} ${message.text}`);
+			lines.push(`${cyan("you")} ${message.text}`);
 		} else if (message.role === "assistant") {
 			for (const block of message.blocks) {
 				if (block.type === "text") lines.push(block.text);
@@ -149,7 +149,7 @@ function first(text: string): string {
 
 async function listen(signal: AbortSignal): Promise<void> {
 	const response = await fetch(`${BASE}/session/${SESSION}/events`, { signal });
-	if (!response.body) throw new Error("事件流沒有 body");
+	if (!response.body) throw new Error("the event stream has no body");
 
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
 			void post("interrupt");
 			return;
 		}
-		console.log(dim("\n再見。（server 還活著）"));
+		console.log(dim("\nGoodbye. (the server is still alive)"));
 		streamAbort.abort();
 		reader.close();
 		process.exit(0);
@@ -214,8 +214,8 @@ async function main(): Promise<void> {
 
 	listen(streamAbort.signal).catch((error: unknown) => {
 		if (streamAbort.signal.aborted) return;
-		console.log(red(`\n[事件流斷了] ${error instanceof Error ? error.message : String(error)}`));
-		console.log(dim("server 沒開？先跑 bun run lesson-10"));
+		console.log(red(`\n[the event stream dropped] ${error instanceof Error ? error.message : String(error)}`));
+		console.log(dim("Server not running? Start it with bun run lesson-10"));
 		process.exit(1);
 	});
 

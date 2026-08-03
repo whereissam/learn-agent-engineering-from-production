@@ -16,7 +16,7 @@
  * Run it directly (no API key and no model needed):
  *
  *   bun run lesson-20-search-agent/search/engine.ts "unitree g1 retargeting"
- *   bun run lesson-20-search-agent/search/engine.ts "把影片動作轉到人形機器人"
+ *   bun run lesson-20-search-agent/search/engine.ts "retarget video motion onto a humanoid"
  *
  * The second command returns 0 results. That is not a bug; see README Step 3.
  */
@@ -94,8 +94,8 @@ function loadDocs(): Doc[] {
 		raw = readFileSync(INDEX_PATH, "utf8");
 	} catch {
 		throw new Error(
-			`找不到語料索引 ${INDEX_PATH}。\n` +
-				"先產生語料：bun run lesson-20-search-agent/corpus/generate.ts",
+			`Corpus index not found at ${INDEX_PATH}.\n` +
+				"Generate it first: bun run lesson-20-search-agent/corpus/generate.ts",
 		);
 	}
 
@@ -206,7 +206,7 @@ function makeSnippet(text: string, terms: Set<string> | string[]): string {
 if (import.meta.main) {
 	const query = process.argv.slice(2).join(" ");
 	if (!query) {
-		console.error('用法：bun run lesson-20-search-agent/search/engine.ts "你的 query"');
+		console.error('Usage: bun run lesson-20-search-agent/search/engine.ts "your query"');
 		process.exit(1);
 	}
 
@@ -214,8 +214,8 @@ if (import.meta.main) {
 	const hits = search(query, 8);
 
 	console.log(dim(`query: ${query}`));
-	console.log(dim(`斷詞:  [${tokenize(query).join(", ")}]`));
-	console.log(dim(`${hits.length} 筆結果\n`));
+	console.log(dim(`tokens: [${tokenize(query).join(", ")}]`));
+	console.log(dim(`${hits.length} results\n`));
 
 	for (const hit of hits) {
 		console.log(`${hit.rank}. ${hit.title}`);
@@ -224,6 +224,6 @@ if (import.meta.main) {
 	}
 
 	if (hits.length === 0) {
-		console.log("沒有任何結果。如果你的 query 是中文，看 README 的 Step 3。");
+		console.log("No results at all. If your query is in Chinese, see Step 3 in the README.");
 	}
 }

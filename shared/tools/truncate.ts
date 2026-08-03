@@ -60,9 +60,9 @@ export function truncateHead(text: string, maxLines = MAX_LINES, maxBytes = MAX_
 	// (1) something was cut and what you see is incomplete
 	// (2) how to see the rest
 	const notice =
-		`\n\n[... 輸出被截斷：原本 ${originalLines} 行 / ${formatBytes(originalBytes)}，` +
-		`只顯示前 ${kept.length} 行。需要後面的內容請用 offset 參數繼續讀，` +
-		`或用更精確的條件縮小範圍。]`;
+		`\n\n[... output truncated: ${originalLines} lines / ${formatBytes(originalBytes)} originally, ` +
+		`showing the first ${kept.length} lines. Use the offset parameter to read further, ` +
+		`or narrow the request with a more precise filter.]`;
 
 	return {
 		text: kept.join("\n") + notice,
@@ -99,8 +99,8 @@ export function truncateTail(text: string, maxLines = MAX_LINES, maxBytes = MAX_
 	}
 
 	const notice =
-		`[... 前面被截斷：原本 ${originalLines} 行 / ${formatBytes(originalBytes)}，` +
-		`只顯示最後 ${kept.length} 行。]\n\n`;
+		`[... start truncated: ${originalLines} lines / ${formatBytes(originalBytes)} originally, ` +
+		`showing the last ${kept.length} lines.]\n\n`;
 
 	return {
 		text: notice + kept.join("\n"),

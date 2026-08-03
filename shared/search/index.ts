@@ -95,7 +95,7 @@ const HIDDEN_SOURCES = new Set<SessionSource>(["subagent", "tool"]);
  */
 const SOURCE_WEIGHT: Record<SessionSource, number> = {
 	interactive: 1.0,
-	cron: 0.25, // 降權，不排除
+	cron: 0.25, // down-weighted, not excluded
 	subagent: 0,
 	tool: 0,
 };
@@ -118,7 +118,11 @@ const SOURCE_WEIGHT: Record<SessionSource, number> = {
  * **Search dragged back what compaction removed.** This is the trap at the seam between Lesson 5
  * and this lesson.
  */
-const COMPACTION_PREFIXES = ["[CONTEXT COMPACTION", "[CONTEXT SUMMARY]:", "[以下是這次對話較早部分的摘要"];
+const COMPACTION_PREFIXES = [
+	"[CONTEXT COMPACTION",
+	"[CONTEXT SUMMARY]:",
+	"[The following is a summary of the earlier part of this conversation",
+];
 
 function isCompactionArtifact(text: string): boolean {
 	const head = text.trimStart();
@@ -221,7 +225,7 @@ export class SessionSearchIndex {
 	 */
 	discover(query: string, limit = 3, windowSize = 2, options: SearchOptions = {}): DiscoverResult[] {
 		if (query.length > MAX_QUERY_CHARS) {
-			throw new Error(`查詢太長（${query.length} > ${MAX_QUERY_CHARS}）`);
+			throw new Error(`Query too long (${query.length} > ${MAX_QUERY_CHARS})`);
 		}
 
 		const terms = tokenize(query);

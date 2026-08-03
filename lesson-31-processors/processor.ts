@@ -46,7 +46,7 @@ export class ProcessorPipeline {
 			const result = await processor.process(current);
 			if (result.payload.boundary !== payload.boundary) {
 				throw new Error(
-					`processor "${processor.id}" 不可以把 boundary 從 ${payload.boundary} 改成 ${result.payload.boundary}`,
+					`processor "${processor.id}" must not change the boundary from ${payload.boundary} to ${result.payload.boundary}`,
 				);
 			}
 			current = { ...result.payload };

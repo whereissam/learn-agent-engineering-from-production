@@ -147,7 +147,7 @@ export function withMetering(
 				// and you conclude "failed calls are free".
 			if (!recorded) {
 				meter.calls.push({
-					label: `${classify(request)} (未完成)`,
+					label: `${classify(request)} (incomplete)`,
 					truncated: false,
 					promptChars,
 					elapsedMs: Date.now() - started,

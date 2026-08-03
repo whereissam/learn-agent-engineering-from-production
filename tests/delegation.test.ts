@@ -60,20 +60,20 @@ function spy(beats: { say: string; tool?: { name: string } }[]) {
 	return { provider, seenTools, seenMessages };
 }
 
-describe("子 agent 的邊界（Lesson 19）", () => {
-	test("五個工具從子 agent 的清單裡被拿掉", async () => {
+describe("subagent boundaries (Lesson 19)", () => {
+	test("five tools are removed from a subagent's list", async () => {
 		const { provider, seenTools } = spy([{ say: "done" }]);
 		await runChild({ goal: "g" }, { provider, tools: TOOLS, execute: async () => "ok" });
 
 		assert.deepEqual(seenTools[0], ["read_file", "write_file"]);
 		for (const blocked of BLOCKED_FOR_CHILDREN) {
-			assert.ok(!seenTools[0]?.includes(blocked), `${blocked} 不該出現在子 agent 的工具裡`);
+			assert.ok(!seenTools[0]?.includes(blocked), `${blocked} must not appear in a subagent's tools`);
 		}
 	});
 
-	test("憑記憶叫出被擋的工具 → isError，而且記下來", async () => {
+	test("calling a blocked tool from memory → isError, and it is recorded", async () => {
 			// Absent from the tool list does not mean the model will not call it (in Lesson 20 it searched for a project that did not exist).
-		const { provider } = spy([{ say: "再拆一次", tool: { name: "delegate_task" } }, { say: "done" }]);
+		const { provider } = spy([{ say: "split it again", tool: { name: "delegate_task" } }, { say: "done" }]);
 		let executed = 0;
 		const child = await runChild(
 			{ goal: "g" },
@@ -81,11 +81,11 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 		);
 
 		assert.deepEqual(child.blockedAttempts, ["delegate_task"]);
-		assert.equal(executed, 0, "被擋的工具不能真的執行");
+		assert.equal(executed, 0, "a blocked tool must not actually run");
 	});
 
-	test("BLOCK=off：同一個呼叫會真的執行", async () => {
-		const { provider, seenTools } = spy([{ say: "再拆一次", tool: { name: "delegate_task" } }, { say: "done" }]);
+	test("BLOCK=off: the same call really runs", async () => {
+		const { provider, seenTools } = spy([{ say: "split it again", tool: { name: "delegate_task" } }, { say: "done" }]);
 		let executed = 0;
 		const child = await runChild(
 			{ goal: "g" },
@@ -97,20 +97,20 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 		assert.equal(executed, 1);
 	});
 
-	test("子 agent 的 context 只有 goal 和 context，沒有父 agent 的歷史", async () => {
+	test("a subagent's context holds only goal and context, never the parent's history", async () => {
 		const { provider, seenMessages } = spy([{ say: "done" }]);
 		await runChild(
-			{ goal: "統計錯誤碼", context: "檔案在 logs/ 底下" },
+			{ goal: "count the error codes", context: "the files are under logs/" },
 			{ provider, tools: TOOLS, execute: async () => "ok" },
 		);
 
 		assert.equal(seenMessages.length, 1);
-		assert.match(seenMessages[0] as string, /統計錯誤碼/);
-		assert.match(seenMessages[0] as string, /檔案在 logs\/ 底下/);
+		assert.match(seenMessages[0] as string, /count the error codes/);
+		assert.match(seenMessages[0] as string, /the files are under logs\//);
 	});
 
-	test("預設拒絕有副作用的工具（子 agent 那一側沒有人可以批准）", async () => {
-		const { provider } = spy([{ say: "寫檔", tool: { name: "write_file" } }, { say: "done" }]);
+	test("side-effecting tools are denied by default (nobody on the subagent's side can approve)", async () => {
+		const { provider } = spy([{ say: "write the file", tool: { name: "write_file" } }, { say: "done" }]);
 		let executed = 0;
 		await runChild(
 			{ goal: "g" },
@@ -119,8 +119,8 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 		assert.equal(executed, 0);
 	});
 
-	test("auto-approve：同一個呼叫會真的寫出去", async () => {
-		const { provider } = spy([{ say: "寫檔", tool: { name: "write_file" } }, { say: "done" }]);
+	test("auto-approve: the same call really writes", async () => {
+		const { provider } = spy([{ say: "write the file", tool: { name: "write_file" } }, { say: "done" }]);
 		let executed = 0;
 		await runChild(
 			{ goal: "g" },
@@ -134,17 +134,17 @@ describe("子 agent 的邊界（Lesson 19）", () => {
 		assert.equal(executed, 1);
 	});
 
-	test("只有最後那段文字會回給父 agent", async () => {
+	test("only the final passage goes back to the parent", async () => {
 		const { provider } = spy([
-			{ say: "我先讀檔（這句父 agent 看不到）", tool: { name: "read_file" } },
-			{ say: "最常見的是 E-118。" },
+			{ say: "let me read the file first (the parent never sees this)", tool: { name: "read_file" } },
+			{ say: "The most common one is E-118." },
 		]);
 		const child = await runChild({ goal: "g" }, { provider, tools: TOOLS, execute: async () => "ok" });
-		assert.equal(child.summary, "最常見的是 E-118。");
+		assert.equal(child.summary, "The most common one is E-118.");
 	});
 });
 
-describe("標準答案本身（Lesson 19）", () => {
+describe("the ground truth itself (Lesson 19)", () => {
 		/** Count the corpus directly, ignoring GROUND_TRUTH, and compare. */
 	function mostFrequentCode(text: string): string {
 		const counts = new Map<string, number>();
@@ -156,26 +156,26 @@ describe("標準答案本身（Lesson 19）", () => {
 	}
 
 	for (const [service, expected] of Object.entries(GROUND_TRUTH)) {
-		test(`${service} 的標準答案跟語料對得上`, () => {
+		test(`the ground truth for ${service} matches the corpus`, () => {
 			const log = FIXTURE[`logs/${service}.log`] as string;
 			assert.equal(mostFrequentCode(log), expected);
 		});
 	}
 
-	test("那個但書真的在 inventory 的檔頭裡", () => {
+	test("the caveat really is in inventory's file header", () => {
 		const log = FIXTURE["logs/inventory.log"] as string;
 		assert.ok(CAVEAT_MARKERS.some((marker) => log.toLowerCase().includes(marker.toLowerCase())));
 	});
 
-	test("判定函式：三個都提到才算 3/3", () => {
-		const good = "checkout 是 E-402、inventory 是 E-118、notify 是 E-511。";
+	test("the scorer: only all three mentioned counts as 3/3", () => {
+		const good = "checkout is E-402, inventory is E-118, notify is E-511.";
 		assert.deepEqual(scoreCodes(good).missed, []);
-		assert.equal(scoreCodes("只有 E-402").hit.length, 1);
+		assert.equal(scoreCodes("only E-402").hit.length, 1);
 	});
 
-	test("判定函式：但書認得寬一點（措辭不該影響判定）", () => {
-		assert.ok(mentionsCaveat("注意 2026-07-14 之前是舊的編號"));
+	test("the scorer: the caveat matcher is deliberately broad (wording must not change the verdict)", () => {
+		assert.ok(mentionsCaveat("note that anything before 2026-07-14 uses the old numbering"));
 		assert.ok(mentionsCaveat("codes were renumbered after the migration"));
-		assert.equal(mentionsCaveat("checkout 是 E-402。"), false);
+		assert.equal(mentionsCaveat("checkout is E-402."), false);
 	});
 });

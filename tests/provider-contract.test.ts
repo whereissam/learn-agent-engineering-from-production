@@ -73,57 +73,57 @@ const VALID_STOP_REASONS = new Set(["end", "tool_use", "max_tokens", "refusal"])
  * What is required: **when it exists, the numbers must be self-consistent.**
  */
 function assertResponseContract(response: ModelResponse, label: string): void {
-	assert.ok(Array.isArray(response.blocks), `${label}: blocks 必須是陣列`);
+	assert.ok(Array.isArray(response.blocks), `${label}: blocks must be an array`);
 	assert.ok(
 		VALID_STOP_REASONS.has(response.stopReason),
-		`${label}: stopReason "${response.stopReason}" 不在合法值裡`,
+		`${label}: stopReason "${response.stopReason}" is not a legal value`,
 	);
-	assert.ok("raw" in response, `${label}: 一定要保留 raw（provider 的原生訊息）`);
+	assert.ok("raw" in response, `${label}: raw must be preserved (the provider's native message)`);
 
 	for (const block of response.blocks) {
 		if (block.type === "toolCall") {
-			assert.equal(typeof block.id, "string", `${label}: tool call 要有 id`);
-			assert.ok(block.name.length > 0, `${label}: tool call 要有名字`);
-			assert.equal(typeof block.args, "object", `${label}: args 要是物件（已 parse 過）`);
-			assert.ok(block.args !== null, `${label}: args 不能是 null`);
+			assert.equal(typeof block.id, "string", `${label}: a tool call needs an id`);
+			assert.ok(block.name.length > 0, `${label}: a tool call needs a name`);
+			assert.equal(typeof block.args, "object", `${label}: args must be an object (already parsed)`);
+			assert.ok(block.args !== null, `${label}: args must not be null`);
 		} else {
-			assert.equal(typeof block.text, "string", `${label}: text block 要有字串`);
+			assert.equal(typeof block.text, "string", `${label}: a text block needs a string`);
 		}
 	}
 
 	if (response.usage) {
 		const { input, output, total } = response.usage;
 		for (const [name, value] of Object.entries({ input, output, total })) {
-			assert.ok(Number.isFinite(value) && value >= 0, `${label}: usage.${name} 要是非負數`);
+			assert.ok(Number.isFinite(value) && value >= 0, `${label}: usage.${name} must be a non-negative number`);
 		}
 			// ⚠️ Not `total === input + output`.
 			// Gemini's thinking tokens are outside output and inside total (measured in Lesson 26),
 			// so the contract can only require total to be no less than their sum.
 		assert.ok(
 			total >= input + output,
-			`${label}: total (${total}) 不該小於 input + output (${input + output})`,
+			`${label}: total (${total}) must not be less than input + output (${input + output})`,
 		);
 	}
 }
 
-describe("Provider 契約：所有實作都要成立", () => {
-	const nonStreaming: Array<[string, Provider]> = [["fake（非串流）", fakeProvider()]];
+describe("provider contract: must hold for every implementation", () => {
+	const nonStreaming: Array<[string, Provider]> = [["fake (non-streaming)", fakeProvider()]];
 	const streaming: Array<[string, StreamingProvider]> = [
-		["fake（串流）", fakeStreamingProvider()],
+		["fake (streaming)", fakeStreamingProvider()],
 	];
 
 	for (const [label, provider] of nonStreaming) {
-		test(`${label} 回傳合法的 ModelResponse`, async () => {
+		test(`${label} returns a legal ModelResponse`, async () => {
 			assertResponseContract(await provider.call(REQUEST), label);
 		});
 	}
 
 	for (const [label, provider] of streaming) {
-		test(`${label} 回傳合法的 ModelResponse`, async () => {
+		test(`${label} returns a legal ModelResponse`, async () => {
 			assertResponseContract(await drain(provider.stream(REQUEST)), label);
 		});
 
-		test(`${label} 的事件順序合法`, async () => {
+		test(`${label} emits a legal event order`, async () => {
 			const events: string[] = [];
 			for await (const event of provider.stream(REQUEST)) events.push(event.type);
 
@@ -131,25 +131,25 @@ describe("Provider 契約：所有實作都要成立", () => {
 			let open = false;
 			for (const type of events) {
 				if (type === "text_start") {
-					assert.ok(!open, `${label}: text_start 重複開啟`);
+					assert.ok(!open, `${label}: text_start opened twice`);
 					open = true;
 				}
 				if (type === "text_end") {
-					assert.ok(open, `${label}: text_end 沒有對應的 text_start`);
+					assert.ok(open, `${label}: text_end with no matching text_start`);
 					open = false;
 				}
 			}
-			assert.ok(!open, `${label}: text_start 沒有關`);
+			assert.ok(!open, `${label}: text_start was never closed`);
 
 				// It must end with done or error, and may not simply stop
 			const last = events.at(-1);
 			assert.ok(
 				last === "done" || last === "error",
-				`${label}: 串流以 "${last}" 結束，呼叫端會拿不到結果`,
+				`${label}: the stream ended on "${last}", so the caller gets no result`,
 			);
 		});
 
-		test(`${label}：call() 和 stream() 給一樣的結果`, async () => {
+		test(`${label}: call() and stream() give the same result`, async () => {
 				// This one exists to block "two entry points quietly diverging" —
 				// `call()` in a real provider wraps `drain(stream())`,
 				// and if somebody ever adds something to one side, this goes red.
@@ -167,30 +167,30 @@ describe("Provider 契約：所有實作都要成立", () => {
  * Skipped without `PROVIDER` — **and the skip must be stated**, or you will think it ran.
  * Which is why this uses `test.skip` rather than an early `return`.
  */
-describe("Provider 契約：真模型（需要金鑰）", () => {
+describe("provider contract: real models (needs a key)", () => {
 	const requested = process.env.PROVIDER?.toLowerCase();
 	const live = requested && requested !== "fake";
 
 	if (!live) {
-		test.skip("設 PROVIDER=openai|gemini|anthropic 才會跑（會真的花錢）", () => {});
+		test.skip("only runs with PROVIDER=openai|gemini|anthropic (this costs real money)", () => {});
 		return;
 	}
 
-	test("串流版有回報 usage", async () => {
+	test("the streaming version reports usage", async () => {
 		const { selectStreamingProvider } = await import("../shared/streaming/index.ts");
 		const response = await drain(selectStreamingProvider().stream(REQUEST));
-		assertResponseContract(response, `${requested}（串流）`);
-		assert.ok(response.usage, "真的 provider 一定要回報 usage，不然算不了成本");
+		assertResponseContract(response, `${requested} (streaming)`);
+		assert.ok(response.usage, "a real provider must report usage, or cost cannot be computed");
 	});
 
-	test("非串流版也有回報 usage", async () => {
+	test("the non-streaming version reports usage too", async () => {
 			// This one exists to block Lesson 26's "only the streaming implementation was changed" error.
 		const { selectProvider } = await import("../shared/providers/index.ts");
 		const response = await selectProvider().call(REQUEST);
-		assertResponseContract(response, `${requested}（非串流）`);
+		assertResponseContract(response, `${requested} (non-streaming)`);
 		assert.ok(
 			response.usage,
-			"非串流版也要回報 usage：共用型別答應的事，每個實作都要做到",
+			"The non-streaming version must report usage too: what the shared type promises, every implementation delivers",
 		);
 	});
 });
