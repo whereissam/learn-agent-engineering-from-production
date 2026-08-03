@@ -19,27 +19,26 @@
 
 ## Step 0: a real mistake
 
-This is a sentence from a report Lesson 24 actually produced (`fixtures.ts`, not
-one character changed):
+Take a sentence from a report Lesson 24 actually produced (`fixtures.ts` holds
+the whole thing, verbatim) and move one citation:
 
 ```markdown
-* **軟體授權**：代碼庫本身採用 MIT 授權發布，但其運作所需的預訓練姿勢骨幹
-  模型權重必須單獨下載，且屬於非商業授權
-  (https://github.com/kinelabs/humanoid-mimic,
-   https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211,
-   https://blog.kinelabs.dev/humanoid-mimic-0-7)
+* **Kinematic Foot Sliding**: Deploying `humanoid-mimic` 0.7 on the Unitree G1
+  causes foot sliding during fast footwork … A practical workaround requires
+  slowing trajectory playback speed to 0.8x
+  (https://technews.example.com/2026/07/humanoid-robot-funding-round)
 ```
 
-Three URLs. The first and the third genuinely discuss licensing. **The second is
-a forum thread about foot sliding that never mentions licensing at all.**
+The URL is real and the page was really fetched. **It is a funding announcement
+that never mentions foot sliding, playback speed, or 0.8x.**
 
 This is **citation grafting**:
 
 ```text
-網址是真的
-頁面是真的抓過的（Lesson 24 已經擋掉編網址）
-內容也是真的
-但這一頁不支持這句話
+the URL is real
+the page really was fetched (Lesson 24 already blocks invented URLs)
+the content is real
+and this page does not support this sentence
 ```
 
 It is more dangerous than a wholesale hallucination, because **every layer of
@@ -65,10 +64,10 @@ deterministic scoring.
 So this lesson uses a very crude method:
 
 ```text
-1. 從句子裡抽出可查核的「原子」：數字、版本、日期、識別字、授權名稱
-2. 去每一個被引用的來源正文裡找這些原子
-3. 一個原子都找不到的來源  → 這個引用是嫁接的
-4. 所有來源都找不到的原子  → 這個數字是編的或改過的
+1. pull checkable "atoms" out of the sentence: numbers, versions, dates, identifiers, licence names
+2. look for those atoms in the body of every cited source
+3. a source where not one atom is found  → that citation is grafted
+4. an atom found in no source at all     → that number was invented or altered
 ```
 
 It checks no semantics, only whether these specific things are present.
@@ -86,20 +85,20 @@ versions of it (the corruptions are written in `fixtures.ts` so you can check th
 yourself).
 
 ```
-Lesson 24 的真實輸出（一個字沒改）
-  claims 12  uncited 1  atoms 68  unsupported 5  grafted 1  unknown 0
+Lesson 24's real output, not a word changed
+  claims 16  uncited 0  atoms 100  unsupported 7  grafted 0  unknown 0
 
-數字漂移        埋的錯：0.8x → 0.5x、18 ms → 8 ms、50 Hz → 120 Hz
-  claims 12  uncited 1  atoms 68  unsupported 8  grafted 1
-  ✓ unsupported 8 ≥ 3
+number drift        planted: 0.8x → 0.5x, 18 ms → 8 ms, 50 Hz → 120 Hz
+  claims 16  uncited 0  atoms 100  unsupported 9  grafted 1
+  ✓ unsupported 9 ≥ 3
 
-引用嫁接        埋的錯：關節索引那條多掛一個烹飪網站；腳步滑動那條改掛募資新聞
-  claims 12  uncited 1  atoms 68  unsupported 10  grafted 3
-  ✓ grafted 3 ≥ 2
+citation grafting   planted: the joint-index line gains a cooking site; the foot-sliding line gets a funding story
+  claims 16  uncited 0  atoms 100  unsupported 8  grafted 2
+  ✓ grafted 2 ≥ 2
 
-裸露斷言        埋的錯：把一半行數的引用整個拔掉
-  claims 12  uncited 6  atoms 68  unsupported 37  grafted 0
-  ✓ uncited 6 ≥ 5
+bare assertions     planted: citations stripped from every other line
+  claims 16  uncited 7  atoms 100  unsupported 44  grafted 0
+  ✓ uncited 7 ≥ 5
 ```
 
 All three corrupted versions are caught. But **the first one is the interesting
@@ -113,53 +112,88 @@ part**.
 bun run lesson-25 -- --show real
 ```
 
-The real report has 12 claims and 68 atoms, and three problems were found, **all
-three genuine**:
-
-### 1. An assertion with no citation at all
+The real report has 16 claims and 100 atoms, and the headline number is a
+surprise:
 
 ```
-✗ 目前有兩個主要的 Open Source 專案可用於將影片動作重定向至 Unitree G1：
-  kinelabs/humanoid-mimic 與 openmotion/retarget-anything
-    沒有引用
+claims 16  uncited 0  atoms 100  unsupported 5  grafted 0  unknown 0
 ```
 
-This is the report's **central conclusion**, and it carries no source. Every
-detail below it has citations, but the most important sentence does not. Very
-typical: the model attaches citations to "details" and feels a "summary" needs no
-source.
+**Zero uncited sentences and zero grafted citations.** Every factual sentence
+carries a source, and every source cited genuinely supports the sentence attached
+to it. That is not what the first version of this lesson measured, and it is the
+honest result of re-running it.
 
-### 2. Citation grafting
+### The residue, and how it was misread once already
 
-```
-✗ * **軟體授權**：代碼庫本身採用 MIT 授權發布…
-    https://github.com/kinelabs/humanoid-mimic          支持 2 個原子
-    https://discourse.ros.org/t/…/45211                 嫁接：這一頁沒有支持這句話的任何內容
-    https://blog.kinelabs.dev/humanoid-mimic-0-7        支持 2 個原子
-```
-
-That is Step 0's sentence. The checker found by itself what previously took a
-pair of eyes.
-
-### 3. A word with no source
+Before the hyphen fix below, that line read `unsupported 7`, and this README
+said all seven were the checker's fault:
 
 ```
-✗ 執行需使用 Python 3.11 與 CUDA 12，純 CPU 推論速度比 GPU 推論慢約 40 倍
-    查無來源：GPU
+✗ Two open-source software projects include motion retargeting pipelines for t
+    no source found: open-source
+✗ * **License & Compatibility**: Released under an MIT license, version 0.7 ad
+    no source found: hardware-validated
+✗ * **Runtime & Hardware Specs**: Running on an NVIDIA RTX 4070 GPU, the pipel
+    no source found: NVIDIA, GPU
+✗ * **Backbone Weights Licensing**: While the `humanoid-mimic` codebase is MIT
+    no source found: MIT-licensed
+✗ * **Outdated Benchmarks**: A third-party review of seven motion retargeting 
+    no source found: third-party, out-of-the-box
 ```
 
-The source's original text is:
+Seven findings, five of them visibly hyphenated, and the conclusion written down
+at the time was "hyphenation and casing, all seven". **Grepping the corpus says
+otherwise.** Only two of the seven were hyphenation:
 
-```text
-CPU-only inference works but runs roughly 40x slower
+| atom | what the corpus actually contains | verdict |
+|---|---|---|
+| `MIT-licensed` | "The project stays MIT licensed" | ✅ **fixed by the hyphen rule** |
+| `out-of-the-box` | "…works out of the box" | ✅ **fixed by the hyphen rule** |
+| `NVIDIA`, `GPU` | neither string appears **anywhere in the corpus** | correct flag |
+| `third-party` | absent from the corpus in any spelling | correct flag |
+| `open-source` | present on three pages — but **not on either page this claim cites** | correct flag |
+| `hardware-validated` | "validated on hardware" — same words, reversed | still a false positive |
+
+> The misreading is the most useful thing in this step, and it is Trap 3 arriving
+> one layer further out. Five of seven findings *looked* hyphenated, so the list
+> got classified by appearance instead of by checking. Two actually were.
+>
+> **A false-positive rate is a measurement, not an impression.** Eyeballing the
+> output of a checker is the same mistake as eyeballing the output of a model.
+
+### The fix, and what it does not fix
+
+Identifier normalisation stripped whitespace but not hyphens, so `open-source`
+could never match "open source". Both sides now go through the same packing
+(`packWordBoundaries` in `verify.ts`), and a hyphen is a word boundary exactly
+as a space is.
+
+Why this only surfaced now is worth more than the fix. When the surrounding prose
+was Chinese, a hyphenated Latin token really *was* an identifier — `Apache-2.0`,
+`humanoid-mimic`, `left_knee` — because ordinary Chinese words are not
+hyphenated. English hyphenates ordinary adjectives too.
+
+> **A heuristic is only as portable as the language it was tuned against.**
+> Nothing about the rule was wrong; what changed was the text it runs on.
+
+After the fix the residue is 5, and it is no longer noise:
+
+```
+3 correct flags     NVIDIA, GPU, third-party — words no source ever uses
+1 correct by design open-source — on three corpus pages, neither of them cited here
+1 false positive    hardware-validated vs "validated on hardware"
 ```
 
-It says "CPU-only is roughly 40x slower" and **never says slower than what**. The
-report supplied "than GPU" — a reasonable inference, but the model added it; the
-source did not say it.
+The last one is a **word-order** miss, not a hyphenation one, and fixing it means
+matching bags of words instead of strings — which starts down the road to
+semantics that Step 2 refuses to take. It stays, documented.
 
-That kind of small completion is the most common way a report distorts, and it is
-nearly impossible to find by manual spot-checking.
+And the three correct flags are the quiet finding: the model wrote "an NVIDIA RTX
+4070 GPU" where its source said "an RTX 4070", and "a third-party review" where
+its source said nothing of the kind. Nothing is false, and nothing is sourced
+either. That kind of small completion is the most common way a report distorts,
+and it is nearly impossible to find by manual spot-checking.
 
 ---
 
@@ -197,7 +231,7 @@ one less thing that can break.
 After that fix, the joint-mapping claim was judged:
 
 ```
-查無來源：7, 9, 3, 17, 15, left_hip_pitch, left_knee, rad/s
+no source found: 7, 9, 3, 17, 15, left_hip_pitch, left_knee, rad/s
 ```
 
 But those numbers are **plainly on the page**.
@@ -207,7 +241,7 @@ document** for `unitree.com/g1/developer` (that SDK migration guide), while the
 evaluation read the short version straight from `corpus/index.json`.
 
 ```text
-agent 讀到的   ≠   拿來對答案的
+what the agent read   ≠   what the answer is checked against
 ```
 
 So **correct citations were judged hallucinated**. The fix is making the
@@ -219,23 +253,28 @@ evaluation go through exactly the same `fetchPage` plus `extractMain` path as
 
 ### Trap 3: normalisation glued adjacent numbers together
 
-Two false positives remained: the `6` in "2026 年 6 月" and the `2004` in
-"Apache License… 2004 年 1 月".
+Two false positives remained: the `6` in "June 2026" and the `2004` in
+"Apache License… January 2004".
 
 The sources are English (`released June 2026`), so month conversion turned
 `june → 6`, and then all whitespace was removed to make comparison easier:
 
 ```text
 "released June 2026"  →  "released 6 2026"  →  "released62026"
-原子 6 的比對條件是「前後不能接數字」  →  後面接著 2  →  判定查無來源
+atom 6 requires "no digit either side"  →  a 2 follows it  →  judged unsupported
 ```
 
 The fix: **numbers and identifiers need different normalisation**. Identifiers
 drop whitespace (so `Apache-2.0` equals `Apache - 2.0`), while numbers keep a
 single space as a boundary.
 
-With all three traps fixed, the real report went from "14 unsourced" to "5", and
-the remaining 5 are **all genuine problems**.
+With all three traps fixed, the real report went from "14 unsourced" to "5".
+
+At the time that was written down as "and the remaining 5 are all genuine
+problems". Step 3 is what happens when somebody actually checks that claim
+against the corpus a month later — the residue is again 5, composed differently,
+and one of them is still the checker's fault. **Three traps found is not a reason
+to stop looking for the fourth.**
 
 ---
 
@@ -267,13 +306,13 @@ narrowed to the sentences whose atoms all line up.
 Same shape as Lesson 7:
 
 ```bash
-bun run lesson-25 -- --save      # 存成基準
-bun run lesson-25 -- --compare   # 之後每次改動都比一次
+bun run lesson-25 -- --save      # save a baseline
+bun run lesson-25 -- --compare   # compare after every later change
 ```
 
 ```
-跟基準比較
-  ✓ 所有指標跟基準一致
+compared against the baseline
+  ✓ every metric matches the baseline
 ```
 
 Run this after changing Lesson 24's prompt, switching models, or adjusting
@@ -288,10 +327,10 @@ Without this step, all you have is "feels like it got better".
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | the corpus is not generated | `bun run lesson-20:corpus` |
+| `Lesson 20's corpus not found` | the corpus is not generated | `bun run lesson-20:corpus` |
 | every claim reads "no citation" | the report format is not "URLs in parentheses at the end of a sentence" | change `URL_PATTERN` and footnote parsing in `report.ts` |
 | correct citations judged as grafted | the evaluation reads different sources from the system | see Step 4, trap 2 |
-| `還沒有基準` | `--save` has never run | `bun run lesson-25 -- --save` |
+| `No baseline yet` | `--save` has never run | `bun run lesson-25 -- --save` |
 
 ---
 
@@ -312,7 +351,7 @@ Step 5 says it cannot catch "the source says unsupported, the report says
 supported".
 
 Devise a deterministic method. Hint: the presence of negations (not, no longer,
-deprecated, 不再, 已棄用) in the source versus in the claim makes a crude but
+deprecated, no longer, unmaintained) in the source versus in the claim makes a crude but
 useful signal.
 
 Work out its false-positive rate first, then decide whether to build it.
@@ -338,6 +377,20 @@ You will probably find three things:
 3. **It will still catch things** — usually the kind you would not find in ten
    readings
 
+### Exercise 5: kill the last false positive, or decide not to ⭐⭐⭐
+
+Step 3's residue is down to one: `hardware-validated` against a source that says
+"validated on hardware". Same words, reversed, so string matching cannot see it.
+
+The obvious fix is to match a hyphenated identifier as an unordered bag of its
+parts. Try it — then measure what it costs. `open-source` becomes `open` +
+`source`, both of which are stopword-grade English, and the atom stops
+discriminating at all.
+
+The exercise is not the code. It is deciding, with numbers in hand, whether
+removing one false positive is worth the false negatives it buys, and then
+writing that decision down next to the rule.
+
 ---
 
 ## Compared with the sources
@@ -362,12 +415,12 @@ Six lessons, from "one agent plus one search tool" to "a measurable research
 pipeline":
 
 ```text
-20  搜尋回來的不是網頁，是 snippet；query 決定你看到頁面的哪一面
-21  正文只佔一半；抽取失敗是靜默的
-22  BM25 + dense + 融合 + 去重 + 訊號；平均分數會騙人
-23  真實專案怎麼做的；抄回來之後炸出一個潛伏三課的 bug
-24  控制流從模型手上拿回來；預算是算出來的，不是撞出來的
-25  引用要驗；評估自己也會錯
+20  what search returns is a snippet, not a page; the query decides which face you see
+21  the body is only half the page; extraction failure is silent
+22  BM25 + dense + fusion + dedup + signals; the mean score will lie to you
+23  how real projects do it; copying it back exposed a bug latent for three lessons
+24  the control flow is taken back from the model; the budget is computed, not discovered by crashing into it
+25  citations have to be verified; the evaluation itself can be wrong
 ```
 
 Every lesson has a measurement record, and **every lesson's conclusion differs

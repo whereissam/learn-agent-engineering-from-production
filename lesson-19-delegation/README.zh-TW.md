@@ -10,12 +10,12 @@
 > `tools/async_delegation.py`（1069 行）。CrewAI 當第二個對照（見文末）。
 
 ```bash
-bun run lesson-19                      # 四個機制，不用金鑰
-BLOCK=off bun run lesson-19 blocklist  # 遞迴委派
+bun run lesson-19                      # all four mechanisms, no key needed
+BLOCK=off bun run lesson-19 blocklist  # recursive delegation
 APPROVE=auto bun run lesson-19 approval
 
-PROVIDER=gemini bun run lesson-19:agent                # 一個 agent 做三件事
-MODE=delegate PROVIDER=gemini bun run lesson-19:agent  # 三個 agent 各做一件
+PROVIDER=gemini bun run lesson-19:agent                # one agent doing three things
+MODE=delegate PROVIDER=gemini bun run lesson-19:agent  # three agents doing one each
 ```
 
 ## 這課要回答的問題
@@ -37,7 +37,8 @@ MODE=delegate PROVIDER=gemini bun run lesson-19:agent  # 三個 agent 各做一�
 > 多 agent 不會比較聰明，它是把狀態邊界變明確；
 > 沒有真的隔離需求時只是多付溝通成本。
 
-實測結果在 Step 5。**其中一半錯了**，而錯的那一半比對的那一半有用。
+實測結果在 Step 5。**兩半後來都被證明是錯的**——但不是同時，
+而重點在它們失效的順序。
 
 ---
 
@@ -59,16 +60,16 @@ bun run lesson-19 isolation
 ```
 
 ```
-父 agent 的對話：
-  │ 使用者：我們的 staging 環境從上週開始就一直噴 E-118。
-  │ 使用者：喔對了，**staging 的資料是假的，不要拿去做結論**。
-  │ 助理：了解，我看一下 logs/。
+the parent agent's conversation:
+  │ user: our staging environment has been throwing E-118 since last week.
+  │ user: oh, and **the staging data is fake, do not draw conclusions from it**.
+  │ assistant: understood, let me look at logs/.
 
-子 agent 的整個 context：
-  │ 統計 logs/inventory.log 裡最常出現的錯誤碼
-  │ Context: 檔案在 workspace 底下。
+the subagent's entire context:
+  │ count the most frequent error code in logs/inventory.log
+  │ Context: The file is under the workspace.
 
-「staging 的資料是假的」有沒有跨過去：沒有
+did "the staging data is fake" cross over: no
 ```
 
 > 同一個機制既是功能也是 bug，取決於那句話重不重要。
@@ -115,8 +116,8 @@ DELEGATE_BLOCKED_TOOLS = frozenset([
 ### 關掉之後
 
 ```bash
-bun run lesson-19 blocklist              # 1 個子 agent
-BLOCK=off bun run lesson-19 blocklist    # 15 個
+bun run lesson-19 blocklist              # 1 subagent
+BLOCK=off bun run lesson-19 blocklist    # 15 of them
 ```
 
 每層 2 個、深度上限 4 就是 15 個。**真實情況沒有深度上限**，
@@ -135,16 +136,16 @@ Lesson 20 那次它搜了語料裡根本不存在的專案名，是同一種行�
 ## Step 3：子 agent 要批准的時候找誰
 
 ```bash
-bun run lesson-19 approval                 # 預設：拒絕
-APPROVE=auto bun run lesson-19 approval    # 寫出去了
+bun run lesson-19 approval                 # the default: deny
+APPROVE=auto bun run lesson-19 approval    # the file gets written
 ```
 
 Hermes 的預設是**自動拒絕**，而理由有兩層（`delegate_tool.py:60-76`）：
 
 ```
-安全  子 agent 的動作沒有人看得到，不該有收不回來的副作用
-活性  子 agent 跑在 worker thread 裡，拿不到互動式的批准 callback，
-      掉回 input() 會跟父進程的 TUI 搶 stdin —— 死鎖
+safety    nobody watches a subagent's actions, so it should have no irreversible side effects
+liveness  a subagent runs in a worker thread with no interactive approval callback;
+          falling back to input() fights the parent's TUI for stdin — deadlock
 ```
 
 > 第二層才是這段註解值得抄的原因。
@@ -165,10 +166,10 @@ bun run lesson-19 locate
 ```
 
 ```
-真相（demo 自己記的）　　　　父 agent 收到的 tool result：
-  統計 checkout 的錯誤碼    工具成功　最常見的是 E-400。
-  統計 inventory 的錯誤碼   工具失敗　最常見的是 E-118。   ← 檔案根本讀不到
-  統計 notify 的錯誤碼      工具成功　最常見的是 E-402。
+the truth (recorded by the demo)      the tool result the parent received:
+  count checkout's error codes    tool ok      The most common one is E-400.
+  count inventory's error codes   tool failed  The most common one is E-118.   ← the file could not be read at all
+  count notify's error codes      tool ok      The most common one is E-402.
 ```
 
 委派**同時**改善和惡化了可觀測性：
@@ -201,44 +202,111 @@ MODE=delegate PROVIDER=gemini bun run lesson-19:agent
 
 | | 模型呼叫 | 子 agent | token（total） | 錯誤碼 | 但書 |
 |---|---|---|---|---|---|
-| solo | 6 / 6 / 4 | 0 | 11,251 / 9,718 / 9,983 | 3/3 3/3 3/3 | 有 有 有 |
-| delegate | 23 / 23 / 22 | 3 | 35,203 / 41,546 / 39,147 | 3/3 3/3 3/3 | 有 有 有 |
+| solo | 7 / 6 / 6 | 0 | 14,654 / 9,509 / 11,912 | 3/3 3/3 3/3 | yes yes yes |
+| delegate | 12 / 10 / 13 | 3 | 13,265 / 13,763 / 17,664 | 3/3 3/3 3/3 | yes yes **no** |
+
+### 委派讓你付的代價，而那不是 token
+
+先看最後一欄，其他的都先放著。
+
+三次委派裡有一次，父 agent 的答案回來時**少了**「2026-07-14 以前的錯誤碼用舊編號」
+那一句——一個埋在 `logs/inventory.log` 第三行、而且標了 `NOTE:` 的但書。
+父 agent 寫出一份自信、引用完整、而且在這一點上是錯的答案。
 
 ```
-正確率   一樣（3/3 vs 3/3）
-成本     3.9 倍 token、3.9 倍模型呼叫
+solo       但書在   3/3      父 agent 自己讀了檔案
+delegate   但書在   2/3      父 agent 讀的是那個檔案的摘要
 ```
 
-### 預期對了一半
+沒有任何東西失敗。沒有工具報錯，沒有子 agent 掛掉，沒有步驟被跳過。
+摘要提到的每一件事都是準確的；那個但書只是沒有被列在它提到的東西裡面。
+而**父 agent 沒有任何辦法知道**，因為按照設計，父 agent 從來看不到子 agent
+中間的工作——那就是 Step 1 那條資訊邊界，完全照著設計在運作。
 
-> **對的那一半**：多 agent 沒有比較聰明，只是多付溝通成本。
-> 而且代價比預期的大 —— 事前猜 1.5-2 倍，實際是 **3.9 倍**。
+程式印出來的逐一子 agent 明細讓這個遺失變得具體，而且掉的是哪一個並不是隨機的：
+
+```
+run 1 · sub 2 (inventory)  yes      ← 但書就在它那個 log 裡
+run 2 · sub 2 (inventory)  yes
+run 3 · sub 2 (inventory)  yes
+```
+
+即使是第 3 次——最終答案掉了但書的那一次——**子 agent 自己的摘要裡但書還在**。
+所以遺失發生在再上面一層：父 agent 把三份摘要摺成一個答案的時候。
+這裡有兩層會失真的摘要，不是一層，而失敗在不同次之間會在兩層之間移動。
+
+> 摘要是有損的，而**損掉哪一部分**是由一個模型決定的，每次不同，而且無聲。
+> 這不是摘要層的 bug。這就是摘要層**本身是什麼**。
 >
-> 錯的那一半：預期那個但書會在摘要那一層掉。沒有掉，3/3 都活著。
-> 負責 inventory 的那個子 agent 每次都把它寫進摘要了。
+> 跟 [Lesson 29](../lesson-29-evidence/README.zh-TW.md) 對模型自述得到的結論一樣，
+> 只是換上委派的衣服：**摘要不是證據。**
 
-第二點值得記下來，因為它是一個**反方向的教訓**：
+這是重測之後活下來的那個發現，也是你該拿來做設計的那一個。
+底下全部都是在講為什麼它需要第二次量測才被看見。
 
-> 一個專門用來製造資訊遺失的機關（把但書放在檔頭），
-> 模型每一次都沒有掉。**這不代表委派不會掉資訊**，
-> 只代表**這個題目太簡單**：但書就在檔案開頭三行、而且用 `NOTE:` 標著。
+### 成本這個論點，已經撐不起這一課
+
+```
+accuracy   identical (3/3 vs 3/3)
+cost       1.24x the tokens, 1.84x the model calls
+```
+
+同一段程式碼、同一個問題，這個數字現在已經量過三次：
+
+| 量測時間 | token | 模型呼叫 | 但書掉了 |
+|---|---|---|---|
+| 寫這一課的時候 | **3.9x** | 3.9x | 0 of 3 |
+| 五天後重測 | **1.07x** | 1.6x | 1 of 3 |
+| 再一次重測 | **1.24x** | 1.84x | 1 of 3 |
+
+第一列的原始數字，拿來對照——子 agent 以前重新探索的量比現在大得多：
+
+| | 模型呼叫 | 子 agent | token（total） |
+|---|---|---|---|
+| solo | 6 / 6 / 4 | 0 | 11,251 / 9,718 / 9,983 |
+| delegate | 23 / 23 / 22 | 3 | 35,203 / 41,546 / 39,147 |
+
+**這一課原本整個建立在上面的那個頭條數字，在同一件事的三次量測之間橫跨了 3.6 倍。**
+而但書遺失已經用同樣的比率重現了兩次。這就是為什麼但書放在這一步的最前面，
+而成本不是：
+
+> 兩個發現之間，選**重測結果一樣**的那一個。
+> 不是因為它比較有趣——3.9 倍好引用得多——
+> 而是因為它是你下個月還能拿來做設計的那一個。
+
+### 預期對了一半，然後兩半對調了
+
+> **當時對的那一半**：多 agent 沒有比較聰明，只是多付溝通成本——量到 **3.9 倍**，
+> 比事前猜的 1.5-2 倍還大。
 >
-> 跟 Lesson 16 第一輪、Lesson 30 第一輪同一個家族的錯：
-> 陰性結果要先證明測試有鑑別度（提議的原則 10）。
+> 當時錯的那一半：預期那個但書會在摘要那一層掉。沒有掉，3/3 都活著。
 
-### 3.9 倍是從哪裡來的（這才是有用的部分）
+兩半後來都反過來了。這兩個數字都不是委派的性質，
+它們是**這個模型這個月的委派**的性質。
 
-看 trace 就知道，**每個子 agent 都自己重新探索了一遍**：
+> 這才是這裡耐久的那條教訓，而且跟 token 數無關：
+> **邊界是結構性的，邊界的代價不是。** 子 agent 永遠看不到父 agent 沒傳下去的
+> 東西——這在每一個模型上、永遠都成立。你為它付多少錢、它多常咬你，
+> 是量出來的，不是知道的。
+>
+> 跟 Lesson 16 第一輪、Lesson 30 第一輪同一個家族的警惕：
+> 一個你重測不出來的結果是故事，不是發現（提議的原則 10）。
+
+### 3.9 倍是從哪裡來的，以及為什麼它還是值得讀
+
+那個數字不見了，它背後的機制沒有，而且那個機制才是決定委派對**你的**題目
+划不划算的東西。那一輪很貴的 trace 說得很清楚，
+**每個子 agent 都自己重新探索了一遍**：
 
 ```
 → delegate_task  "Analyze logs/notify.log …"
-    ↳ read_file(logs/notify.log)      ← 它的工作
+    ↳ read_file(logs/notify.log)      ← its own job
     ↳ list_files()
     ↳ read_file(package.json)
-    ↳ read_file(logs/checkout.log)    ← 別人的工作
-    ↳ read_file(logs/inventory.log)   ← 別人的工作
+    ↳ read_file(logs/checkout.log)    ← somebody else's job
+    ↳ read_file(logs/inventory.log)   ← somebody else's job
     ↳ list_files(logs)
-  ← 摘要 901 字，工具 6 次
+  ← summary 901 chars, 6 tool calls
 ```
 
 父 agent 已經 `list_files` 過了，但那個知識**跨不過邊界**。

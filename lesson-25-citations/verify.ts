@@ -127,8 +127,29 @@ const MONTHS: Record<string, string> = {
  *   identifiers → strip whitespace (so "Apache-2.0" and "Apache - 2.0" count as one)
  *   numbers     → keep a single space as a boundary (so adjacent numbers do not glue together)
  */
+
+/**
+ * **A hyphen is a word boundary, exactly as whitespace is.**
+ *
+ * Second false positive of the same family, and it only appeared once the reports were in English.
+ * The report writes `open-source`, the source page writes `open source`, and packing whitespace
+ * alone leaves `open-source` ≠ `opensource` — so a plainly sourced phrase was reported unsourced.
+ *
+ * The reason it never showed up before is worth more than the fix: when the surrounding prose was
+ * Chinese, a hyphenated Latin token really was an identifier (`Apache-2.0`, `humanoid-mimic`,
+ * `left_knee`), because ordinary Chinese words are not hyphenated. English hyphenates ordinary
+ * adjectives too — `open-source`, `out-of-the-box`, `third-party` — so the same heuristic that was
+ * precise in one language became a false-positive generator in the other.
+ *
+ * > **A heuristic is only as portable as the language it was tuned against.**
+ * > Nothing about this rule was wrong; what changed was the text it runs on.
+ */
+function packWordBoundaries(text: string): string {
+	return text.replaceAll(" ", "").replaceAll("-", "").replaceAll("_", "");
+}
+
 interface NormalizedSource {
-	/** For identifier matching: all whitespace removed. */
+	/** For identifier matching: whitespace, hyphens and underscores all removed. */
 	packed: string;
 	/** For number matching: whitespace collapsed to one, keeping boundaries. */
 	spaced: string;
@@ -140,7 +161,7 @@ function normalizeSource(text: string): NormalizedSource {
 		normalized = normalized.replaceAll(name, ` ${number} `);
 	}
 	const spaced = normalized.replace(/\s+/g, " ");
-	return { packed: spaced.replaceAll(" ", ""), spaced };
+	return { packed: packWordBoundaries(spaced), spaced };
 }
 
 function containsAtom(source: NormalizedSource, atom: Atom): boolean {
@@ -149,7 +170,8 @@ function containsAtom(source: NormalizedSource, atom: Atom): boolean {
 		const pattern = new RegExp(`(?<!\\d)0*${escapeRegex(atom.value)}(?!\\d)`);
 		return pattern.test(source.spaced);
 	}
-	return source.packed.includes(atom.value);
+		// Both sides go through the same packing, so `open-source` and "open source" are one identifier
+	return source.packed.includes(packWordBoundaries(atom.value));
 }
 
 function escapeRegex(text: string): string {

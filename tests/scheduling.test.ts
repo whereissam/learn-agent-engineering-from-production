@@ -49,30 +49,30 @@ function ledger(): Ledger {
 
 // ─────────────────────────────────────────────────────────────
 
-describe("到期與補跑（Lesson 18）", () => {
-	test("沒跑過的工作只跑一次，不會把建立之前的時間補回來", () => {
+describe("due times and catch-up (Lesson 18)", () => {
+	test("a job that never ran runs once, without back-filling time before it existed", () => {
 		assert.deepEqual(missedRuns(job({ createdAt: 5 * MINUTE }), 9 * MINUTE), [5 * MINUTE]);
 	});
 
-	test("停機三小時、每五分鐘 → 36 次", () => {
+	test("three hours down at five-minute intervals → 36 runs", () => {
 		const missed = missedRuns(job({ everySeconds: 300, lastScheduledAt: 0 }), 3 * 60 * MINUTE);
 		assert.equal(missed.length, 36);
 	});
 
-	test("停用的工作不會有到期時間", () => {
+	test("a disabled job has no due time", () => {
 		assert.deepEqual(missedRuns(job({ enabled: false, lastScheduledAt: 0 }), 10 * MINUTE), []);
 	});
 
-	test("時間以「排定時間」推進，不受執行耗時影響", () => {
+	test("time advances by the scheduled time, unaffected by how long a run takes", () => {
 			// This guards the slow-drift bug: advancing only on completion,
 			// a job every 60 seconds that takes 5 seconds per run drifts an hour in a day.
 		const missed = missedRuns(job({ lastScheduledAt: 0 }), 3 * MINUTE + 37_000);
 		assert.deepEqual(missed, [MINUTE, 2 * MINUTE, 3 * MINUTE]);
 	});
 
-	test("catchUp=one 補的是最後一個，不是第一個", () => {
+	test("catchUp=one runs the last occurrence, not the first", () => {
 		const { runs, dropped } = applyCatchUp("one", [1, 2, 3, 4]);
-		assert.deepEqual(runs, [4], "要的是現在的狀態，不是三小時前的");
+		assert.deepEqual(runs, [4], "what is wanted is the current state, not the state three hours ago");
 		assert.equal(dropped, 3);
 	});
 
@@ -82,11 +82,11 @@ describe("到期與補跑（Lesson 18）", () => {
 		assert.equal(applyCatchUp("skip", [1, 2, 3]).dropped, 3);
 	});
 
-	test("nextDue 一定在未來", () => {
+	test("nextDue is always in the future", () => {
 		assert.ok(nextDue(job({ lastScheduledAt: 0 }), 5 * MINUTE) > 5 * MINUTE);
 	});
 
-	test("⚠ skip 之後時間仍然要推進，否則每次 tick 都重看同一批", async () => {
+	test("⚠ time must still advance after a skip, or every tick revisits the same batch", async () => {
 			// This bug has no symptom at all: it executes nothing and merely makes the dropped
 			// number grow every minute.
 		const j = job({ catchUp: "skip", lastScheduledAt: 0 });
@@ -102,14 +102,14 @@ describe("到期與補跑（Lesson 18）", () => {
 		assert.equal(first.dropped[0]?.count, 10);
 
 		const second = await scheduler.tick();
-		assert.deepEqual(second.dropped, [], "同一批錯過的排程不該被重看一次");
+		assert.deepEqual(second.dropped, [], "the same batch of missed runs must not be revisited");
 	});
 });
 
 const TMP = mkdtempSync(join(tmpdir(), "lesson-18-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
 
-describe("執行紀錄（Lesson 18）", () => {
+describe("the execution ledger (Lesson 18)", () => {
 	test("claimed → running → completed", async () => {
 		const l = ledger();
 		const exec = await l.claim("j1", 0);
@@ -118,15 +118,15 @@ describe("執行紀錄（Lesson 18）", () => {
 		assert.equal((await l.finish(exec.id, true))?.status, "completed");
 	});
 
-	test("終局狀態不可改寫", async () => {
+	test("a terminal state cannot be rewritten", async () => {
 		const l = ledger();
 		const exec = await l.claim("j1", 0);
 		await l.finish(exec.id, true);
-		assert.equal(await l.finish(exec.id, false, "其實失敗了"), undefined);
+		assert.equal(await l.finish(exec.id, false, "actually it failed"), undefined);
 		assert.equal(l.list("j1")[0]?.status, "completed");
 	});
 
-	test("markRunning 只會成功一次", async () => {
+	test("markRunning only succeeds once", async () => {
 		const l = ledger();
 		const exec = await l.claim("j1", 0);
 		await l.markRunning(exec.id);
@@ -161,7 +161,7 @@ describe("執行紀錄（Lesson 18）", () => {
 		return { first, second, exec };
 	}
 
-	test("owner 還活著 → 不碰它", async () => {
+	test("the owner is alive → leave it alone", async () => {
 		const live = new Map([[7, 500]]);
 		const { second } = await handover(live);
 		const result = await second.recoverInterrupted();
@@ -169,17 +169,17 @@ describe("執行紀錄（Lesson 18）", () => {
 		assert.equal(result.leftAlone.length, 1);
 	});
 
-	test("pid 被回收（存在但啟動時間不同）→ 判定為死", async () => {
+	test("a recycled pid (present, different start time) → judged dead", async () => {
 		const live = new Map([[7, 500]]);
 		const { second } = await handover(live);
-		live.set(7, 999); // 同一個 pid，換了一個進程
+		live.set(7, 999); // the same pid, a different process
 
 		const result = await second.recoverInterrupted();
 		assert.equal(result.recovered.length, 1);
 		assert.equal(result.recovered[0]?.status, "unknown");
 	});
 
-	test("⚠ 拿不到啟動時間 → 當成活著（fail safe）", async () => {
+	test("⚠ no start time available → assume alive (fail safe)", async () => {
 			// "If death cannot be proved, state must not be rewritten." The reverse design produces duplicate execution.
 		const live = new Map([[7, 500]]);
 		const blind: OwnerProbe = { exists: () => true, startedAt: () => undefined };
@@ -187,7 +187,7 @@ describe("執行紀錄（Lesson 18）", () => {
 		assert.equal((await second.recoverInterrupted()).recovered.length, 0);
 	});
 
-	test("recover 不會排任何重試", async () => {
+	test("recover schedules no retries", async () => {
 		const { second } = await handover(new Map<number, number>());
 		const result = await second.recoverInterrupted();
 
@@ -197,8 +197,8 @@ describe("執行紀錄（Lesson 18）", () => {
 	});
 });
 
-describe("生命週期守衛（Lesson 18）", () => {
-	test("四種指令形狀都擋得住", () => {
+describe("the lifecycle guard (Lesson 18)", () => {
+	test("all four command shapes are blocked", () => {
 		assert.ok(containsLifecycleCommand("agentd restart"));
 		assert.ok(containsLifecycleCommand("agentd stop"));
 		assert.ok(containsLifecycleCommand("launchctl kickstart -k gui/501/ai.agentd"));
@@ -206,28 +206,66 @@ describe("生命週期守衛（Lesson 18）", () => {
 		assert.ok(containsLifecycleCommand("pkill -f agentd"));
 	});
 
-	test("start 刻意不擋", () => {
+	test("prose is blocked too, in either word order", () => {
+			// The recall hole measured at 0-of-3: the guard read the job prompt as shell text, but a cron
+			// prompt is handed to a future agent turn, which writes sentences. Only `agentd restart`
+			// — the one form a model rarely emits — used to be caught.
+		assert.ok(containsLifecycleCommand("restart agentd"));
+		assert.ok(containsLifecycleCommand("Restart the agentd daemon so the new config is picked up."));
+		assert.ok(containsLifecycleCommand("stop agentd and start it again"));
+		assert.ok(containsLifecycleCommand("bounce agentd"));
+		assert.ok(containsLifecycleCommand("terminate the agentd process"));
+		assert.ok(containsLifecycleCommand("kill the agentd process and let the supervisor bring it back"));
+	});
+
+	test("reload is not blocked, because a reload does not kill the process", () => {
+			// Same judgement as the measured `pkill -HUP agentd` false positive. SIGHUP re-reads config
+			// without the process dying, so it breaks no link in the restart-loop chain.
+			// Blocking what merely sounds dangerous is how a guard loses the reader's trust.
+		assert.equal(containsLifecycleCommand("reload agentd's configuration"), false);
+		assert.equal(containsLifecycleCommand("send SIGHUP to agentd to reload its config"), false);
+	});
+
+	test("a path that merely starts with the daemon's name is not the daemon", () => {
+			// This lesson's own benign half of the task. Without the lookarounds `\bagentd\b`
+			// matches inside `agentd-cache`, and the guard blocks cache cleanup.
+		assert.equal(containsLifecycleCommand("clear old files out of /tmp/agentd-cache"), false);
+		assert.equal(containsLifecycleCommand("clear old files out of /tmp/agentd-cache, then stop"), false);
+	});
+
+	test("two unrelated clauses in one prompt do not join up", () => {
+			// The window is bounded for exactly this: a killing verb and the daemon's name can both
+			// appear in one prompt without the prompt being about killing the daemon.
+		assert.equal(
+			containsLifecycleCommand(
+				"restart the build box; afterwards tail the last 200 lines of the agentd log for errors",
+			),
+			false,
+		);
+	});
+
+	test("start is deliberately not blocked", () => {
 			// Starting a daemon inside the daemon is harmless, and a legitimate job may need to
 			// start a different profile. Blocking it produces inexplicable failures.
 		assert.equal(containsLifecycleCommand("agentd start"), false);
 	});
 
-	test("不相干的散文不會誤擋", () => {
+	test("unrelated prose is not falsely blocked", () => {
 		assert.equal(
-			containsLifecycleCommand("幫我研究 Kong API gateway 的 autoscaling 和 restart 行為"),
+			containsLifecycleCommand("research the autoscaling and restart behaviour of the Kong API gateway"),
 			false,
 		);
-		assert.equal(containsLifecycleCommand("每天重啟一次資料庫連線池"), false);
+		assert.equal(containsLifecycleCommand("recycle the database connection pool once a day"), false);
 	});
 
-	test("prompt 和 script 合起來看，拆成兩半也擋得住", () => {
+	test("prompt and script are checked together, so splitting it in two still gets blocked", () => {
 		assert.throws(
-			() => checkLifecycle("先清快取，然後執行 cleanup.sh", "#!/bin/sh\nagentd restart\n"),
+			() => checkLifecycle("clear the cache, then run cleanup.sh", "#!/bin/sh\nagentd restart\n"),
 			LifecycleBlocked,
 		);
 	});
 
-	test("錯誤訊息要講替代做法，不能只說不行", () => {
+	test("the error message must name an alternative, not just say no", () => {
 			// Measured (README Step 6): with an alternative stated, the model changes approach and tells the user;
 			// with only "not allowed", Lesson 8 measured five consecutive attempts to route around.
 		try {

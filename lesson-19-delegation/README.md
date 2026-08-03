@@ -12,12 +12,12 @@
 > (see the end).
 
 ```bash
-bun run lesson-19                      # 四個機制，不用金鑰
-BLOCK=off bun run lesson-19 blocklist  # 遞迴委派
+bun run lesson-19                      # all four mechanisms, no key needed
+BLOCK=off bun run lesson-19 blocklist  # recursive delegation
 APPROVE=auto bun run lesson-19 approval
 
-PROVIDER=gemini bun run lesson-19:agent                # 一個 agent 做三件事
-MODE=delegate PROVIDER=gemini bun run lesson-19:agent  # 三個 agent 各做一件
+PROVIDER=gemini bun run lesson-19:agent                # one agent doing three things
+MODE=delegate PROVIDER=gemini bun run lesson-19:agent  # three agents doing one each
 ```
 
 ## Questions this lesson answers
@@ -41,8 +41,8 @@ So following Lesson 7's method, **write the prediction before running**
 > Multi-agent is not smarter; it makes state boundaries explicit. Without a
 > genuine isolation requirement it only adds communication cost.
 
-The measurements are in Step 5. **Half of that is wrong**, and the wrong half is
-more useful than the right half.
+The measurements are in Step 5. **Both halves of that turned out wrong** — but
+not at the same time, and the order in which they failed is the point.
 
 ---
 
@@ -64,16 +64,16 @@ bun run lesson-19 isolation
 ```
 
 ```
-父 agent 的對話：
-  │ 使用者：我們的 staging 環境從上週開始就一直噴 E-118。
-  │ 使用者：喔對了，**staging 的資料是假的，不要拿去做結論**。
-  │ 助理：了解，我看一下 logs/。
+the parent agent's conversation:
+  │ user: our staging environment has been throwing E-118 since last week.
+  │ user: oh, and **the staging data is fake, do not draw conclusions from it**.
+  │ assistant: understood, let me look at logs/.
 
-子 agent 的整個 context：
-  │ 統計 logs/inventory.log 裡最常出現的錯誤碼
-  │ Context: 檔案在 workspace 底下。
+the subagent's entire context:
+  │ count the most frequent error code in logs/inventory.log
+  │ Context: The file is under the workspace.
 
-「staging 的資料是假的」有沒有跨過去：沒有
+did "the staging data is fake" cross over: no
 ```
 
 > One mechanism is both the feature and the bug, depending on whether that
@@ -124,8 +124,8 @@ but **whose name something later happens under**.
 ### With it turned off
 
 ```bash
-bun run lesson-19 blocklist              # 1 個子 agent
-BLOCK=off bun run lesson-19 blocklist    # 15 個
+bun run lesson-19 blocklist              # 1 subagent
+BLOCK=off bun run lesson-19 blocklist    # 15 of them
 ```
 
 Two per level with a depth cap of 4 gives 15. **Reality has no depth cap**; the
@@ -145,17 +145,17 @@ name that did not exist anywhere in the corpus, which is the same behaviour.
 ## Step 3: when a subagent needs approval, who does it ask
 
 ```bash
-bun run lesson-19 approval                 # 預設：拒絕
-APPROVE=auto bun run lesson-19 approval    # 寫出去了
+bun run lesson-19 approval                 # the default: deny
+APPROVE=auto bun run lesson-19 approval    # the file gets written
 ```
 
 Hermes's default is **automatic denial**, and the reason has two layers
 (`delegate_tool.py:60-76`):
 
 ```
-安全  子 agent 的動作沒有人看得到，不該有收不回來的副作用
-活性  子 agent 跑在 worker thread 裡，拿不到互動式的批准 callback，
-      掉回 input() 會跟父進程的 TUI 搶 stdin —— 死鎖
+safety    nobody watches a subagent's actions, so it should have no irreversible side effects
+liveness  a subagent runs in a worker thread with no interactive approval callback;
+          falling back to input() fights the parent's TUI for stdin — deadlock
 ```
 
 > The second layer is why this comment is worth copying. "Subagents should not
@@ -177,10 +177,10 @@ bun run lesson-19 locate
 ```
 
 ```
-真相（demo 自己記的）　　　　父 agent 收到的 tool result：
-  統計 checkout 的錯誤碼    工具成功　最常見的是 E-400。
-  統計 inventory 的錯誤碼   工具失敗　最常見的是 E-118。   ← 檔案根本讀不到
-  統計 notify 的錯誤碼      工具成功　最常見的是 E-402。
+the truth (recorded by the demo)      the tool result the parent received:
+  count checkout's error codes    tool ok      The most common one is E-400.
+  count inventory's error codes   tool failed  The most common one is E-118.   ← the file could not be read at all
+  count notify's error codes      tool ok      The most common one is E-402.
 ```
 
 Delegation **simultaneously** improves and degrades observability:
@@ -217,49 +217,123 @@ the three error codes, plus the caveat about the "old numbering scheme".
 
 | | Model calls | Subagents | Tokens (total) | Error codes | Caveat |
 |---|---|---|---|---|---|
-| solo | 6 / 6 / 4 | 0 | 11,251 / 9,718 / 9,983 | 3/3 3/3 3/3 | 有 有 有 |
-| delegate | 23 / 23 / 22 | 3 | 35,203 / 41,546 / 39,147 | 3/3 3/3 3/3 | 有 有 有 |
+| solo | 7 / 6 / 6 | 0 | 14,654 / 9,509 / 11,912 | 3/3 3/3 3/3 | yes yes yes |
+| delegate | 12 / 10 / 13 | 3 | 13,265 / 13,763 / 17,664 | 3/3 3/3 3/3 | yes yes **no** |
+
+### What delegation costs you, and it is not tokens
+
+Look at the last column before any of the others.
+
+In one delegate run of three, the parent's answer came back **without** the line
+saying "codes before 2026-07-14 use the old numbering scheme" — a caveat planted
+three lines into `logs/inventory.log` and tagged `NOTE:`. The parent wrote a
+confident, well-cited, wrong-in-one-respect answer.
 
 ```
-正確率   一樣（3/3 vs 3/3）
-成本     3.9 倍 token、3.9 倍模型呼叫
+solo       caveat present 3/3      the parent read the file itself
+delegate   caveat present 2/3      the parent read a summary of the file
 ```
 
-### The prediction was half right
+Nothing failed. No tool errored, no subagent crashed, no step was skipped. The
+summary was accurate about everything it mentioned; the caveat simply was not
+one of the things it mentioned. **And the parent has no way to know**, because
+by construction the parent never sees the child's intermediate work — that is
+Step 1's information boundary, working exactly as designed.
 
-> **The right half**: multi-agent was not smarter, it only paid more
-> communication cost. And the cost is larger than predicted — the guess was
-> 1.5-2x, the reality is **3.9x**.
+The per-subagent breakdown the program prints makes the loss concrete, and it is
+not random which child drops it:
+
+```
+run 1 · sub 2 (inventory)  yes      ← the one whose log carries the caveat
+run 2 · sub 2 (inventory)  yes
+run 3 · sub 2 (inventory)  yes
+```
+
+Even in run 3, where the final answer lost the caveat, **the subagent's own
+summary still contained it**. So the loss happened one layer further up: at the
+parent, folding three summaries into one answer. There are two lossy summary
+layers here, not one, and the failure moved between them across runs.
+
+> A summary is lossy, and **which** part it loses is decided by a model, per
+> run, silently. That is not a bug in the summary layer. It is what a summary
+> layer *is*.
 >
-> The wrong half: the caveat was predicted to be dropped at the summary layer.
-> It was not; it survived 3/3. The subagent handling inventory wrote it into its
-> summary every time.
+> Same conclusion as [Lesson 29](../lesson-29-evidence/) reached about a model's
+> self-report, arriving here in delegation's clothing: **a summary is not
+> evidence.**
 
-The second point is worth recording, because it is a lesson **in the opposite
-direction**:
+This is the finding that survived re-measurement, and it is the one to design
+against. Everything below is why it took a second measurement to see it.
 
-> A mechanism designed specifically to induce information loss (put the caveat
-> in the file header) did not lose it once. **That does not mean delegation
-> never loses information**; it means **this task was too easy**: the caveat was
-> three lines into the file and tagged with `NOTE:`.
+### The cost argument, which no longer carries the lesson
+
+```
+accuracy   identical (3/3 vs 3/3)
+cost       1.24x the tokens, 1.84x the model calls
+```
+
+That number has now been measured three times, on **unchanged code and the same
+question**:
+
+| Measured | Tokens | Model calls | Caveat lost |
+|---|---|---|---|
+| when the lesson was written | **3.9x** | 3.9x | 0 of 3 |
+| re-measured five days later | **1.07x** | 1.6x | 1 of 3 |
+| re-measured again | **1.24x** | 1.84x | 1 of 3 |
+
+The first row's raw figures, for comparison — subagents used to re-explore far
+more than they do now:
+
+| | Model calls | Subagents | Tokens (total) |
+|---|---|---|---|
+| solo | 6 / 6 / 4 | 0 | 11,251 / 9,718 / 9,983 |
+| delegate | 23 / 23 / 22 | 3 | 35,203 / 41,546 / 39,147 |
+
+**The headline number this lesson was originally built around ranges over 3.6x
+across three measurements of the same thing.** Meanwhile the caveat loss has
+now reproduced twice at the same rate. That is the whole reason the caveat leads
+this step and the cost does not:
+
+> Between two findings, prefer the one that **re-measures the same**.
+> Not because it is more interesting — the 3.9x was far more quotable — but
+> because it is the only one you can still design against next month.
+
+### The prediction was half right, then the halves swapped
+
+> **The right half at the time**: multi-agent was not smarter, it only paid more
+> communication cost — measured at **3.9x**, larger than the 1.5-2x guess.
 >
-> Same family of error as Lesson 16's first round and Lesson 30's first round:
-> a negative result has to first prove the test can discriminate (proposed
+> The wrong half at the time: the caveat was predicted to be dropped at the
+> summary layer. It was not; it survived 3/3.
+
+Both halves have since inverted. Neither number is a property of delegation;
+both are properties of **delegation on this model this month**.
+
+> That is the durable lesson here, and it is not about token counts:
+> **the boundary is structural and the cost of the boundary is not.** A subagent
+> can never see what the parent did not pass down — that is true on every model,
+> forever. How much you pay for it, and how often it bites, is measured, not
+> known.
+>
+> Same family of caution as Lesson 16's first round and Lesson 30's first round:
+> a result you cannot re-measure is a story, not a finding (proposed
 > principle 10).
 
-### Where the 3.9x comes from (this is the useful part)
+### Where the 3.9x came from, and why it is still worth reading
 
-The trace says it: **every subagent re-explored from scratch**.
+The number is gone; the mechanism behind it is not, and it is the one that
+decides whether delegation pays off for *your* task. The trace from the
+expensive round says it: **every subagent re-explored from scratch**.
 
 ```
 → delegate_task  "Analyze logs/notify.log …"
-    ↳ read_file(logs/notify.log)      ← 它的工作
+    ↳ read_file(logs/notify.log)      ← its own job
     ↳ list_files()
     ↳ read_file(package.json)
-    ↳ read_file(logs/checkout.log)    ← 別人的工作
-    ↳ read_file(logs/inventory.log)   ← 別人的工作
+    ↳ read_file(logs/checkout.log)    ← somebody else's job
+    ↳ read_file(logs/inventory.log)   ← somebody else's job
     ↳ list_files(logs)
-  ← 摘要 901 字，工具 6 次
+  ← summary 901 chars, 6 tool calls
 ```
 
 The parent had already run `list_files`, but that knowledge **does not cross the

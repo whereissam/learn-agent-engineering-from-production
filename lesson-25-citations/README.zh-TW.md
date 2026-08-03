@@ -17,26 +17,26 @@
 
 ## Step 0：一個真實的錯
 
-這是 Lesson 24 真的跑出來的報告裡的一句話（`fixtures.ts` 一字未改）：
+拿 Lesson 24 真的跑出來的報告裡的一句話（完整內容在 `fixtures.ts`，一字未改），
+把其中一個引用搬掉：
 
 ```markdown
-* **軟體授權**：代碼庫本身採用 MIT 授權發布，但其運作所需的預訓練姿勢骨幹
-  模型權重必須單獨下載，且屬於非商業授權
-  (https://github.com/kinelabs/humanoid-mimic,
-   https://discourse.ros.org/t/g1-retargeting-foot-sliding/45211,
-   https://blog.kinelabs.dev/humanoid-mimic-0-7)
+* **Kinematic Foot Sliding**: Deploying `humanoid-mimic` 0.7 on the Unitree G1
+  causes foot sliding during fast footwork … A practical workaround requires
+  slowing trajectory playback speed to 0.8x
+  (https://technews.example.com/2026/07/humanoid-robot-funding-round)
 ```
 
-三個網址。第一個和第三個都真的講了授權。**第二個是一篇討論腳步滑動的
-論壇文章，從頭到尾沒提過授權。**
+那個網址是真的，頁面也真的抓過。**但它是一篇募資新聞，從頭到尾沒提過腳步滑動、
+播放速度，也沒提過 0.8x。**
 
 這叫**引用嫁接**（citation grafting）：
 
 ```text
-網址是真的
-頁面是真的抓過的（Lesson 24 已經擋掉編網址）
-內容也是真的
-但這一頁不支持這句話
+the URL is real
+the page really was fetched (Lesson 24 already blocks invented URLs)
+the content is real
+and this page does not support this sentence
 ```
 
 它比整段幻覺危險，因為**每一層檢查都會放它過**。
@@ -58,10 +58,10 @@
 所以這一課用一個很土的方法：
 
 ```text
-1. 從句子裡抽出可查核的「原子」：數字、版本、日期、識別字、授權名稱
-2. 去每一個被引用的來源正文裡找這些原子
-3. 一個原子都找不到的來源  → 這個引用是嫁接的
-4. 所有來源都找不到的原子  → 這個數字是編的或改過的
+1. pull checkable "atoms" out of the sentence: numbers, versions, dates, identifiers, licence names
+2. look for those atoms in the body of every cited source
+3. a source where not one atom is found  → that citation is grafted
+4. an atom found in no source at all     → that number was invented or altered
 ```
 
 它不檢查語義，只檢查「這些具體的東西在不在」。
@@ -78,20 +78,20 @@ bun run lesson-25
 （改法寫在 `fixtures.ts` 的程式碼裡，可以自己核對）。
 
 ```
-Lesson 24 的真實輸出（一個字沒改）
-  claims 12  uncited 1  atoms 68  unsupported 5  grafted 1  unknown 0
+Lesson 24's real output, not a word changed
+  claims 16  uncited 0  atoms 100  unsupported 5  grafted 0  unknown 0
 
-數字漂移        埋的錯：0.8x → 0.5x、18 ms → 8 ms、50 Hz → 120 Hz
-  claims 12  uncited 1  atoms 68  unsupported 8  grafted 1
-  ✓ unsupported 8 ≥ 3
+number drift        planted: 0.8x → 0.5x, 18 ms → 8 ms, 50 Hz → 120 Hz
+  claims 16  uncited 0  atoms 100  unsupported 7  grafted 1
+  ✓ unsupported 7 ≥ 3
 
-引用嫁接        埋的錯：關節索引那條多掛一個烹飪網站；腳步滑動那條改掛募資新聞
-  claims 12  uncited 1  atoms 68  unsupported 10  grafted 3
-  ✓ grafted 3 ≥ 2
+citation grafting   planted: the joint-index line gains a cooking site; the foot-sliding line gets a funding story
+  claims 16  uncited 0  atoms 100  unsupported 6  grafted 2
+  ✓ grafted 2 ≥ 2
 
-裸露斷言        埋的錯：把一半行數的引用整個拔掉
-  claims 12  uncited 6  atoms 68  unsupported 37  grafted 0
-  ✓ uncited 6 ≥ 5
+bare assertions     planted: citations stripped from every other line
+  claims 16  uncited 7  atoms 100  unsupported 43  grafted 0
+  ✓ uncited 7 ≥ 5
 ```
 
 三份改壞的都被抓到了。但**最有意思的是第一份**。
@@ -104,48 +104,81 @@ Lesson 24 的真實輸出（一個字沒改）
 bun run lesson-25 -- --show real
 ```
 
-真實報告 12 條 claim、68 個原子，找到三個問題，**三個都是真的**：
-
-### 1. 一條完全沒有引用的斷言
+真實報告有 16 條 claim、100 個原子，而最上面那一行是個意外：
 
 ```
-✗ 目前有兩個主要的 Open Source 專案可用於將影片動作重定向至 Unitree G1：
-  kinelabs/humanoid-mimic 與 openmotion/retarget-anything
-    沒有引用
+claims 16  uncited 0  atoms 100  unsupported 5  grafted 0  unknown 0
 ```
 
-這是報告的**核心結論**，而它一個來源都沒掛。下面的細項都有引用，
-但最重要的那句沒有。這很典型：模型把引用放在「細節」上，
-卻覺得「總結」不需要來源。
+**零條沒引用的句子，零個嫁接的引用。** 每一句事實都掛了來源，而且每一個掛上去的
+來源都真的支持那句話。這不是這一課第一版量到的結果，但這是重跑之後誠實的結果。
 
-### 2. 引用嫁接
+### 剩下的那幾個，以及它們被誤讀過一次
 
-```
-✗ * **軟體授權**：代碼庫本身採用 MIT 授權發布…
-    https://github.com/kinelabs/humanoid-mimic          支持 2 個原子
-    https://discourse.ros.org/t/…/45211                 嫁接：這一頁沒有支持這句話的任何內容
-    https://blog.kinelabs.dev/humanoid-mimic-0-7        支持 2 個原子
-```
-
-就是 Step 0 那條。檢查器自己找到了原本要用眼睛才看得出來的東西。
-
-### 3. 一個沒有來源的詞
+在下面那個連字號修正之前，這一行寫的是 `unsupported 7`，
+而這份 README 當時說七個全部是檢查器的錯：
 
 ```
-✗ 執行需使用 Python 3.11 與 CUDA 12，純 CPU 推論速度比 GPU 推論慢約 40 倍
-    查無來源：GPU
+✗ Two open-source software projects include motion retargeting pipelines for t
+    no source found: open-source
+✗ * **License & Compatibility**: Released under an MIT license, version 0.7 ad
+    no source found: hardware-validated
+✗ * **Runtime & Hardware Specs**: Running on an NVIDIA RTX 4070 GPU, the pipel
+    no source found: NVIDIA, GPU
+✗ * **Backbone Weights Licensing**: While the `humanoid-mimic` codebase is MIT
+    no source found: MIT-licensed
+✗ * **Outdated Benchmarks**: A third-party review of seven motion retargeting 
+    no source found: third-party, out-of-the-box
 ```
 
-來源的原文是：
+七個發現，其中五個看起來都有連字號，於是當時寫下的結論是「連字號跟大小寫，七個都是」。
+**去 grep 一遍語料就知道不是。** 七個裡面只有兩個真的是連字號問題：
 
-```text
-CPU-only inference works but runs roughly 40x slower
+| 原子 | 語料裡真正有的字 | 判定 |
+|---|---|---|
+| `MIT-licensed` | "The project stays MIT licensed" | ✅ **連字號規則修掉了** |
+| `out-of-the-box` | "…works out of the box" | ✅ **連字號規則修掉了** |
+| `NVIDIA`、`GPU` | 兩個字串在**整份語料裡都不存在** | 正確的告警 |
+| `third-party` | 語料裡不存在，任何寫法都沒有 | 正確的告警 |
+| `open-source` | 三個頁面上有——但**這條 claim 引用的那兩頁都沒有** | 正確的告警 |
+| `hardware-validated` | "validated on hardware"，同樣的字，順序相反 | 仍然是假陽性 |
+
+> 這個誤讀才是這一步最有用的東西，而且它就是 Trap 3 再往外一層。
+> 七個發現裡有五個**看起來**有連字號，所以整份清單是照外觀分類的，不是照查證分類的。
+> 真正是連字號的只有兩個。
+>
+> **假陽性率是量出來的，不是看出來的。** 用眼睛掃過檢查器的輸出，
+> 跟用眼睛掃過模型的輸出是同一個錯誤。
+
+### 修法，以及它修不掉的東西
+
+識別字正規化會把空白拿掉，但沒有拿掉連字號，所以 `open-source` 永遠對不上
+"open source"。現在兩邊都走同一個 packing（`verify.ts` 裡的 `packWordBoundaries`），
+連字號跟空白一樣是詞邊界。
+
+**為什麼現在才浮出來**，比修法本身更值得記。當周圍的散文是中文時，
+一個帶連字號的拉丁字元 token 真的就是識別字——`Apache-2.0`、`humanoid-mimic`、
+`left_knee`——因為中文的一般詞彙不會用連字號連起來。英文的一般形容詞會。
+
+> **一個啟發式規則的可攜性，只到它當初被調校的那個語言為止。**
+> 這條規則沒有任何地方錯了；變的是它跑在什麼文字上。
+
+修完之後剩下 5 個，而且不再是雜訊：
+
+```
+3 個正確告警   NVIDIA、GPU、third-party — 沒有任何來源用過這些字
+1 個設計上正確 open-source — 語料三頁上有，但這條 claim 引用的兩頁都沒有
+1 個假陽性     hardware-validated vs "validated on hardware"
 ```
 
-它說「純 CPU 比較慢 40 倍」，**沒有說跟誰比**。報告補上了「比 GPU」——
-合理的推論，但那是模型加的，不是來源說的。
+最後那個是**詞序**沒對上，不是連字號，而修掉它意味著要比對詞袋而不是字串——
+那條路通往 Step 2 拒絕踏進去的語意判斷。它留著，並且被寫下來。
 
-這種「小小的補完」正是報告最常見的失真方式，而且它幾乎不可能靠人工抽查發現。
+而那三個正確的告警是安靜的發現：模型寫「an NVIDIA RTX 4070 GPU」，
+它的來源只寫「an RTX 4070」；模型寫「a third-party review」，來源什麼都沒說。
+沒有一句是假的，也沒有一句有來源。這種小小的補完是報告失真最常見的方式，
+而且幾乎不可能靠人工抽查找到。
+
 
 ---
 
@@ -179,7 +212,7 @@ ASCII 的 `.` 只有後面接空白才切，網址裡的點後面不會有空白
 修好之後，關節映射那條被判成：
 
 ```
-查無來源：7, 9, 3, 17, 15, left_hip_pitch, left_knee, rad/s
+no source found: 7, 9, 3, 17, 15, left_hip_pitch, left_knee, rad/s
 ```
 
 但那些數字**明明就在頁面上**。
@@ -189,7 +222,7 @@ ASCII 的 `.` 只有後面接空白才切，網址裡的點後面不會有空白
 `corpus/index.json` 裡的短版。
 
 ```text
-agent 讀到的   ≠   拿來對答案的
+what the agent read   ≠   what the answer is checked against
 ```
 
 於是**正確的引用被判成幻覺**。修法是讓評估走跟 `runQuery` 完全一樣的
@@ -207,14 +240,17 @@ agent 讀到的   ≠   拿來對答案的
 
 ```text
 "released June 2026"  →  "released 6 2026"  →  "released62026"
-原子 6 的比對條件是「前後不能接數字」  →  後面接著 2  →  判定查無來源
+atom 6 requires "no digit either side"  →  a 2 follows it  →  judged unsupported
 ```
 
 修法：**數字和識別字要用不同的正規化**。識別字去空白
 （讓 `Apache-2.0` 和 `Apache - 2.0` 相等），數字保留單一空白當邊界。
 
-三個坑修完之後，真實報告從「14 個查無來源」變成「5 個」，
-而剩下的 5 個**全部是真的問題**。
+三個坑修完之後，真實報告從「14 個查無來源」變成「5 個」。
+
+當時寫下的結論是「剩下的 5 個全部是真的問題」。Step 3 就是一個月後
+真的有人拿語料去核對那句話會發生什麼事——殘餘一樣是 5 個，組成不同，
+而且其中一個仍然是檢查器的錯。**找到三個坑不是停止找第四個的理由。**
 
 ---
 
@@ -244,13 +280,13 @@ agent 讀到的   ≠   拿來對答案的
 跟 Lesson 7 一樣的形狀：
 
 ```bash
-bun run lesson-25 -- --save      # 存成基準
-bun run lesson-25 -- --compare   # 之後每次改動都比一次
+bun run lesson-25 -- --save      # save a baseline
+bun run lesson-25 -- --compare   # compare after every later change
 ```
 
 ```
-跟基準比較
-  ✓ 所有指標跟基準一致
+compared against the baseline
+  ✓ every metric matches the baseline
 ```
 
 改了 Lesson 24 的 prompt、換了模型、調了 breadth 之後，跑這個。
@@ -264,10 +300,10 @@ bun run lesson-25 -- --compare   # 之後每次改動都比一次
 
 | 症狀 | 原因 | 解法 |
 |---|---|---|
-| `找不到 Lesson 20 的語料` | 語料還沒產生 | `bun run lesson-20:corpus` |
+| `Lesson 20's corpus not found` | 語料還沒產生 | `bun run lesson-20:corpus` |
 | 所有 claim 都是「沒有引用」 | 報告格式不是「句尾括號放網址」 | 改 `report.ts` 的 `URL_PATTERN` 和註腳解析 |
 | 正確的引用被判成嫁接 | 評估讀的來源跟系統讀的不一樣 | 見 Step 4 坑 2 |
-| `還沒有基準` | 沒跑過 `--save` | `bun run lesson-25 -- --save` |
+| `No baseline yet` | 沒跑過 `--save` | `bun run lesson-25 -- --save` |
 
 ---
 
@@ -309,6 +345,18 @@ Step 5 說抓不到「來源說不支援、報告寫成支援」。
 2. 誤判會比這裡多（真實來源比這份語料雜）
 3. **它還是會抓到東西**——而且通常是你讀十遍都不會發現的那種
 
+### 練習 5：把最後一個假陽性修掉，或決定不修 ⭐⭐⭐
+
+Step 3 剩下的只有一個：`hardware-validated` 對上來源的 "validated on hardware"。
+同樣的字，順序相反，所以字串比對看不到。
+
+最直覺的修法是把帶連字號的識別字當成無序詞袋來比對。試試看——然後量它的代價。
+`open-source` 會變成 `open` + `source`，兩個都是停用詞等級的英文字，
+這個原子就完全失去鑑別力了。
+
+這個練習的重點不是那段程式碼。是在手上有數字的情況下，
+決定「少一個假陽性」值不值得換來它帶進來的假陰性，然後把這個決定寫在規則旁邊。
+
 ---
 
 ## 對照原始碼
@@ -331,12 +379,12 @@ Step 5 說抓不到「來源說不支援、報告寫成支援」。
 六課下來，從「一個 agent 加一個搜尋工具」走到「一條可以量測的研究管線」：
 
 ```text
-20  搜尋回來的不是網頁，是 snippet；query 決定你看到頁面的哪一面
-21  正文只佔一半；抽取失敗是靜默的
-22  BM25 + dense + 融合 + 去重 + 訊號；平均分數會騙人
-23  真實專案怎麼做的；抄回來之後炸出一個潛伏三課的 bug
-24  控制流從模型手上拿回來；預算是算出來的，不是撞出來的
-25  引用要驗；評估自己也會錯
+20  what search returns is a snippet, not a page; the query decides which face you see
+21  the body is only half the page; extraction failure is silent
+22  BM25 + dense + fusion + dedup + signals; the mean score will lie to you
+23  how real projects do it; copying it back exposed a bug latent for three lessons
+24  the control flow is taken back from the model; the budget is computed, not discovered by crashing into it
+25  citations have to be verified; the evaluation itself can be wrong
 ```
 
 每一課都有一段實測記錄，而且**每一課的結論都跟開工前的預期不一樣**。

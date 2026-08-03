@@ -23,15 +23,15 @@ import { chunkMarkdown } from "../lesson-27-local-docs/ingest.ts";
 
 // ─────────────────────────────────────────────────────────────
 
-describe("Lesson 20：關鍵字檢索", () => {
-	test("中文 query 斷不出任何詞（這是限制，不是 bug）", () => {
+describe("Lesson 20: keyword retrieval", () => {
+	test("a Chinese query tokenises to nothing (a limitation, not a bug)", () => {
 			// Lesson 20 Step 4: a Chinese query returns 0 results under BM25,
 			// and that behaviour is the entire motivation for Lesson 22's dense retrieval.
 		assert.deepEqual(corpusTokenize("把影片動作轉到人形機器人"), []);
 		assert.ok(corpusTokenize("unitree g1 retargeting").length > 0);
 	});
 
-	test("停用詞被濾掉——但那份清單是手寫的，不完整", () => {
+	test("stop words are filtered out — but that list is hand-written and incomplete", () => {
 		assert.deepEqual(corpusTokenize("the and for"), []);
 			// "of" is not in the list, so it survives. Discovered while writing this test.
 			// **A stopword list is a hand-made list, not a complete linguistic rule**,
@@ -40,7 +40,7 @@ describe("Lesson 20：關鍵字檢索", () => {
 	});
 });
 
-describe("Lesson 21：抽取與切塊", () => {
+describe("Lesson 21: extraction and chunking", () => {
 	const html = `<!doctype html><html><head><title>T</title></head><body>
 		<nav><a href="/">Home</a><a href="/pricing">Pricing</a></nav>
 		<div class="cookie">Accept all cookies</div>
@@ -53,21 +53,21 @@ describe("Lesson 21：抽取與切塊", () => {
 		<footer>All rights reserved</footer>
 	</body></html>`;
 
-	test("樸素的 stripTags 會把導覽和廣告一起吃進來", () => {
+	test("a naive stripTags swallows navigation and ads too", () => {
 		const naive = stripTags(html);
 		assert.ok(naive.includes("Pricing"));
 		assert.ok(naive.includes("Sponsored"));
 	});
 
-	test("extractMain 砍掉 boilerplate", () => {
+	test("extractMain cuts the boilerplate", () => {
 		const { text } = extractMain(html);
 		assert.ok(text.includes("Real body sentence one."));
 		for (const noise of ["Pricing", "Sponsored", "Accept all cookies", "All rights reserved"]) {
-			assert.ok(!text.includes(noise), `不該出現：${noise}`);
+			assert.ok(!text.includes(noise), `should not appear: ${noise}`);
 		}
 	});
 
-	test("預設會丟掉表格和清單，而且要說出來", () => {
+	test("tables and lists are dropped by default, and that must be stated", () => {
 			// Lesson 21 Step 5: the <p>-only version made the model burn the 16-step ceiling twice.
 			// This locks down the behaviour "what was dropped must be reported".
 		const result = extractMain(html);
@@ -76,14 +76,14 @@ describe("Lesson 21：抽取與切塊", () => {
 		assert.equal(result.dropped.lists, 1);
 	});
 
-	test("includeStructures 之後表格內容抽得到", () => {
+	test("with includeStructures the table content is extracted", () => {
 		const result = extractMain(html, { includeStructures: true });
 		assert.ok(result.text.includes("waist_yaw"));
-		assert.ok(result.text.includes("13"), "表格裡的數字要保留");
+		assert.ok(result.text.includes("13"), "numbers in the table must survive");
 		assert.ok(result.text.includes("list item"));
 	});
 
-	test("切塊在段落邊界，而且每一塊知道自己是第幾塊", () => {
+	test("chunks split on paragraph boundaries and each knows its index", () => {
 		const text = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} ${"x".repeat(200)}`).join("\n\n");
 		const chunks = chunkText(text, { maxChars: 600 });
 		assert.ok(chunks.length > 1);
@@ -95,7 +95,7 @@ describe("Lesson 21：抽取與切塊", () => {
 	});
 });
 
-describe("Lesson 22：排序訊號", () => {
+describe("Lesson 22: ranking signals", () => {
 	const page = (over: Partial<IndexedPage>): IndexedPage => ({
 		id: "x",
 		url: "https://example.com/x",
@@ -108,7 +108,7 @@ describe("Lesson 22：排序訊號", () => {
 		...over,
 	});
 
-	test("短文件不該因為重複幾個字就被判成關鍵字堆砌", () => {
+	test("a short document must not be judged keyword-stuffed for repeating a few words", () => {
 			// Lesson 22 Step 5: the first version looked only at the ratio, and a 25-word LICENSE file
 			// repeating "license" 4 times was judged a farm, collapsing q8 from nDCG 1.000 to 0.131.
 		const license = page({
@@ -117,14 +117,14 @@ describe("Lesson 22：排序訊號", () => {
 		assert.equal(signalsFor(license).stuffing, 0);
 	});
 
-	test("真正的關鍵字農場還是抓得到", () => {
+	test("a genuine keyword farm is still caught", () => {
 		const farm = page({
 			text: Array.from({ length: 14 }, () => "retargeting").join(" ") + " open source guide",
 		});
 		assert.ok(signalsFor(farm).stuffing > 0.5);
 	});
 
-	test("新鮮度是固定的「今天」算出來的（不能用 Date.now）", () => {
+	test('freshness is computed against a fixed "today" (never Date.now)', () => {
 		const fresh = signalsFor(page({ published: "2026-07-20" })).freshness;
 		const old = signalsFor(page({ published: "2023-01-01" })).freshness;
 		assert.ok(fresh > old);
@@ -132,7 +132,7 @@ describe("Lesson 22：排序訊號", () => {
 		assert.equal(fresh, signalsFor(page({ published: "2026-07-20" })).freshness);
 	});
 
-	test("RRF 只看名次，而且「第 1 + 第 3」贏過「第 2 + 第 2」", () => {
+	test("RRF looks only at ranks, and 1st + 3rd beats 2nd + 2nd", () => {
 		const fused = rrf([
 			["a", "b", "c"],
 			["c", "b", "a"],
@@ -155,7 +155,7 @@ describe("Lesson 22：排序訊號", () => {
 		assert.ok((fused.get("a") ?? 0) > (fused.get("b") ?? 0));
 	});
 
-	test("近似重複的相似度要遠高於不相關的一對", () => {
+	test("a near-duplicate pair scores far higher than an unrelated pair", () => {
 			// Lesson 22: the threshold was first set to 0.5 from intuition, and mirror pairs measure only 0.17.
 		const shingle = (text: string): Set<string> => {
 			const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -170,8 +170,8 @@ describe("Lesson 22：排序訊號", () => {
 	});
 });
 
-describe("Lesson 24：研究預算", () => {
-	test("廣度砍半、上界算得出來", () => {
+describe("Lesson 24: the research budget", () => {
+	test("breadth halves and the ceiling is computable", () => {
 		assert.equal(nextBreadth(4), 2);
 		assert.equal(nextBreadth(3), 2);
 		assert.equal(nextBreadth(1), 1);
@@ -182,7 +182,7 @@ describe("Lesson 24：研究預算", () => {
 		assert.equal(cheap.fetches, cheap.searches * 2);
 	});
 
-	test("換句話說的同一條 query 算重複", () => {
+	test("the same query rephrased counts as a duplicate", () => {
 			// The prompt says "do not repeat", and the fake provider repeated two on its first run,
 			// so this went into code.
 		assert.equal(
@@ -193,7 +193,7 @@ describe("Lesson 24：研究預算", () => {
 	});
 });
 
-describe("Lesson 25：引用驗證", () => {
+describe("Lesson 25: citation verification", () => {
 	const corpus = new Map([
 		[
 			"https://example.com/repo",
@@ -202,7 +202,7 @@ describe("Lesson 25：引用驗證", () => {
 		["https://example.com/forum", "We saw foot sliding and slowed playback to 0.8x."],
 	]);
 
-	test("報告解析要抓得到句尾括號裡的網址", () => {
+	test("report parsing catches URLs in trailing parentheses", () => {
 			// Lesson 25's trap 1: the first version's placeholders broke and **every claim's citations became empty**,
 			// while the program still ran through, making it look like "this report is terrible".
 		const claims = parseReport(
@@ -213,7 +213,7 @@ describe("Lesson 25：引用驗證", () => {
 		assert.ok(!claims[0]?.text.includes("http"));
 	});
 
-	test("抽得出數字與識別字，不抽網址", () => {
+	test("numbers and identifiers are extracted, URLs are not", () => {
 		const atoms = extractAtoms("humanoid-mimic 0.7 採用 MIT 授權 (https://example.com/repo)");
 		const values = atoms.map((a) => a.value);
 		assert.ok(values.includes("0.7"));
@@ -221,7 +221,7 @@ describe("Lesson 25：引用驗證", () => {
 		assert.ok(!values.some((v) => v.includes("example")));
 	});
 
-	test("引用嫁接抓得到", () => {
+	test("citation grafting is caught", () => {
 			// The one in the real report: a licensing sentence carrying a forum URL that never mentions licensing.
 		const verdict = verifyClaim(
 			"程式碼採用 MIT 授權",
@@ -231,26 +231,54 @@ describe("Lesson 25：引用驗證", () => {
 		assert.deepEqual(verdict.graftedSources, ["https://example.com/forum"]);
 	});
 
-	test("英文月份要對得上中文的月份數字", () => {
+	test("an English month name matches a numeric month in a Chinese claim", () => {
 			// Lesson 25's trap 3: stripping whitespace turned "June 2026" into "62026",
 			// so the atom 6 was judged unsourced.
 		const verdict = verifyClaim("於 2026 年 6 月釋出", ["https://example.com/repo"], corpus);
 		assert.deepEqual(verdict.unsupportedAtoms, []);
 	});
 
-	test("數字被改掉就抓得到", () => {
+	test("an altered number is caught", () => {
 		const verdict = verifyClaim("把播放速度降到 0.5x", ["https://example.com/forum"], corpus);
 		assert.ok(verdict.unsupportedAtoms.some((a) => a.value === "0.5"));
 	});
 
-	test("引用不存在的網址算 unknown，不算嫁接", () => {
+	test("citing a URL that does not exist counts as unknown, not grafted", () => {
 		const verdict = verifyClaim("MIT 授權", ["https://example.com/nope"], corpus);
 		assert.equal(verdict.sources[0]?.known, false);
 	});
+
+		// The hyphen rule. English prose hyphenates ordinary adjectives, which Chinese prose does not,
+		// so the "whitespace is a boundary, a hyphen is not" normalisation only started producing
+		// false positives once the reports were in English.
+	const prose = new Map([
+		[
+			"https://example.com/about",
+			"An open source project. It works out of the box and stays MIT licensed. " +
+				"The G1 profile is validated on hardware, not only in simulation.",
+		],
+	]);
+
+	test("a hyphen is a word boundary, the way whitespace already is", () => {
+		const verdict = verifyClaim(
+			"An open-source, out-of-the-box, MIT-licensed project",
+			["https://example.com/about"],
+			prose,
+		);
+		assert.deepEqual(verdict.unsupportedAtoms.map((a) => a.raw), []);
+	});
+
+	test("word order is still not matched, and that is documented rather than fixed", () => {
+			// "hardware-validated" vs the source's "validated on hardware". Matching bags of words
+			// instead of strings would fix it and would also turn `open-source` into two stopwords
+			// (README exercise 5). The false positive stays, on purpose.
+		const verdict = verifyClaim("A hardware-validated profile", ["https://example.com/about"], prose);
+		assert.ok(verdict.unsupportedAtoms.some((a) => a.raw === "hardware-validated"));
+	});
 });
 
-describe("Lesson 27：本地文件", () => {
-	test("chunk 帶得回行號，而且 id 看得懂", () => {
+describe("Lesson 27: local documents", () => {
+	test("a chunk carries its line numbers and a readable id", () => {
 		const content = ["# 標題", "", "第一段內容。".repeat(20), "", "## 小節", "", "第二段內容。".repeat(20)].join("\n");
 		const chunks = chunkMarkdown("docs/x.md", content);
 		assert.ok(chunks.length >= 1);
@@ -261,7 +289,7 @@ describe("Lesson 27：本地文件", () => {
 		}
 	});
 
-	test("通用 BM25 排序正確且標題有加權", () => {
+	test("the generic BM25 ranks correctly and weights titles", () => {
 		const index = new Bm25Index([
 			{ id: "a", title: "chunking strategy", text: "how to split long documents" },
 			{ id: "b", title: "unrelated", text: "sous vide cooking times for steak" },
@@ -271,7 +299,7 @@ describe("Lesson 27：本地文件", () => {
 		assert.ok(!hits.some((h) => h.id === "b"));
 	});
 
-	test("查不到東西時回空陣列，不是丟例外", () => {
+	test("finding nothing returns an empty array rather than throwing", () => {
 		const index = new Bm25Index([{ id: "a", title: "t", text: "hello world" }]);
 		assert.deepEqual(index.search("完全不相關的中文"), []);
 	});
