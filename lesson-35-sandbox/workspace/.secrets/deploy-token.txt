@@ -1,0 +1,4 @@
+# Inside the project directory the agent may write to, and still not its to
+# read. This is the shape that actually shows up: .env, .secrets/, config/local
+# — a read boundary drawn *inside* a write-allowed root.
+DEPLOY_TOKEN=tok-a91f-not-a-real-secret

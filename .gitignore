@@ -34,5 +34,13 @@ lesson-29-evidence/.snapshots/
 # Lesson 18's run records
 lesson-18-scheduling/.state/
 
+# Lesson 35's demo really writes and moves files. It cleans up after itself, but
+# an interrupted run can leave these behind, and one of them is a copy of the
+# fixture secret — which is Step 9's whole point, so it must not be committed.
+lesson-35-sandbox/workspace/stolen.txt
+lesson-35-sandbox/workspace/tmp-*.txt
+lesson-35-sandbox/workspace/link.txt
+lesson-35-sandbox/outside/pwned.txt
+
 # My personal writing standard, not committed
 de-ai-tone.md

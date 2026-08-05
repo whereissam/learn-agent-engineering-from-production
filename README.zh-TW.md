@@ -110,14 +110,15 @@ flowchart LR
 | 27 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
 | 28 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
 | 29 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
-| | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。* | |
+| 30 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
+| | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。Lesson 35 回答第 8 步的另一半，需要 macOS。* | |
 
 第 18-25 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
 每一課的 README 開頭都會再標一次自己的前置。
 
-### 規劃中的續篇 · Lesson 32-36，還沒寫
+### 規劃中的續篇 · Lesson 32-34 與 36，還沒寫
 
-它們接在第 29 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
+它們接在第 30 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
 下來盤點過了；哪些路徑和行數真的驗證過、哪些（CrewAI、LangGraph、x402）
 目前只是對照來源還沒盤點，照實記在 [docs/TODO.md](docs/TODO.md)。
 
@@ -126,9 +127,8 @@ flowchart LR
 | 32 | 200 個工具塞不進 context 怎麼辦？ | Mastra |
 | 33 | 進程死了，怎麼換一台機器接回來？ | Mastra、LangGraph |
 | 34 | 信已經寄出去了才 crash，接回來要不要再寄一次？ | Restate |
-| 35 | 准許執行之後，那個進程碰得到什麼？ | Anthropic SRT |
 | 36 | 指令在哪裡跑、跑完之後那個世界還在不在？ | OpenHands |
-| | *35 講的是**能力邊界**：這個 process 碰得到什麼。36 講的是**環境的生命週期**：agent 的世界在哪裡、能活多久。* | |
+| | *Lesson 35（已寫）講的是**能力邊界**：這個 process 碰得到什麼。36 講的是**環境的生命週期**：agent 的世界在哪裡、能活多久。* | |
 
 這張表刻意很短。一個專案要換到主線的一課，必須有真正的 agent loop 或
 workflow、碰到 tools / context / memory / permission / session 之一，
@@ -294,7 +294,7 @@ Lesson 1-5 幾乎是照著它走的。
 | [OpenCode](https://github.com/anomalyco/opencode) | 檔案系統證據、tool lifecycle、中斷後的收尾 | 28-29 |
 | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | action–observation 事件模型（707 行型別） | 37 |
 | [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
-| [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35（規劃中） |
+| [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35 |
 
 規劃中的來源裡有一個還沒 clone，所以上面那張表刻意沒有列它：OpenHands 的
 agent runtime 在

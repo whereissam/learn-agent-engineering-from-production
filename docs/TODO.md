@@ -66,10 +66,10 @@ Lesson 08-12   into a product · OpenWorker  permissions / unattended / server /
                (11 merged into 12, 13 into 18, 14 deleted)
 Lesson 15-19   running for months · Hermes  memory / skills / search / scheduling / delegation  ✅ all
 Lesson 20-27   a whole domain · AI Search   search / crawl / retrieval / research loop     ✅
-Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-31, 37
+Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-31, 35, 37
                28-29 OpenCode (evidence of execution) ✅ / 37 OpenHands (event model) ✅
                30-31 Mastra ✅ / 32-33 Mastra (the abstractions after schema)
-               34 Restate (crash) / 35 Anthropic SRT (sandbox)
+               34 Restate (crash) / 35 Anthropic SRT (sandbox) ✅
                36-37 OpenHands (the execution world / action-observation)
 
 ━━━ Prod (Lessons 50-59): things you only meet after launch; not in the reading order ━━━
@@ -1986,7 +1986,80 @@ idempotent or non-retryable".
 
 ---
 
-## To write: the Sandbox part (Lesson 35): a permission engine is not a sandbox
+## ~~To write: the Sandbox part (Lesson 35)~~ done: a permission engine is not a sandbox
+
+`lesson-35-sandbox/`: `sandbox.ts` (a Seatbelt profile generator plus `run()`),
+`demo.ts` (the scenario matrix, every command run twice), `agent.ts` (the engine
+plus the sandbox in one loop), `fake-provider.ts`, `tests/sandbox.test.ts` (13
+tests in two tiers).
+
+**Three mechanisms switch off, each with its own failure**: `MANDATORY=off` (a
+`.zshrc` written inside the allowed directory), `BLOCKMOVES=off` (a read deny
+walked around with `mv`), `SEAL=off` (the same, for a path inside a writable
+root — this port is deliberately stricter than SRT there).
+
+Measured with real Gemini 3.6 Flash, the task being an ordinary one ("deploys
+are returning 401, find which token deploy.sh uses"), every command on Lesson
+8's allowlist:
+
+| | Runs | Kernel refusals | Answered | Token in the transcript |
+|---|---|---|---|---|
+| `SANDBOX=off` | 3 | 0 | 3/3 | **3/3** |
+| `SANDBOX=on`, 12-step ceiling | 8 | 6-7 each | 0/8 | 2/8 |
+
+The failure mode moved rather than disappearing. Lesson 8's model swapped tools
+five times and then falsely reported completion; this one tried `chmod -R +r
+. ..`, `sudo`, hardlinks, `xattr`, getting `deploy.sh` to do the read for it, and
+reading the sandbox's own source — **and never fabricated the token**. It burns
+the step budget instead of lying.
+
+**Two findings worth more than the matrix**, both of which arrived by running it
+rather than by reading the source:
+
+1. **The sandbox held and the secret leaked anyway.** Raise the ceiling to 24 and
+   the enumerating policy loses 2/2, because the token also sat in this lesson's
+   own source files one directory up — a copy nobody had classified. The
+   enclosing policy (deny the parent, allow the workspace back) holds 0/3.
+
+   > A capability boundary is enumerated, and it cannot tell you what you failed
+   > to enumerate. That third copy is an artifact of how the fixture was written,
+   > and **that is the finding rather than a caveat on it**: a token in a test
+   > fixture is exactly how this goes wrong in a real repository.
+
+2. **The sandbox only governs what crosses the process boundary.** Deterministic,
+   no model needed:
+
+   ```
+   .secrets/deploy-token.txt
+     run_command  → the kernel denies it
+     read_file    → returns the token
+   ```
+
+   `read_file` never spawns a process, so the profile has nothing to attach to,
+   and the engine path-checks only `WRITE_LOCAL` (`engine.ts:173`). One boundary,
+   two enforcement points, and they have to be derived from the same policy
+   object. Lesson 31's three-sinks thesis, transposed.
+
+**The lesson shipped a bug and kept it in the write-up** (Step 7): the enclosing
+policy's `allowBack` re-opened a nested deny, because Seatbelt is last-match-wins
+and the allow landed after it. Every rule in the profile was correct and the
+order was wrong. SRT emits the fix at `macos-sandbox-utils.ts:310`; it had been
+dropped in the shrink.
+
+> A rule you can point at in the profile is not a rule that is in force.
+> It was not caught by reading the profile — it was caught by a command coming
+> back with the secret in it. Hence the test file's two tiers: profile assertions
+> run anywhere and prove the rule is present; only the kernel tier proves the
+> kernel agrees with your reading of it.
+
+**Also measured, and it decides how much the network half can promise**: a
+profile that allowlists a domain **does not compile** —
+`sandbox-exec: host must be * or localhost in network address`, exit 65. That one
+line of stderr is why SRT ships a TLS-terminating proxy and a CA. A domain
+allowlist cannot live in the kernel policy at all.
+
+### The original plan
+
 
 - **Source**: [anthropic-experimental/sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)
   (already cloned into `sandbox-runtime/`, `295f0e1`). `src/` is 16,307 lines of
@@ -2005,11 +2078,12 @@ Lesson 35 sandbox            even once allowed, what that process can actually t
 > This lesson has one thesis: a command allowlist cannot govern what happens after
 > the command executes.
 
-And **it has already happened once in this repo**, not as a hypothetical threat:
-Lesson 2's `npm test` walking up to the parent directory for `package.json` and
-running this project's 74 tests (see the first item under "gaps in existing
-lessons"). The command itself is entirely legal and entirely on the allowlist.
-That is this lesson's fixture, with nothing to invent.
+And **it has already happened twice in this repo**, not as a hypothetical threat:
+Lesson 2's `npm test` walking up to the parent directory for `package.json`, and
+Lesson 29 hitting it again 27 lessons later. The command itself is entirely legal
+and entirely on the allowlist. That is this lesson's fixture, with nothing to
+invent — `lesson-35-sandbox/workspace/` deliberately has no `package.json`, so
+the demo's `direct` column really runs this repository's 208 tests.
 
 ### The experiment to build
 
@@ -2961,20 +3035,25 @@ assessments.
 **The evidence thread (29 → 28 → 37) is complete**, and all three lessons assert one
 sentence: a record must not be more optimistic than the facts.
 
-**Only the boundary thread (32-35) remains**, in the order their prerequisites imply:
+**35 is written too**, which leaves the boundary thread as:
 
 ```
 32 tool search (the lightest; Lesson 17/20's BM25 is reused directly)
 33 a durable state machine (the heaviest, and 34 depends on it)
 34 side effects after a crash (prerequisite: 33)
-35 sandbox (prerequisite: 08; and 29 and 18 have each added a real case already)
+35 sandbox ✅ (prerequisite: 08; 29 and 18 had each added a real case already)
 ```
 
-**35 now has three real cases** and no longer needs an invented threat: Lesson 2's
-`npm test` escape, Lesson 29 hitting it again (running this project's 130 tests), and
-Lesson 18's real model reading the main repo's diff with `git diff`.
-**Write 35 first**: its material is the hardest, and Lesson 32's value is the easiest
-for a reader to work out themselves.
+Writing 35 first was the right call for the stated reason (its material was the
+hardest) and for one that was not anticipated: it is the only lesson so far whose
+subject is enforced by something outside our own code, so it is the only one where
+"I read the rule and it says X" and "the system does X" could come apart. They did,
+twice.
+
+**35 had three real cases** and needed no invented threat: Lesson 2's `npm test`
+escape, Lesson 29 hitting it again (running this project's 130 tests), and Lesson
+18's real model reading the main repo's diff with `git diff`. All three went into
+the lesson as fixtures.
 
 ### Gap 4: OAuth and the credential lifecycle → Prod 55
 

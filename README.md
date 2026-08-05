@@ -118,14 +118,15 @@ flowchart LR
 | 27 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
 | 28 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
 | 29 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
-| | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system.* | |
+| 30 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system. Lesson 35 answers step 8's other half, and needs macOS.* | |
 
 Steps 18-25 can be skipped — they are a full-scale demonstration of the method
 from step 6. Each lesson README states its own prerequisites at the top.
 
-### The planned continuation · Lessons 32-36 — not written yet
+### The planned continuation · Lessons 32-34 and 36 — not written yet
 
-These extend the same path after step 29, and **none of the lessons in this table are runnable
+These extend the same path after step 30, and **none of the lessons in this table are runnable
 today**. Primary sources have been cloned and scoped; which paths and line
 counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
 still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
@@ -135,9 +136,8 @@ still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 | 32 | 200 tools don't fit in the context window | Mastra |
 | 33 | The process died — how do you resume elsewhere? | Mastra, LangGraph |
 | 34 | The process crashed after the email was sent — should resume send it again? | Restate |
-| 35 | Once a command is allowed, what can that process touch? | Anthropic SRT |
 | 36 | Where does the command run, and is that world still there after? | OpenHands |
-| | *35 is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
+| | *Lesson 35 (written) is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
 
 This list is short on purpose. A project earns a **main-line** lesson only if
 it has a real agent loop or workflow, touches tools / context / memory /
@@ -327,7 +327,7 @@ Each of these was cloned, inventoried, and cited down to file and line number:
 | [OpenCode](https://github.com/anomalyco/opencode) | Filesystem evidence, tool lifecycle, interruption cleanup | 28-29 |
 | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | The action–observation event model (707 lines of types) | 37 |
 | [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
-| [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 (planned) |
+| [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 |
 
 One repo in the planned set has **not** been cloned yet, and the table above
 deliberately doesn't list it: the OpenHands agent runtime lives in
