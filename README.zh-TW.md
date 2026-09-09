@@ -69,7 +69,15 @@ flowchart LR
     P5 --> P6["第 26-32 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
 ```
 
-> 課號會跳，步驟號不會跳。11、13、14 併進別課。
+> **課號會跳，步驟號不會跳。** 沒有東西不見——11、13、14 是被消化進別課而不是
+> 被寫出來，而且每一課都在它落腳的地方講了：
+>
+> | 課號 | 它去了哪裡 |
+> |---|---|
+> | 11 connector 與 OAuth | **拆開。** token 生命週期那一半，是 [Lesson 12](lesson-12-mcp/) 裡的「OAuth 半課」。另一半——把 25 個 connector 收成一層抽象——延後到 Prod 55，因為 `connectors/` 是 27k 行的同一個檔案 |
+> | 13 排程自動化 | **整包併進 [Lesson 18](lesson-18-scheduling/)**，那一課把 OpenWorker 的 `automation/` 跟 Hermes 的 `cron/` 放在一起讀。補跑、鎖、重試是同一個題目，不是兩個 |
+> | 14 audit log | **刪掉。** [Lesson 8](lesson-08-permissions/) 的練習 4 就是同一件事，二十行。它答不出來的那一半需要 tracing 而不是 log，而那部分還沒寫：Prod 53 |
+>
 > 你只要照著「步」那一欄走，永遠知道自己在哪裡。
 
 | 步 | 課 | 這一步回答的問題 | 你讀的原始碼 |

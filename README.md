@@ -76,9 +76,17 @@ flowchart LR
     P5 --> P6["Steps 26-32<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
 ```
 
-> **Lesson numbers have gaps; step numbers don't.** 11, 13 and 14 were merged
-> into other lessons. Follow the **Step** column and you will never wonder
-> where you are.
+> **Lesson numbers have gaps; step numbers don't.** Nothing is missing — 11, 13
+> and 14 were resolved into other lessons instead of being written, and each one
+> says so where it landed:
+>
+> | Number | Where it went |
+> |---|---|
+> | 11 connectors and OAuth | **split.** The token-lifecycle half is the "OAuth half-lesson" inside [Lesson 12](lesson-12-mcp/). The other half — one abstraction over 25 connectors — is deferred to Prod 55, because `connectors/` is 27k lines of the same file |
+> | 13 scheduled automation | **folded whole into [Lesson 18](lesson-18-scheduling/)**, which reads OpenWorker's `automation/` next to Hermes's `cron/`. Catch-up, locking and retry are one subject, not two |
+> | 14 audit log | **deleted.** [Lesson 8](lesson-08-permissions/)'s Exercise 4 is the same thing in twenty lines. The half it cannot answer needs tracing rather than logs, and that is still unwritten: Prod 53 |
+>
+> Follow the **Step** column and you will never wonder where you are.
 
 | Step | Lesson | The question it answers | Source you read |
 |---|---|---|---|

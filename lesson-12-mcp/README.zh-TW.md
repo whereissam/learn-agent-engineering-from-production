@@ -9,7 +9,8 @@
 > 難的全部在「別人的進程不受你控制」。
 >
 > 對照原始碼：`openworker/coworker/mcp/`（5 個檔案 647 行）、
-> `mastra/packages/mcp/src/{client,server}`
+> `mastra/packages/mcp/src/{client,server}`——包含 `oauth.py`，
+> 它原本是 Lesson 11 的 token 生命週期那一半，已併入這一課。
 
 ## 這課要回答的問題
 

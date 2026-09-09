@@ -536,6 +536,12 @@ auto-allowed?
 
 (OpenWorker has `coworker/audit.py`, 174 lines, doing exactly this.)
 
+This exercise is what Lesson 14 would have been. It was deleted rather than
+written, because a whole lesson would only have repeated what you can do here in
+twenty lines. The half it could not answer — *what did this agent actually do
+last week*, across turns and sessions — needs tracing rather than logs, and that
+is unwritten: it sits at Prod 53.
+
 ### ~~Exercise 5: wire it back into Lesson 2's agent~~ → now part of the lesson
 
 This used to be a ⭐⭐⭐ exercise, and that was the wrong arrangement. Wiring
