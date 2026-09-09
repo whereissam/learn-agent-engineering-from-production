@@ -144,6 +144,107 @@ The scope here stays narrow on purpose: one path, eleven real projects, every
 mechanism rebuilt small enough to switch off and measure. A reading list is a
 different product and this repo should not become one.
 
+### What the survey actually turned up: three candidates
+
+Diffing those five curricula against the 32 written lessons and running every
+survivor through the criterion table at the top of this file. Most of what the
+courses cover is either already here or fails question 3 or 5, and the rejects
+are listed after the candidates so nobody re-proposes them.
+
+#### Candidate 1: the cache you break yourself → **Lesson 38, building now**
+
+| Question | Answer |
+|---|---|
+| 1 real loop | yes. It lives in how the loop assembles a request |
+| 2 core problem | context, and cost |
+| 3 runnable experiment | yes, and it is already measured — below |
+| 4 uncovered | yes. One sentence in Lesson 05, one clause in Lesson 26 |
+| 5 switchable | yes, and the failure is total rather than gradual |
+
+Measured on `gpt-5` before proposing it, which is the only reason it is in this
+table and not in the rejects:
+
+```text
+turn 1 (cold)              prompt=8025 cached=0
+turn 2 (same prefix)       prompt=8025 cached=7936
+turn 3 (same prefix)       prompt=8025 cached=7936
+turn 4 (timestamp first)   prompt=8035 cached=0
+turn 5 (timestamp first)   prompt=8035 cached=0
+```
+
+One timestamp at the front of an otherwise identical prompt costs 7936 cached
+tokens on **every** subsequent turn.
+
+**The half that makes it a lesson rather than a tip**: the mechanisms this series
+already teaches sit exactly where they destroy the cache.
+
+| Lesson | What it does | What that does to the prefix |
+|---|---|---|
+| 15 memory | recalled memories go into `buildSystemPrompt()` | rewrites the very front, every turn |
+| 32 tool search | `session.requestTools()` grows as tools load | the tool list is part of the prefix |
+| 05 compaction | rewrites history | invalidates everything after the rewrite point |
+| 31 processors | mutate content on the way to the model | depends entirely on where they hang |
+
+So the lesson turns the series on itself, the way the 2026-08-02 round did to
+three write-ups. That is the part no other course can write, because it requires
+having built the other lessons first.
+
+> This also retires a deferral. The "not made into lessons" table below parked
+> caching behind "wait until both Restate and OpenCode have been read".
+> OpenCode has been read (Lessons 28 and 29). The condition has expired.
+
+#### Candidate 2: the tool description changed after you approved it
+
+| Question | Answer |
+|---|---|
+| 1 real loop | yes |
+| 2 core problem | tools, and permission |
+| 3 runnable experiment | yes: a local MCP server that answers `tools/list` differently the second time |
+| 4 uncovered | yes. Lesson 12 names the asymmetry and stops there |
+| 5 switchable | yes: pin a hash of (name, description, schema) at approval, or do not |
+
+Lesson 12 already says the important half out loud — *"who wrote the description
+| somebody else, and you cannot change it"* — and never asks what happens when
+they change it **after** you approved it. Switching the pin off should let a
+re-described tool be called with its new semantics; switching it on should refuse
+and say which field moved.
+
+Composes with two written lessons rather than duplicating them: Lesson 8
+(approval was granted to *what*, exactly) and Lesson 32 (a tool whose description
+changed between `search` and `load` — the phases are already there to hang it
+on).
+
+#### Candidate 3: when an agent is the wrong tool
+
+| Question | Answer |
+|---|---|
+| 1 real loop | **no source project to read** |
+| 2 core problem | evaluation |
+| 3 runnable experiment | yes: the same 20 tasks as a deterministic script and as an agent |
+| 4 uncovered | yes, here and everywhere else |
+| 5 switchable | trivially |
+
+All four course repos tell you to "know when NOT to use an agent". **None of them
+measures it.** The experiment is to run one task set both ways and compare
+success rate, cost, latency and variance across repeated runs — the last of those
+being the number that usually decides it and the one nobody reports.
+
+It fails question 1, and takes the same exemption Lessons 6, 7 and 25 already
+take: the open-source projects expose a gap rather than a solution, and the
+lesson has to say so. Lower priority than the other two precisely because of
+that.
+
+#### Rejected, with reasons, so they do not come back
+
+| Topic | Where it came from | Why not |
+|---|---|---|
+| A2A / NLWeb protocols | microsoft Lesson 11 | plumbing with no switchable failure, the same reason `connectors/` was deferred |
+| planner / executor / reviewer patterns | Agent-Learning-Hub Stage 4, agentic-ai Ch.09-10 | already rejected above as nouns rather than problems; Lessons 19, 24 and 33 hold the real questions |
+| metacognition, self-evolving agents | microsoft Lesson 9, agentic-ai Ch.21 | Lesson 29 already establishes that a self-report is not evidence, and Lesson 16 covers accumulation |
+| parallel tool calls | agentic-ai Ch.17 | genuinely covered: Lesson 01 introduces them, Lesson 24 fans them out |
+| browser / computer use | Agent-Learning-Hub Stage 6, microsoft Lesson 15 | a real gap, but a heavy build whose failure mode (selector brittleness) is well documented elsewhere. Stays deferred |
+| deploying scalable agents | microsoft Lesson 16 | not an agent problem |
+
 ## The whole picture
 
 ```
@@ -3324,7 +3425,8 @@ mechanism in the source first, then let it grow into a lesson):
 | **tracing / observability | Prod 53, unwritten. Read Mastra's `core/src/observability/` first (agent span / model span / tool span / cost attribution / parent-child / error recording) | after reading that part of Mastra. The references are Phoenix (evaluation-oriented) or Langfuse (a product data model), but do not read Langfuse's whole server**, which teaches ClickHouse plus Next.js plus queues, not agents. OpenLLMetry is a more readable size |
 | model routing / fallback | split back into Lesson 4 (switching provider mid-session), 26 (cost) and 30 (schema compatibility) | unless reading Mastra reveals a complete, extractable fallback path. The only genuinely agent-related parts are "can you switch vendor after a failure, does the old session continue, do `tool_use`/`tool_result` still pair up", and those are already spread across those three lessons. Do not turn it into a comparison of LLM gateways |
 | a unified `ToolResult` format | — | designing your own `ToolResult` is the classic "I feel there should be an X". Wait until both Restate and OpenCode have been read and see whether their shapes intersect |
-| caching / computer use / replay UI | — | as above |
+| computer use / replay UI | — | as above |
+| ~~caching~~ | **promoted to Lesson 38** (see the three candidates above) | the deferral condition — read Restate and OpenCode first — expired when Lessons 28 and 29 were written |
 
 ---
 

@@ -129,6 +129,97 @@ provider 天花板、一個 3.5 倍的 token 結果、一個小到不能宣稱�
 這裡的範圍刻意維持窄：一條路、十一個真專案、每個機制都縮小到可以關掉並量測。
 一份閱讀清單是另一種產品，這個 repo 不該變成那個。
 
+### 這次盤點真正挖到的：三個候選
+
+把那五份課綱對著已寫的 32 課做差集，再把每個活下來的丟進本檔開頭那張判準表。
+課程裡涵蓋的東西大部分不是這裡已經有了，就是過不了第 3 或第 5 題；被打掉的
+列在候選之後，免得有人再提一次。
+
+#### 候選 1：你自己弄壞的那個 cache → **Lesson 38，正在建**
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 是。它就住在 loop 怎麼組出一個 request 裡面 |
+| 2 核心問題 | context，以及成本 |
+| 3 可跑實驗 | 有，而且已經量過了——見下 |
+| 4 未覆蓋 | 是。Lesson 05 一句話，Lesson 26 一個子句 |
+| 5 可關掉 | 可以，而且失敗是全有全無，不是漸進的 |
+
+在提出來之前先在 `gpt-5` 上量過，而那是它出現在這張表而不是被打掉的唯一理由：
+
+```text
+turn 1 (cold)              prompt=8025 cached=0
+turn 2 (same prefix)       prompt=8025 cached=7936
+turn 3 (same prefix)       prompt=8025 cached=7936
+turn 4 (timestamp first)   prompt=8035 cached=0
+turn 5 (timestamp first)   prompt=8035 cached=0
+```
+
+在一個其他部分完全相同的 prompt 前面加一個時間戳，代價是**接下來每一輪**都少
+7936 個 cached token。
+
+**讓它成為一課而不是一個小技巧的，是另一半**：這個系列已經教過的那些機制，
+正好坐在會把 cache 弄壞的位置上。
+
+| 課 | 它做什麼 | 那對 prefix 做了什麼 |
+|---|---|---|
+| 15 記憶 | 召回的記憶進 `buildSystemPrompt()` | 每一輪都在改寫最前面那一段 |
+| 32 工具搜尋 | `session.requestTools()` 會隨著載入變長 | 工具清單是 prefix 的一部分 |
+| 05 壓縮 | 改寫歷史 | 讓改寫點之後的一切失效 |
+| 31 processor | 在送進模型的路上改內容 | 完全取決於它掛在哪 |
+
+所以這一課是把這個系列拿來對付它自己，就像 2026-08-02 那一輪對三篇寫作做的事。
+那是別的課程寫不出來的部分，因為它要求你先把其他課建出來。
+
+> 這也讓一條延後失效。下面那張「暫時不開課」的表把 cache 擋在「等 Restate 跟
+> OpenCode 都讀完再說」後面。OpenCode 讀完了（Lesson 28、29）。那個條件過期了。
+
+#### 候選 2：你批准之後，工具的描述被改掉了
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 是 |
+| 2 核心問題 | 工具，以及權限 |
+| 3 可跑實驗 | 有：一個本地 MCP server，第二次 `tools/list` 回不一樣的東西 |
+| 4 未覆蓋 | 是。Lesson 12 點出了那個不對稱就停在那裡 |
+| 5 可關掉 | 可以：批准時釘住 (name, description, schema) 的 hash，或者不釘 |
+
+Lesson 12 已經把重要的那一半講出來了——*「描述是誰寫的｜別人，而且你改不了」*
+——卻沒有問：他們在你**批准之後**才改掉，會怎麼樣。把釘子關掉，一個被改過描述
+的工具應該就會用新語意被呼叫；打開，它應該拒絕並說出哪個欄位動了。
+
+它跟兩門已寫的課是組合而不是重複：Lesson 8（批准到底是批准了**什麼**）與
+Lesson 32（一個在 `search` 與 `load` 之間被改掉描述的工具——那幾個 phase 本來
+就在那裡可以掛）。
+
+#### 候選 3：什麼時候 agent 是錯的工具
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | **沒有可讀的來源專案** |
+| 2 核心問題 | evaluation |
+| 3 可跑實驗 | 有：同一組 20 個任務，一次用確定性腳本、一次用 agent |
+| 4 未覆蓋 | 是，這裡沒有，別的地方也沒有 |
+| 5 可關掉 | 太容易了 |
+
+四份課程 repo 都叫你「知道什麼時候不要用 agent」。**沒有一份量過它。** 實驗是
+把同一組任務用兩種方式各跑一次，比較成功率、成本、延遲，以及重跑之間的變異
+——最後那個通常才是決定性的數字，而且沒有人報。
+
+它過不了第 1 題，於是採用 Lesson 6、7、25 已經採用過的那個豁免：開源專案在那裡
+露出來的是缺口而不是解法，而課裡必須講明。優先度低於另外兩個，正是因為這一點。
+
+#### 被打掉的，附理由，免得又回來
+
+| 題目 | 它來自哪 | 為什麼不做 |
+|---|---|---|
+| A2A / NLWeb 協定 | microsoft Lesson 11 | 是管線，沒有可關掉的失敗，跟 `connectors/` 被延後是同一個理由 |
+| planner / executor / reviewer 模式 | Agent-Learning-Hub Stage 4、agentic-ai Ch.09-10 | 上面已經以「是名詞不是問題」打掉過；真正的問題在 Lesson 19、24、33 手上 |
+| metacognition、self-evolving agent | microsoft Lesson 9、agentic-ai Ch.21 | Lesson 29 已經確立「自我回報不是證據」，而累積由 Lesson 16 蓋掉 |
+| 平行工具呼叫 | agentic-ai Ch.17 | 真的已經蓋到了：Lesson 01 介紹它，Lesson 24 把它展開 |
+| browser / computer use | Agent-Learning-Hub Stage 6、microsoft Lesson 15 | 是真的缺口，但工程量重，而它的失敗模式（selector 易碎）別處已經寫得很清楚。維持延後 |
+| 部署與擴展 | microsoft Lesson 16 | 不是 agent 的問題 |
+
 ## 全貌
 
 ```
@@ -2945,7 +3036,8 @@ type CompletionEvidence =
 | **Tracing / observability | Prod 53，還沒寫。先讀 Mastra `core/src/observability/`（agent span / model span / tool span / 成本歸因 / parent-child / error recording） | 讀完 Mastra 那部分之後。對照組是 Phoenix（evaluation 導向）或 Langfuse（產品資料模型），但不要讀 Langfuse 整個 server**，那會學到 ClickHouse + Next.js + queue，不是 agent。OpenLLMetry 規模比較適合讀 |
 | Model routing / fallback | 拆回 Lesson 4（換 provider 續舊 session）、26（成本）、30（schema 相容） | 除非讀 Mastra 之後發現有一條夠完整、可抽出的 fallback 路徑。真正跟 agent 有關的只有「模型失敗後能不能換一家、舊 session 能不能續、`tool_use`/`tool_result` 還配不配得起來」，而這些已經散在那三課裡了。不要變成比較 LLM gateway |
 | `ToolResult` 統一格式 | — | 自己設計一套 `ToolResult` 是典型的「我覺得應該要有 X」。等 Restate / OpenCode 兩邊都讀完，看它們的形狀有沒有交集 |
-| Caching / computer use / replay UI | — | 同上 |
+| computer use / replay UI | — | 同上 |
+| ~~Caching~~ | **升格為 Lesson 38**（見上面三個候選） | 那個延後條件——先讀完 Restate 與 OpenCode——在 Lesson 28、29 寫出來的時候就過期了 |
 
 ---
 
