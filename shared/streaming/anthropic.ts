@@ -5,6 +5,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { describeProviderError } from "../providers/errors.ts";
 import type {
 	AssistantBlock,
 	Message,
@@ -94,7 +95,7 @@ export function anthropicStreamingProvider(model: string): StreamingProvider {
 
 				yield {
 					type: "error",
-					message: aborted ? "Aborted by user" : error instanceof Error ? error.message : String(error),
+					message: aborted ? "Aborted by user" : describeProviderError(error),
 					aborted,
 				};
 			}
