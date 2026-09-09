@@ -134,8 +134,9 @@ processor should hang.
 | output scrubber | — | before returning to the user or writing to a sink |
 
 Processors are not a licence to cram every middleware in. Anything that changes the
-loop's control flow still does not fit — Lesson 33's suspend/resume, for instance;
-that needs a serialisable state machine, not one more text-transformation hook.
+loop's control flow still does not fit — [Lesson 33](../lesson-33-durable/)'s
+suspend/resume, for instance; that needs a serialisable state machine, not one
+more text-transformation hook.
 
 ## The contract test
 

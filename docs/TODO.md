@@ -155,9 +155,9 @@ Lesson 08-12   into a product · OpenWorker  permissions / unattended / server /
                (11 merged into 12, 13 into 18, 14 deleted)
 Lesson 15-19   running for months · Hermes  memory / skills / search / scheduling / delegation  ✅ all
 Lesson 20-27   a whole domain · AI Search   search / crawl / retrieval / research loop     ✅
-Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-32, 35, 37
+Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-33, 35, 37
                28-29 OpenCode (evidence of execution) ✅ / 37 OpenHands (event model) ✅
-               30-32 Mastra ✅ / 33 Mastra (the abstractions after schema)
+               30-33 Mastra ✅ (the abstractions after schema)
                34 Restate (crash) / 35 Anthropic SRT (sandbox) ✅
                36-37 OpenHands (the execution world / action-observation)
 
@@ -225,7 +225,7 @@ After Mastra come two more sources that **fill in abstraction layers** (decided
 2026-07-28, see the two sections at the end):
 
 ```
-30 schema compat ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine
+30 schema compat ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine ✅
                                                         ↓
                               34 Restate: what happens after a step in the state machine crashes
                               35 Anthropic SRT: once approved, what the process can actually touch
@@ -2014,7 +2014,53 @@ same "where does mutable agent state live" question in a smaller box.
 > the index and wrong about the lesson — the expensive part was building a task set
 > and catalogue honest enough to measure against.
 
-### Lesson 33: the loop is not a loop but a serialisable state machine
+### ~~Lesson 33: the loop is not a loop but a serialisable state machine~~ done
+
+`lesson-33-durable/`: `workflow.ts` (the step engine, the JSON run state, the
+atomic store), `pipeline.ts` (charge → approve → receipt, plus an append-only
+ledger), `worker.ts` (one attempt, in its own process), `demo.ts` (spawns and
+SIGKILLs it), `tests/durable.test.ts`.
+
+**The difficulty warning was right and the fix was to make the crash real.** The
+demo really spawns a child process and really sends `SIGKILL`; a `throw` still
+runs `finally`, still flushes, and would have made every claim in the lesson
+untrue. That decision is what kept it from becoming "understanding architecture".
+
+The measurement is one number — how many times the card was charged — read from a
+ledger file rather than a variable, because the process being measured is the one
+that dies:
+
+| scenario | charges | emails |
+|---|---|---|
+| naive, crash after charge | 2 | 0 |
+| durable, crash after charge | 1 | 1 |
+| durable, crash before journal | 2 | 0 |
+| durable, halt on interrupted | 1 | 0 |
+
+Three things the build produced that the plan did not have:
+
+- **the plan's three-step workflow was right, and two scenarios were missing.**
+  "Crash after the journal" only proves the happy path. The lesson's real content
+  is the other two rows: a crash in the window between the side effect and the
+  journal write, which durability does **not** fix, and the `halt` policy, which
+  fixes the charge count by never finishing the run.
+- **write the step record before running the step, not after.** Found by running
+  it: scenario 3 originally reported `in-flight=[]`, because the state was only
+  saved on completion, so an interrupted step was indistinguishable from one that
+  never began. One extra write per step is what makes a crash diagnosable at all.
+- **`InterruptedPolicy` is a parameter, not a default.** There are exactly two
+  ways to be wrong — at-least-once and at-most-once — and which one a step wants
+  is a business decision. Replaying `send_receipt` sends a duplicate email;
+  replaying `charge_card` takes money.
+
+**This is now the strongest possible setup for Lesson 34.** The lesson ends with a
+journal that knows a step was interrupted and cannot tell you whether its side
+effect landed, because the journal is not the same system as the payment
+provider. No fifth policy closes that; a different contract with the other side
+does. Nothing needs to be argued for Restate any more — the gap is already
+measured and on the page.
+
+#### The original plan
 
 - **Source**: `mastra/packages/core/src/agent/durable/`,
   `mastra/packages/core/src/workflows/` (`handlers/control-flow.ts`,

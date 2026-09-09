@@ -121,7 +121,7 @@ processor 應該掛在哪裡。
 | output scrubber | — | 回使用者或寫入 sink 前 |
 
 processor 不是「所有 middleware 都塞進來」的理由。會改變 loop 控制流本身的東西
-仍然不適合，例如 Lesson 33 的 suspend / resume；那需要可序列化的狀態機，
+仍然不適合，例如[第 33 課](../lesson-33-durable/README.zh-TW.md)的 suspend / resume；那需要可序列化的狀態機，
 不是多一個文字轉換 hook。
 
 ## 契約測試

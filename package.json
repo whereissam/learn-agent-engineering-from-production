@@ -56,6 +56,7 @@
 		"lesson-31": "bun run lesson-31-processors/demo.ts",
 		"lesson-32": "bun run lesson-32-tool-search/demo.ts",
 		"lesson-32:agent": "bun run lesson-32-tool-search/agent.ts",
+		"lesson-33": "bun run lesson-33-durable/demo.ts",
 		"lesson-35": "bun run lesson-35-sandbox/demo.ts",
 		"lesson-35:agent": "bun run lesson-35-sandbox/agent.ts",
 		"lesson-35:profile": "PROFILE=1 bun run lesson-35-sandbox/demo.ts",

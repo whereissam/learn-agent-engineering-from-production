@@ -220,8 +220,9 @@ two:
 - the process restarted — does the model have to rediscover everything?
 - two threads for one user — do they share a loaded set?
 
-Those are Lesson 33's questions arriving early. Where mutable agent state lives is
-the same problem whether the state is a loaded tool set or a suspended workflow.
+Those are [Lesson 33](../lesson-33-durable/)'s questions arriving early. Where
+mutable agent state lives is the same problem whether the state is a loaded tool
+set or a suspended workflow.
 
 ## What the production version looks like
 

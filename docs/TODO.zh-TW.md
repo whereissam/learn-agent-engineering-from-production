@@ -140,9 +140,9 @@ Lesson 08-12   變成產品 · OpenWorker 篇  權限 / 無人值守 / server / 
                （11 併入 12、13 併入 18、14 刪除）
 Lesson 15-19   跑好幾個月 · Hermes 篇    記憶 / skills / 搜尋 / 排程 / 委派     ✅ 全部
 Lesson 20-27   一整個領域 · AI Search 篇 搜尋 / 抓取 / 檢索 / research loop    ✅
-Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-32、35、37
+Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-33、35、37
                28-29 OpenCode（執行的證據）✅ / 37 OpenHands（事件模型）✅
-               30-32 Mastra ✅ / 33 Mastra（schema 之後的抽象）
+               30-33 Mastra ✅（schema 之後的抽象）
                34 Restate（crash）/ 35 Anthropic SRT（沙箱）✅
                36-37 OpenHands（執行世界 / action-observation）
 
@@ -201,7 +201,7 @@ Lesson 10（agent server）✅  →  Lesson 12（MCP）✅  →  Lesson 30（sch
 Mastra 之後再接兩個**補抽象層**的來源（2026-07-28 決定，見文末兩節）：
 
 ```
-30 schema 相容 ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine
+30 schema 相容 ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine ✅
                                                         ↓
                               34 Restate：狀態機裡的那一步 crash 之後怎麼辦
                               35 Anthropic SRT：批准之後，進程實際碰得到什麼
@@ -1771,7 +1771,46 @@ Notion、HubSpot 對 SendGrid）。三個裡有兩個站得住腳，所以任務
 > 個月的 `:13`；而「成本很低」對索引是對的、對這一課是錯的——貴的是做出一份誠實
 > 到可以拿來量測的任務集與工具目錄。
 
-### Lesson 33：loop 不是 loop，是可以序列化的狀態機
+### ~~Lesson 33：loop 不是 loop，是可以序列化的狀態機~~ 已完成
+
+`lesson-33-durable/`：`workflow.ts`（step 引擎、JSON run state、原子 store）、
+`pipeline.ts`（扣款 → 核准 → 收據，加一份 append-only ledger）、`worker.ts`
+（一次嘗試，跑在自己的 process 裡）、`demo.ts`（spawn 它然後 SIGKILL）、
+`tests/durable.test.ts`。
+
+**難度提醒是對的，而解法是把 crash 弄成真的。** demo 真的 spawn 子行程、真的送
+`SIGKILL`；`throw` 還是會跑 `finally`、還是會 flush，那會讓這一課裡每一句話都不
+成立。這個決定就是它沒有變成「讀懂架構」的原因。
+
+量測只有一個數字——卡被扣了幾次——而且是從 ledger 檔案讀的，不是從變數，因為被
+量測的那個 process 正是會死掉的那一個：
+
+| scenario | charges | emails |
+|---|---|---|
+| naive, crash after charge | 2 | 0 |
+| durable, crash after charge | 1 | 1 |
+| durable, crash before journal | 2 | 0 |
+| durable, halt on interrupted | 1 | 0 |
+
+建的過程產生了三件計畫裡沒有的東西：
+
+- **計畫裡那個三步 workflow 是對的，但少了兩個情境。**「journal 寫完之後才 crash」
+  只證明了順風的那條路。這一課真正的內容是另外兩列：crash 掉在副作用與 journal
+  寫入之間那個窗口——durability **修不好**它——以及 `halt` policy，它修好了扣款
+  次數，代價是這個 run 永遠跑不完。
+- **step 紀錄要在 step 跑之前寫，不是跑完才寫。** 這是跑出來才發現的：情境 3 原本
+  回報 `in-flight=[]`，因為狀態只在完成時才存，於是一個被中斷的 step 跟一個從來
+  沒開始過的長得一樣。每個 step 多一次寫入，換來的是 crash 可診斷這件事本身。
+- **`InterruptedPolicy` 是參數，不是預設值。** 錯的方式剛好只有兩種——
+  at-least-once 與 at-most-once——而哪一個適合某個 step 是商業決定。重跑
+  `send_receipt` 是寄出重複的信；重跑 `charge_card` 是拿走錢。
+
+**這現在是 Lesson 34 最強的鋪陳。** 這一課的結尾是一份 journal，它知道某個 step
+被中斷了，卻答不出那個副作用有沒有發生，因為 journal 跟支付商不是同一個系統。
+沒有第五種 policy 能關掉那個縫；跟另一側換一份不同的合約可以。Restate 不需要再
+被論證了——那個縫已經被量出來、寫在頁面上了。
+
+#### 原本的計畫
 
 - **來源**：`mastra/packages/core/src/agent/durable/`、
   `mastra/packages/core/src/workflows/`（`handlers/control-flow.ts`、
