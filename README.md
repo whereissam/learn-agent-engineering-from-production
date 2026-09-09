@@ -43,7 +43,7 @@ your risk rules, when to stop, or what "correct" means for you.
 | Layer | Covered by |
 |---|---|
 | **1. Agent mechanics** — model → tool → result → stop | Lessons 1-5 |
-| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12, 28-33, 35 and 37 written; 34 and 36 planned |
+| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12, 28-33, 35, 37 and 38 written; 34 and 36 planned |
 | **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-19 |
 | **4. Domain tools** — the ceiling is what it can operate, not prompt wording | Lesson 6; Lessons 20-27 at full scale |
 | **5. Evaluation** — otherwise you can't tell whether a change helped | Lessons 7, 22, 25 |
@@ -54,17 +54,17 @@ the full measure → find → fix → confirm loop.
 
 **If you already understand the agent loop, start at Lesson 6.**
 
-## The completed path: 32 runnable steps
+## The completed path: 33 runnable steps
 
 The thesis of the series in one sentence:
 
 > **Learn how AI agents work by reading real open-source projects, one at a
 > time, and rebuilding the smallest version of each mechanism yourself.**
 
-**The 32 steps below are written and runnable.** Steps 1-17 are the core;
+**The 33 steps below are written and runnable.** Steps 1-17 are the core;
 steps 18-25 form an optional domain branch that can be skipped *as a whole*,
-and steps 26-32 return to the harness around the loop. The planned lessons
-continue after step 32. Every step names the source you are
+and steps 26-33 return to the harness around the loop. The planned lessons
+continue after step 33. Every step names the source you are
 reading at that point.
 
 ```mermaid
@@ -73,7 +73,7 @@ flowchart LR
     P2 --> P3["Steps 8-12<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
     P3 --> P4["Steps 13-17<br/><b>Running for months</b><br/>Hermes"]
     P4 --> P5["Steps 18-25<br/><b>A whole domain</b><br/>4 search projects"]
-    P5 --> P6["Steps 26-32<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
+    P5 --> P6["Steps 26-33<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
 ```
 
 > **Lesson numbers have gaps; step numbers don't.** Nothing is missing — 11, 13
@@ -129,6 +129,7 @@ flowchart LR
 | 30 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
 | 31 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
 | 32 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| 33 | [38 The cache you break yourself](lesson-38-prompt-cache/) | Which line of your prompt is costing you the whole prefix? | OpenCode `protocols/utils/cache.ts` |
 | | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system. Lesson 35 answers step 8's other half, and needs macOS.* | |
 
 Steps 18-25 can be skipped — they are a full-scale demonstration of the method
@@ -159,7 +160,7 @@ the facts*). **Lesson 34 is now the one to want most**: Lesson 33 ends with a
 journal that knows a step was interrupted and cannot tell you whether its side
 effect landed, and that is exactly the gap durable execution exists to close.
 
-### Prod part · Lessons 50-59 — *not* part of the 32 steps
+### Prod part · Lessons 50-59 — *not* part of the 33 steps
 
 Different entry rule, different stage:
 

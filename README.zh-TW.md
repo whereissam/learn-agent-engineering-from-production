@@ -39,7 +39,7 @@ flowchart LR
 | 層 | 這系列 |
 |---|---|
 | **1. 單 agent 機制** — model → tool → result → stop | Lesson 1-5 |
-| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-12、28-33、35、37 已寫；34、36 規劃中 |
+| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-12、28-33、35、37、38 已寫；34、36 規劃中 |
 | **3. 長期運作** — 記憶、skills、排程、委派 | Lesson 15-19 |
 | **4. 領域工具** — 能力上限取決於它能操作什麼，不是 prompt 多漂亮 | Lesson 6；Lesson 20-27 是大型示範 |
 | **5. Evaluation** — 沒有它就不知道改動到底有沒有變好 | Lesson 7、22、25 |
@@ -49,15 +49,15 @@ flowchart LR
 
 如果你已經懂 agent loop，直接從 Lesson 6 開始。
 
-## 已完成的路：32 步，都跑得起來
+## 已完成的路：33 步，都跑得起來
 
 這個系列的主旨一句話：
 
 > 透過真實開源專案的原始碼，從零開始搞懂 AI agent，
 > 一次讀一個專案，把它的機制抽成自己寫得出來的最小版本。
 
-下面 32 步都寫完了、都跑得起來。第 1-17 步是核心；第 18-25 步是一條可以整包
-跳過的領域支線，第 26-32 步回到 loop 周圍的 harness。規劃中的課接在第 32 步
+下面 33 步都寫完了、都跑得起來。第 1-17 步是核心；第 18-25 步是一條可以整包
+跳過的領域支線，第 26-33 步回到 loop 周圍的 harness。規劃中的課接在第 33 步
 後面。每一步都標出你在讀哪個專案的哪一段。
 
 ```mermaid
@@ -66,7 +66,7 @@ flowchart LR
     P2 --> P3["第 8-12 步<br/><b>從 loop 到能用的系統</b><br/>OpenWorker + Mastra"]
     P3 --> P4["第 13-17 步<br/><b>跑好幾個月</b><br/>Hermes"]
     P4 --> P5["第 18-25 步<br/><b>一整個領域</b><br/>四個搜尋專案"]
-    P5 --> P6["第 26-32 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
+    P5 --> P6["第 26-33 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
 ```
 
 > **課號會跳，步驟號不會跳。** 沒有東西不見——11、13、14 是被消化進別課而不是
@@ -121,6 +121,7 @@ flowchart LR
 | 30 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
 | 31 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
 | 32 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
+| 33 | [38 你自己弄壞的那個 cache](lesson-38-prompt-cache/) | 你 prompt 裡的哪一行，讓你賠掉整個前綴？ | OpenCode `protocols/utils/cache.ts` |
 | | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。Lesson 35 回答第 8 步的另一半，需要 macOS。* | |
 
 第 18-25 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
@@ -148,7 +149,7 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生——而那正是
 durable execution 存在要補的縫。
 
-### Prod 篇 · Lesson 50-59，不算在 32 步裡
+### Prod 篇 · Lesson 50-59，不算在 33 步裡
 
 准入條件不一樣，因為它是另一個階段：
 

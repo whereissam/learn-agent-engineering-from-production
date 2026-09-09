@@ -62,6 +62,8 @@
 		"lesson-35:profile": "PROFILE=1 bun run lesson-35-sandbox/demo.ts",
 		"lesson-37": "bun run lesson-37-trajectory/demo.ts",
 		"lesson-37:agent": "bun run lesson-37-trajectory/agent.ts",
+		"lesson-38": "bun run lesson-38-prompt-cache/demo.ts",
+		"lesson-38:probe": "bun run lesson-38-prompt-cache/probe.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
 		"check:i18n": "bun run scripts/check-translations.ts",
 		"reset": "bun run scripts/reset-playgrounds.ts",

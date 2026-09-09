@@ -151,7 +151,7 @@ survivor through the criterion table at the top of this file. Most of what the
 courses cover is either already here or fails question 3 or 5, and the rejects
 are listed after the candidates so nobody re-proposes them.
 
-#### Candidate 1: the cache you break yourself → **Lesson 38, building now**
+#### ~~Candidate 1: the cache you break yourself~~ → **Lesson 38, done**
 
 | Question | Answer |
 |---|---|
@@ -181,9 +181,28 @@ already teaches sit exactly where they destroy the cache.
 | Lesson | What it does | What that does to the prefix |
 |---|---|---|
 | 15 memory | recalled memories go into `buildSystemPrompt()` | rewrites the very front, every turn |
-| 32 tool search | `session.requestTools()` grows as tools load | the tool list is part of the prefix |
+| 32 tool search | `session.requestTools()` grows as tools load | ~~the tool list is part of the prefix~~ **wrong, see below** |
 | 05 compaction | rewrites history | invalidates everything after the rewrite point |
 | 31 processors | mutate content on the way to the model | depends entirely on where they hang |
+
+> **The Lesson 32 row was wrong, and building the lesson is what caught it.**
+> Measured hit rate for the growing tool list: 96%, not 0%. Two reasons, both
+> worth more than the claim they replace:
+>
+> 1. **it grows by appending.** Growth does not break a prefix; rewriting what
+>    came before it does. A tool list that gains entries at the end is as safe as
+>    a message list that gains turns. The shape to fear is a tool list that is
+>    *reordered* — same tools, different order — which is what a `Set`, a
+>    directory listing or a relevance ranking produces.
+> 2. **the block order in your request object is not the order the provider
+>    hashes.** The numbers only reconcile if `tools` behaves as though it sits
+>    after `messages`. `prefix.ts` therefore carries both orderings and labels
+>    one of them as measured rather than documented.
+>
+> This is the third entry in this file to be corrected by running the thing it
+> described, after Lesson 32's `:13` citation and the tracing-in-Lesson-26 claim.
+> The pattern is consistent enough to be a rule: **a plan's confident sentence
+> about a mechanism is a hypothesis until the mechanism runs.**
 
 So the lesson turns the series on itself, the way the 2026-08-02 round did to
 three write-ups. That is the part no other course can write, because it requires
