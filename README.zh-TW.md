@@ -39,7 +39,7 @@ flowchart LR
 | 層 | 這系列 |
 |---|---|
 | **1. 單 agent 機制** — model → tool → result → stop | Lesson 1-5 |
-| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-12、28-31、37 已寫；32-36 規劃中 |
+| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-12、28-32、35、37 已寫；33-34、36 規劃中 |
 | **3. 長期運作** — 記憶、skills、排程、委派 | Lesson 15-19 |
 | **4. 領域工具** — 能力上限取決於它能操作什麼，不是 prompt 多漂亮 | Lesson 6；Lesson 20-27 是大型示範 |
 | **5. Evaluation** — 沒有它就不知道改動到底有沒有變好 | Lesson 7、22、25 |
@@ -49,15 +49,15 @@ flowchart LR
 
 如果你已經懂 agent loop，直接從 Lesson 6 開始。
 
-## 已完成的路：29 步，都跑得起來
+## 已完成的路：31 步，都跑得起來
 
 這個系列的主旨一句話：
 
 > 透過真實開源專案的原始碼，從零開始搞懂 AI agent，
 > 一次讀一個專案，把它的機制抽成自己寫得出來的最小版本。
 
-下面 29 步都寫完了、都跑得起來。第 1-17 步是核心；第 18-25 步是一條可以整包
-跳過的領域支線，第 26-29 步回到 loop 周圍的 harness。規劃中的課接在第 29 步
+下面 31 步都寫完了、都跑得起來。第 1-17 步是核心；第 18-25 步是一條可以整包
+跳過的領域支線，第 26-31 步回到 loop 周圍的 harness。規劃中的課接在第 31 步
 後面。每一步都標出你在讀哪個專案的哪一段。
 
 ```mermaid
@@ -66,7 +66,7 @@ flowchart LR
     P2 --> P3["第 8-12 步<br/><b>從 loop 到能用的系統</b><br/>OpenWorker + Mastra"]
     P3 --> P4["第 13-17 步<br/><b>跑好幾個月</b><br/>Hermes"]
     P4 --> P5["第 18-25 步<br/><b>一整個領域</b><br/>四個搜尋專案"]
-    P5 --> P6["第 26-29 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
+    P5 --> P6["第 26-31 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
 ```
 
 > 課號會跳，步驟號不會跳。11、13、14 併進別課。
@@ -107,24 +107,24 @@ flowchart LR
 | 25 | [27 本地文件 + web](lesson-27-local-docs/) | 自己的文件跟 web 怎麼混在一起搜？ | gpt-researcher `document/` |
 | | | **⑥ loop 周圍那一圈 · Mastra、OpenCode、OpenHands** | |
 | 26 | [31 Processor pipeline](lesson-31-processors/) | guardrail 怎麼留在 loop 外，而且 secret 不漏進任何 sink？ | Mastra `core/src/processors/` |
-| 27 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
-| 28 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
-| 29 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
-| 30 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
+| 27 | [32 工具搜尋](lesson-32-tool-search/) | 接上十個 MCP server，200 個工具塞得進去嗎？ | Mastra `processors/tool-search.ts` |
+| 28 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
+| 29 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
+| 30 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
+| 31 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
 | | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。Lesson 35 回答第 8 步的另一半，需要 macOS。* | |
 
 第 18-25 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
 每一課的 README 開頭都會再標一次自己的前置。
 
-### 規劃中的續篇 · Lesson 32-34 與 36，還沒寫
+### 規劃中的續篇 · Lesson 33-34 與 36，還沒寫
 
-它們接在第 30 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
+它們接在第 31 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
 下來盤點過了；哪些路徑和行數真的驗證過、哪些（CrewAI、LangGraph、x402）
 目前只是對照來源還沒盤點，照實記在 [docs/TODO.md](docs/TODO.md)。
 
 | 課 | 這課回答的問題 | 來源 |
 |---|---|---|
-| 32 | 200 個工具塞不進 context 怎麼辦？ | Mastra |
 | 33 | 進程死了，怎麼換一台機器接回來？ | Mastra、LangGraph |
 | 34 | 信已經寄出去了才 crash，接回來要不要再寄一次？ | Restate |
 | 36 | 指令在哪裡跑、跑完之後那個世界還在不在？ | OpenHands |
@@ -139,7 +139,7 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 紀錄不能比事實更樂觀）。現在最想要的是 Lesson 33，把 loop 變成可以序列化的
 狀態機，那是 suspend / resume 的前提，也是所有「durable agent」說法真正靠的東西。
 
-### Prod 篇 · Lesson 50-59，不算在 29 步裡
+### Prod 篇 · Lesson 50-59，不算在 31 步裡
 
 准入條件不一樣，因為它是另一個階段：
 

@@ -55,6 +55,95 @@ ranking 4th). A mechanism you cannot switch off cannot have its value stated.
 > A criterion that only says no to bad things is useless;
 > this table's value is precisely that it says no to **good** things.
 
+### New candidate: vLLM Semantic Router (surveyed 2026-09-09)
+
+[`vllm-project/semantic-router`](https://github.com/vllm-project/semantic-router)
+— Go, a routing layer in front of a fleet of models.
+
+| Question | Answer |
+|---|---|
+| 1 real loop | no. It is a dispatcher, not an agent |
+| 2 core problem | tools (selection), and model routing |
+| 3 runnable experiment | yes, and one already exists — it is Lesson 32's |
+| 4 uncovered | **no.** Lesson 32 covers the tool-selection half |
+| 5 switchable | yes, and they publish the numbers for it switched off |
+
+**Verdict: not a new main-line lesson. Two uses instead**, both already applied:
+
+1. **Lesson 32's production comparison, done.** Its "semantic tool selection"
+   feature is the same mechanism Lesson 32 builds, at a scale this repo cannot
+   reach: 741 tools, 127315 tokens of catalogue reduced to 1084, measured on the
+   Berkeley Function Calling Leaderboard. Its accuracy table (49 tools 94% → 94%,
+   207 tools 64% → 94%, 417 tools 20% → 94%, 741 tools 13.62% → 43.13%) is the
+   answer to the awkward result in Lesson 32's own measurement, where the flat
+   128-tool baseline still won on accuracy: **a 200-tool catalogue sits on the
+   near side of the crossover.** Without their table, Lesson 32 would have had to
+   either report a mechanism that did not pay for itself, or quietly not mention
+   it.
+2. **Prod 54 (model routing) has a source now.** That lesson was listed with a
+   `—` in the source column. Routing on a classifier rather than a static rule is
+   what it does; whether it becomes a lesson still has to pass question 5.
+
+The reason it is not a main-line lesson is question 1, the same reason vLLM
+itself is not: it sits under the agent, not in it. It also selects with
+embeddings rather than BM25, which is a Lesson 22 decision, not a new subject.
+
+## Other courses on the same subject, and what this one does differently
+
+Surveyed 2026-09-09, after five were sent in. **None of them changes this repo's
+plan**, but writing down what they do well is the only way the positioning
+sentence stays honest instead of becoming marketing.
+
+| Repo | Shape | Stars | What it is |
+|---|---|---|---|
+| [microsoft/ai-agents-for-beginners](https://github.com/microsoft/ai-agents-for-beginners) | 18 lessons, README + video + Python sample each | 74300 | teaches the Microsoft Agent Framework and Foundry; needs an Azure account |
+| [rohitg00/ai-engineering-from-scratch](https://github.com/rohitg00/ai-engineering-from-scratch) | 523 lessons in 20 phases, ~342 hours | 53600 | the whole ML stack from linear algebra up; "implement it by hand, then run the same thing through the production library" |
+| [datawhalechina/Agent-Learning-Hub](https://github.com/datawhalechina/Agent-Learning-Hub) | 8 stages plus an 11-level project ladder | 7700 | Chinese; curated links plus practice, covering LangGraph, Hermes, OpenHands, GPT Researcher |
+| [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh) | roadmap over 240+ resources, trilingual | 6700 | sequencing and pointers, deliberately not duplicating the docs it points at |
+| [bryanyzhu/agentic-ai-system-course](https://github.com/bryanyzhu/agentic-ai-system-course) | 22 chapters of patterns, EN + ZH | 605 | framework-agnostic system design; explicitly not a walked-through project |
+
+### The one honest difference
+
+Two of those five already point at the **same source projects this repo reads** —
+OpenCode, Hermes, OpenHands, GPT Researcher. So the sources are not the
+difference, and claiming they are would be false.
+
+The difference is what happens to a source after it is chosen:
+
+| | those courses | this repo |
+|---|---|---|
+| the source | named, linked, summarised | cloned into the tree, read to specific line numbers, cited as `file.ts:12` |
+| the code | a sample that demonstrates the concept working | a program that **fails first**, with the mechanism switched off |
+| the claim | "you can do X" | a number from a real run, in the README, with the provider and model named |
+| when the claim is wrong | usually not discoverable | `check:i18n` and the contract tests catch drift; the TODO records the corrections |
+
+Lesson 32 is this week's example of the difference, in both directions. The
+plan said "the cost is low" and the source citation said `tool-search.ts:13`;
+building it produced a wrong line number, a provider-level ceiling nobody had
+mentioned, a 3.5x token result, an accuracy difference too small to claim, and a
+measurement bug in the harness that had briefly looked like a finding about the
+model. **None of those five things survives a summary of the source. They only
+appear if you run it.**
+
+### What they do better, and this repo will not
+
+Saying this out loud is what keeps the paragraph above from being a sales pitch:
+
+- **ai-engineering-from-scratch** covers the ML foundations — backprop, attention,
+  tokenizers — that this repo skips entirely. If you want to know how the model
+  works rather than how to build around one, it is the better book.
+- **Agent-Learning-Hub** and **awesome-agentic-ai-zh** are better *indexes*. This
+  repo reads eleven projects; they point at hundreds. Someone deciding what to
+  learn should start there, not here.
+- **ai-agents-for-beginners** has video and 50+ translations. This repo has two
+  languages and a checker to keep them honest, and that is already the limit.
+- **agentic-ai-system-course** is framework-agnostic *by design* and covers
+  coordination and design-canvas territory this repo has no lessons for.
+
+The scope here stays narrow on purpose: one path, eleven real projects, every
+mechanism rebuilt small enough to switch off and measure. A reading list is a
+different product and this repo should not become one.
+
 ## The whole picture
 
 ```
@@ -66,9 +155,9 @@ Lesson 08-12   into a product · OpenWorker  permissions / unattended / server /
                (11 merged into 12, 13 into 18, 14 deleted)
 Lesson 15-19   running for months · Hermes  memory / skills / search / scheduling / delegation  ✅ all
 Lesson 20-27   a whole domain · AI Search   search / crawl / retrieval / research loop     ✅
-Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-31, 35, 37
+Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-32, 35, 37
                28-29 OpenCode (evidence of execution) ✅ / 37 OpenHands (event model) ✅
-               30-31 Mastra ✅ / 32-33 Mastra (the abstractions after schema)
+               30-32 Mastra ✅ / 33 Mastra (the abstractions after schema)
                34 Restate (crash) / 35 Anthropic SRT (sandbox) ✅
                36-37 OpenHands (the execution world / action-observation)
 
@@ -78,7 +167,7 @@ Lesson 50      tool calling on local models  why it breaks after switching to Qw
 Lesson 51      inference serving (optional)  batching / KV cache / prefix; needs a GPU          to write
 Lesson 52      streaming speech output   cancellation / stale audio / handover (Fish Speech as a tool)  to write
 Lesson 53      tracing / observability   spans, cost attribution (Mastra, Phoenix)        to write
-Lesson 54      model routing / fallback  resuming an old session on a new provider        to write
+Lesson 54      model routing / fallback  resuming an old session on a new provider (vLLM Semantic Router)  to write
 Lesson 55      OAuth / credentials       token lifetimes, multi-user isolation            to write
 Lesson 56      tools that cost money     may an agent decide to pay by itself (x402)      to write
 Lesson 57      data boundaries           what may enter trace / memory / a subagent       to write
@@ -136,7 +225,7 @@ After Mastra come two more sources that **fill in abstraction layers** (decided
 2026-07-28, see the two sections at the end):
 
 ```
-30 schema compat → 31 processor → 32 tool search → 33 durable state machine
+30 schema compat ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine
                                                         ↓
                               34 Restate: what happens after a step in the state machine crashes
                               35 Anthropic SRT: once approved, what the process can actually touch
@@ -1848,18 +1937,82 @@ would only blur the verdict.
   and this lesson covers defence at the **I/O boundary**; two different positions.
   `cost-guard.ts` connects directly to Lesson 26
 
-### Lesson 32: 200 tools do not fit in context
+### ~~Lesson 32: 200 tools do not fit in context~~ done
+
+`lesson-32-tool-search/`: `catalog.ts` (200 tools across 20 services, plus 12 tasks
+phrased the way a person asks), `tool-search.ts` (BM25 index, the two meta-tools,
+the three phases), `demo.ts` (offline: bytes, ranks, phase refusals), `agent.ts`
+(four modes against a real model), `tests/tool-search.test.ts`.
+
+**The mechanism-off experiment did not fail the way the plan predicted, and the
+real answer is better.** The plan was a token-cost argument. What actually happens:
+
+```text
+Mode: ceiling — all 200 tools in one request
+  rejected  400 Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 200 instead.
+```
+
+> On OpenAI a 200-tool request is not a legal request. Tool search is normally
+> sold as an optimisation, and an optimisation is something you can decline.
+> This is a ceiling.
+
+Measured, 12 tasks, `gpt-5`, `MAX_TOKENS=8192`:
+
+| mode | correct | input tokens | model calls |
+|---|---|---|---|
+| flat (128 tools, expected tool always present) | 11/12 | 48950 | 12 |
+| search-bare (2 meta-tools, no instruction) | 10/12 | 14009 | 36 |
+| search (+ Mastra's injected instruction) | 9/12 | 14707 | 35 |
+
+Three things this round settled, two of them against the first draft:
+
+- **the token saving is real (3.5x) and the accuracy difference is not.** One or
+  two tasks out of 12 is noise. The write-up says so rather than claiming a
+  percentage.
+- **the round trips are the hidden price**: 36 model calls against 12. Cheaper in
+  tokens, three times the latency.
+- **Mastra's injected instruction (`tool-search.ts:438`) made no measurable
+  difference** at an adequate output budget. The first run said it was essential
+  — see the measurement bug below.
+
+**A measurement bug that nearly became a finding.** The first run scored search
+mode 2/12, mostly "no tool call", which read as the model refusing to search.
+`MAX_TOKENS` was 2048 and `gpt-5` spends its output allowance on reasoning first;
+an empty response is a truncation, not a refusal. At 8192 search went 2/12 → 9/12
+and search-bare 0/12 → 10/12. This is Lesson 26's trap arriving from the other
+side, and README Step 5 keeps it in the lesson on purpose.
+
+**BM25 on the raw user sentence is 7/12 at top-5**, and every miss is a vocabulary
+miss ("pushed straight to main" vs "branch protection"). That is why the query is
+written by the model, not by the harness — and it is the argument for the
+production version's embeddings (see the Semantic Router entry below).
+
+**Every wrong pick, in both modes, is a near-duplicate across vendors**
+(Datadog vs Sentry, Slack vs Notion, HubSpot vs SendGrid). Two of the three are
+defensible, so the task set's single right answer is a judgement call and the
+README says so. 12/12 was never available.
+
+Left for Lesson 33: where the loaded set lives. Mastra's `tool-search-stores.ts`
+(258 lines) makes it pluggable with a TTL and a thread-keyed variant, which is the
+same "where does mutable agent state live" question in a smaller box.
+
+#### The original plan
 
 - **Source**: `mastra/packages/core/src/processors/processors/tool-search.ts` (654
   lines) plus `tool-search-stores.ts`
 - **What you learn**: tools are not all handed to the model up front; instead
   **BM25 searches the tool descriptions** → the model "loads" what it needs → and only
   then does it enter the active set. Three phases: `search` / `load` / `active`
-  (`tool-search.ts:13`)
+  (`tool-search.ts:12`)
 - **The cost is low**: Lessons 17 and 20 already have BM25, reusable directly, with
   the index target changing from sessions to tool descriptions
 - **Bonus**: Claude Code's own `ToolSearch` is this mechanism, so the lesson can point
   readers at "the tool you are using right now looks exactly like this"
+
+> Two corrections the writing produced: the phase type is at `tool-search.ts:12`,
+> not `:13` as this file said for two months; and "the cost is low" was right about
+> the index and wrong about the lesson — the expensive part was building a task set
+> and catalogue honest enough to measure against.
 
 ### Lesson 33: the loop is not a loop but a serialisable state machine
 

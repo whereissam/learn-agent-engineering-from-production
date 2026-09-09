@@ -49,6 +49,86 @@ Lesson 27 把門檻關掉（舒肥食譜排到第 4）。關不掉的機制講�
 > 一個判準如果只會對爛東西說不，那它沒有用；
 > 這張表的價值正在於它會對**好東西**說不。
 
+### 新候選：vLLM Semantic Router（2026-09-09 盤點）
+
+[`vllm-project/semantic-router`](https://github.com/vllm-project/semantic-router)
+——Go 寫的，一整排模型前面的路由層。
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 沒有。它是 dispatcher，不是 agent |
+| 2 核心問題 | 工具（選擇）、以及模型路由 |
+| 3 可跑實驗 | 有，而且已經有一個了——就是 Lesson 32 的 |
+| 4 未覆蓋 | **否。** 工具選擇那一半已經被 Lesson 32 蓋掉 |
+| 5 可關掉 | 可以，而且他們把關掉的數字公布了 |
+
+**結論：不成為新的主線課。改成兩種用途**，兩個都已經用上：
+
+1. **Lesson 32 的生產對照，已完成。** 它的「semantic tool selection」就是
+   Lesson 32 建的那個機制，只是規模是這個 repo 到不了的：741 個工具、目錄
+   127315 個 token 壓到 1084，量在 Berkeley Function Calling Leaderboard 上。
+   它那張準確率表（49 個工具 94% → 94%、207 個 64% → 94%、417 個 20% → 94%、
+   741 個 13.62% → 43.13%）正好回答了 Lesson 32 自己量出來的那個尷尬結果——
+   128 工具的 flat 基準線在準確率上還是贏：**200 個工具的目錄坐在交叉點的近
+   側。** 沒有他們那張表，Lesson 32 就只能二選一：報一個划不來的機制，或者
+   安靜地不提。
+2. **Prod 54（模型路由）現在有來源了。** 那一課的來源欄本來是 `—`。用分類器
+   而不是靜態規則來路由，就是它在做的事；它要不要變成一課，仍然得過第 5 題。
+
+它不進主線的理由是第 1 題，跟 vLLM 本身不進主線的理由一樣：它坐在 agent 底下，
+不在 agent 裡面。而且它用 embedding 而不是 BM25 來選，那是第 22 課的決定，不是
+一個新題目。
+
+## 同題材的其他課程，以及這一份到底差在哪
+
+2026-09-09 盤點，五份被丟進來之後做的。**沒有一份改變這個 repo 的計畫**，但把
+它們各自做得好的地方寫下來，是那句定位敘述能保持誠實、不變成行銷話術的唯一辦法。
+
+| Repo | 形狀 | Stars | 它是什麼 |
+|---|---|---|---|
+| [microsoft/ai-agents-for-beginners](https://github.com/microsoft/ai-agents-for-beginners) | 18 課，每課 README + 影片 + Python 範例 | 74300 | 教 Microsoft Agent Framework 與 Foundry；需要 Azure 帳號 |
+| [rohitg00/ai-engineering-from-scratch](https://github.com/rohitg00/ai-engineering-from-scratch) | 20 個階段共 523 課，約 342 小時 | 53600 | 從線性代數往上的整套 ML；「先手刻一次，再用生產函式庫跑同一件事」 |
+| [datawhalechina/Agent-Learning-Hub](https://github.com/datawhalechina/Agent-Learning-Hub) | 8 個階段加 11 級專案階梯 | 7700 | 中文；策展連結加實作，涵蓋 LangGraph、Hermes、OpenHands、GPT Researcher |
+| [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh) | 240+ 資源的學習路線，三語 | 6700 | 排序與指路，刻意不重複它指過去的文件 |
+| [bryanyzhu/agentic-ai-system-course](https://github.com/bryanyzhu/agentic-ai-system-course) | 22 章的模式，英中雙語 | 605 | 不綁框架的系統設計；明說不是一個帶著走的專案 |
+
+### 唯一誠實的差別
+
+那五份裡有兩份，指的是**跟這個 repo 讀的同一批來源專案**——OpenCode、Hermes、
+OpenHands、GPT Researcher。所以來源不是差別，宣稱它是差別就是說謊。
+
+差別在於一個來源被選中之後發生什麼事：
+
+| | 那些課程 | 這個 repo |
+|---|---|---|
+| 來源 | 點名、附連結、做摘要 | clone 進樹裡、讀到具體行號、以 `file.ts:12` 引用 |
+| 程式碼 | 一份展示概念成立的範例 | 一支**先失敗**的程式，把機制關掉跑一次 |
+| 主張 | 「你可以做 X」 | 一個真跑出來的數字，寫在 README 裡，附上 provider 與模型名稱 |
+| 主張錯了的時候 | 通常發現不了 | `check:i18n` 與契約測試會抓漂移，TODO 會記下更正 |
+
+Lesson 32 就是這禮拜的例子，而且是雙向的。計畫說「成本很低」，來源引用寫的是
+`tool-search.ts:13`；真的把它建出來之後，得到的是一個錯的行號、一道沒人提過的
+provider 天花板、一個 3.5 倍的 token 結果、一個小到不能宣稱的準確率差距，以及
+一個一度看起來像是模型行為發現的量測程式 bug。**這五件事沒有一件能在對來源做
+摘要時活下來。它們只有在你真的跑過之後才會出現。**
+
+### 它們做得比較好、而這個 repo 不會做的事
+
+把這段講明白，才不會讓上面那段變成推銷：
+
+- **ai-engineering-from-scratch** 涵蓋這個 repo 完全跳過的 ML 基礎——backprop、
+  attention、tokenizer。如果你想知道模型怎麼運作、而不是怎麼在模型外面蓋東西，
+  它是更好的那一本。
+- **Agent-Learning-Hub** 與 **awesome-agentic-ai-zh** 是更好的**索引**。這個 repo
+  讀十一個專案，它們指向幾百個。還在決定要學什麼的人，該從那裡開始，不是這裡。
+- **ai-agents-for-beginners** 有影片和 50 種以上的翻譯。這個 repo 只有兩種語言
+  加一個維持它們誠實的檢查器，而那已經是上限了。
+- **agentic-ai-system-course** 是**刻意**不綁框架的，而且涵蓋協作與設計畫布這些
+  這個 repo 沒有課的地帶。
+
+這裡的範圍刻意維持窄：一條路、十一個真專案、每個機制都縮小到可以關掉並量測。
+一份閱讀清單是另一種產品，這個 repo 不該變成那個。
+
 ## 全貌
 
 ```
@@ -60,9 +140,9 @@ Lesson 08-12   變成產品 · OpenWorker 篇  權限 / 無人值守 / server / 
                （11 併入 12、13 併入 18、14 刪除）
 Lesson 15-19   跑好幾個月 · Hermes 篇    記憶 / skills / 搜尋 / 排程 / 委派     ✅ 全部
 Lesson 20-27   一整個領域 · AI Search 篇 搜尋 / 抓取 / 檢索 / research loop    ✅
-Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-31、35、37
+Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-32、35、37
                28-29 OpenCode（執行的證據）✅ / 37 OpenHands（事件模型）✅
-               30-31 Mastra ✅ / 32-33 Mastra（schema 之後的抽象）
+               30-32 Mastra ✅ / 33 Mastra（schema 之後的抽象）
                34 Restate（crash）/ 35 Anthropic SRT（沙箱）✅
                36-37 OpenHands（執行世界 / action-observation）
 
@@ -72,7 +152,7 @@ Lesson 50      本地模型的 tool calling   換成 Qwen / Llama 後為什麼�
 Lesson 51      Inference serving（選修）  batching / KV cache / prefix，要 GPU    待寫
 Lesson 52      串流語音輸出              取消 / 舊音訊 / 換手（Fish Speech 當工具） 待寫
 Lesson 53      Tracing / observability   span、成本歸因（Mastra、Phoenix）       待寫
-Lesson 54      Model routing / fallback  換 provider 續舊 session                待寫
+Lesson 54      Model routing / fallback  換 provider 續舊 session（vLLM Semantic Router）  待寫
 Lesson 55      OAuth / credential        token 生命週期、多使用者隔離            待寫
 Lesson 56      工具要花錢                 agent 可以自己決定付款嗎（x402）        待寫
 Lesson 57      資料邊界                  什麼能進 trace / memory / subagent       待寫
@@ -121,7 +201,7 @@ Lesson 10（agent server）✅  →  Lesson 12（MCP）✅  →  Lesson 30（sch
 Mastra 之後再接兩個**補抽象層**的來源（2026-07-28 決定，見文末兩節）：
 
 ```
-30 schema 相容 → 31 processor → 32 tool search → 33 durable state machine
+30 schema 相容 ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine
                                                         ↓
                               34 Restate：狀態機裡的那一步 crash 之後怎麼辦
                               35 Anthropic SRT：批准之後，進程實際碰得到什麼
@@ -1623,17 +1703,73 @@ processor 全關       LEAK / LEAK / LEAK
 - **接哪裡**：Lesson 15 講的是**記憶層**的注入防禦，這課是 **I/O 邊界**的
   防禦，兩個位置不同。`cost-guard.ts` 直接接 Lesson 26
 
-### Lesson 32：200 個工具塞不進 context
+### ~~Lesson 32：200 個工具塞不進 context~~ 已完成
+
+`lesson-32-tool-search/`：`catalog.ts`（20 個服務共 200 個工具，加上 12 個照人
+真正會講的話寫的任務）、`tool-search.ts`（BM25 索引、兩個 meta-tool、三個
+phase）、`demo.ts`（離線：bytes、排名、各 phase 的拒絕）、`agent.ts`（對真模型
+跑四種模式）、`tests/tool-search.test.ts`。
+
+**把機制關掉的實驗，失敗的方式跟計畫預測的不一樣，而真正的答案更好。** 計畫寫的
+是一套 token 成本論述。實際發生的是：
+
+```text
+Mode: ceiling — all 200 tools in one request
+  rejected  400 Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 200 instead.
+```
+
+> 在 OpenAI 上，一個 200 工具的 request 不是一個合法的 request。工具搜尋通常被
+> 當成一種最佳化來賣，而最佳化是你可以拒絕的東西。這是一道天花板。
+
+量測結果，12 個任務、`gpt-5`、`MAX_TOKENS=8192`：
+
+| mode | correct | input tokens | model calls |
+|---|---|---|---|
+| flat (128 tools, expected tool always present) | 11/12 | 48950 | 12 |
+| search-bare (2 meta-tools, no instruction) | 10/12 | 14009 | 36 |
+| search (+ Mastra's injected instruction) | 9/12 | 14707 | 35 |
+
+這一輪確定了三件事，其中兩件是推翻初稿的：
+
+- **token 的節省是真的（3.5 倍），準確率的差距不是。** 12 題裡差一到兩題是雜訊。
+  寫作時就照實講，不去宣稱一個百分比。
+- **來回次數是隱藏的價格**：36 次模型呼叫對上 12 次。token 比較便宜，延遲三倍。
+- **Mastra 注入的那句指示（`tool-search.ts:438`）在足夠的 output 額度下沒有造成
+  可量測的差別。** 第一次跑的結論說它是關鍵——見下面那個量測 bug。
+
+**一個差點變成「發現」的量測 bug。** 第一次跑，search 模式是 2/12，多數是「沒有
+呼叫工具」，讀起來像是模型拒絕搜尋。當時 `MAX_TOKENS` 是 2048，而 `gpt-5` 會先
+把 output 額度花在推理上；一個空回應是截斷，不是拒絕。拉到 8192 之後 search 從
+2/12 變 9/12、search-bare 從 0/12 變 10/12。這是第 26 課那個陷阱從另一側出現，
+而 README Step 5 刻意把它留在課裡。
+
+**BM25 吃使用者原句是 7/12（top-5）**，而每一個沒中都是詞彙不重疊（「直接推
+main」對「branch protection」）。這就是為什麼查詢字串由模型寫、不是由 harness
+寫——也是生產版本改用 embedding 的理由（見上面 Semantic Router 那一節）。
+
+**兩種模式下的每一個錯，都是跨廠商的近似重複**（Datadog 對 Sentry、Slack 對
+Notion、HubSpot 對 SendGrid）。三個裡有兩個站得住腳，所以任務集只有一個正確答案
+這件事是個判斷，README 有講明。12/12 從來就不存在。
+
+留給 Lesson 33 的：已載入集合住在哪裡。Mastra 的 `tool-search-stores.ts`（258 行）
+把它做成可抽換、帶 TTL、還有一個以 thread 為鍵的版本，那是同一個「可變的 agent
+狀態住在哪裡」的問題裝在更小的盒子裡。
+
+#### 原本的計畫
 
 - **來源**：`mastra/packages/core/src/processors/processors/tool-search.ts`
   （654 行）+ `tool-search-stores.ts`
 - **會學到**：工具不是一開始全給模型，而是先 **BM25 搜工具描述**
   → 模型「載入」需要的 → 才進 active 集合。三個 phase：
-  `search` / `load` / `active`（`tool-search.ts:13`）
+  `search` / `load` / `active`（`tool-search.ts:12`）
 - **成本很低**：Lesson 17 和 20 已經有 BM25 了，直接複用，
   只是索引對象從 session 換成 tool description
 - **加分**：Claude Code 自己的 `ToolSearch` 就是這個機制，
   可以在課裡直接指給讀者看「你現在用的工具就長這樣」
+
+> 寫作過程產生的兩處更正：phase 型別在 `tool-search.ts:12`，不是這份檔案寫了兩
+> 個月的 `:13`；而「成本很低」對索引是對的、對這一課是錯的——貴的是做出一份誠實
+> 到可以拿來量測的任務集與工具目錄。
 
 ### Lesson 33：loop 不是 loop，是可以序列化的狀態機
 

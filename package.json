@@ -54,6 +54,8 @@
 		"lesson-29:agent": "bun run lesson-29-evidence/agent.ts",
 		"lesson-30:probe": "bun run lesson-30-schema-compat/probe.ts",
 		"lesson-31": "bun run lesson-31-processors/demo.ts",
+		"lesson-32": "bun run lesson-32-tool-search/demo.ts",
+		"lesson-32:agent": "bun run lesson-32-tool-search/agent.ts",
 		"lesson-35": "bun run lesson-35-sandbox/demo.ts",
 		"lesson-35:agent": "bun run lesson-35-sandbox/agent.ts",
 		"lesson-35:profile": "PROFILE=1 bun run lesson-35-sandbox/demo.ts",
