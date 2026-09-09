@@ -212,7 +212,7 @@ having built the other lessons first.
 > caching behind "wait until both Restate and OpenCode have been read".
 > OpenCode has been read (Lessons 28 and 29). The condition has expired.
 
-#### Candidate 2: the tool description changed after you approved it
+#### ~~Candidate 2: the tool description changed after you approved it~~ → **Lesson 13, done**
 
 | Question | Answer |
 |---|---|
@@ -232,6 +232,21 @@ Composes with two written lessons rather than duplicating them: Lesson 8
 (approval was granted to *what*, exactly) and Lesson 32 (a tool whose description
 changed between `search` and `load` — the phases are already there to hang it
 on).
+
+**Built, and it took the vacant number 13**, beside Lesson 12 where it belongs.
+Measured on `gpt-5`, three runs per policy:
+
+| policy | sent to the attacker | answered the question |
+|---|---|---|
+| off | 3/3 | 3/3 |
+| block | 0/3 | 0/3 |
+| fallback | 0/3 | 3/3 |
+
+The third row is the one the plan did not have. `block` is the obvious defence
+and it is useless: it withholds the tool the task needed, so the agent answers
+nothing, and a control that turns every upstream change into an outage is
+switched off within a week. `fallback` — keep the tool, use the description that
+was *approved*, ignore what the server just sent — is safe and still works.
 
 #### Candidate 3: when an agent is the wrong tool
 
