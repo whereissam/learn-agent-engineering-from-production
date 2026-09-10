@@ -1,4 +1,4 @@
-# Build an AI Agent From Scratch
+# Learn Agent Engineering From Production
 
 > 🇬🇧 English　|　🇹🇼 [繁體中文](README.zh-TW.md)
 
@@ -11,6 +11,25 @@ smallest version that still runs. The exceptions are the lessons where the
 source projects expose a *gap* rather than a solution — domain tools,
 evaluation and citation verification are built from that gap, and the lessons
 say so.
+
+### What "from production" means here, concretely
+
+It is a claim, so it should be checkable:
+
+- **eleven real projects are cloned into the tree and read to line numbers**, not
+  summarised. `bun run check:citations` resolves every `file.ts:123` in every
+  lesson against the source it names and fails if one points at a line that does
+  not exist
+- **every mechanism is switched off and measured.** A lesson earns its place only
+  if turning its mechanism off produces a failure you can watch. "200 tools" is
+  not an opinion about context windows; it is a `400` from OpenAI
+- **when a measurement contradicts the plan, the lesson says so.** Several
+  lessons here overturned what [docs/TODO.md](docs/TODO.md) predicted, and the
+  corrections are left visible rather than tidied away
+
+That is the difference from building an agent from scratch: from scratch teaches
+you the loop. This teaches you what the loop grows into once other people depend
+on it — and it gets that from code that already carries them.
 
 ## The whole thing in one sentence
 
