@@ -37,6 +37,9 @@ lesson-18-scheduling/.state/
 # Lesson 33's workflow journals and side-effect ledgers
 lesson-33-durable/.runs/
 
+# Lesson 34's invocation journals and charge ledgers
+lesson-34-idempotency/.runs/
+
 # Lesson 35's demo really writes and moves files. It cleans up after itself, but
 # an interrupted run can leave these behind, and one of them is a copy of the
 # fixture secret — which is Step 9's whole point, so it must not be committed.
