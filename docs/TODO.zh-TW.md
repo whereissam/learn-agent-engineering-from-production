@@ -306,10 +306,10 @@ Lesson 08-12   變成產品 · OpenWorker 篇  權限 / 無人值守 / server / 
                （11 併入 12、13 併入 18、14 刪除）
 Lesson 15-19   跑好幾個月 · Hermes 篇    記憶 / skills / 搜尋 / 排程 / 委派     ✅ 全部
 Lesson 20-27   一整個領域 · AI Search 篇 搜尋 / 抓取 / 檢索 / research loop    ✅
-Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-33、35、37
+Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-35、37
                28-29 OpenCode（執行的證據）✅ / 37 OpenHands（事件模型）✅
                30-33 Mastra ✅（schema 之後的抽象）
-               34 Restate（crash）/ 35 Anthropic SRT（沙箱）✅
+               34 Restate（crash）✅ / 35 Anthropic SRT（沙箱）✅
                36-37 OpenHands（執行世界 / action-observation）
 
 ━━━ Prod 篇（Lesson 50-59）：上線之後才會遇到的，不編進閱讀順序 ━━━
@@ -2025,7 +2025,7 @@ Notion、HubSpot 對 SendGrid）。三個裡有兩個站得住腳，所以任務
 
 ---
 
-## 待寫：Restate 篇（Lesson 34）
+## ~~待寫：Restate 篇（Lesson 34）~~ 已完成：exactly-once 是一份協議
 
 - **來源**：[restatedev/ai-examples](https://github.com/restatedev/ai-examples)
   （已 clone 在 `restate-ai-examples/`，`60d1eda`）。**很小**，
