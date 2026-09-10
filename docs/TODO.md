@@ -343,10 +343,10 @@ Lesson 08-12   into a product · OpenWorker  permissions / unattended / server /
                (11 merged into 12, 13 into 18, 14 deleted)
 Lesson 15-19   running for months · Hermes  memory / skills / search / scheduling / delegation  ✅ all
 Lesson 20-27   a whole domain · AI Search   search / crawl / retrieval / research loop     ✅
-Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-33, 35, 37
+Lesson 28-37   the ring around the loop    evidence / schema / durable / sandbox           ✅ 28-35, 37
                28-29 OpenCode (evidence of execution) ✅ / 37 OpenHands (event model) ✅
                30-33 Mastra ✅ (the abstractions after schema)
-               34 Restate (crash) / 35 Anthropic SRT (sandbox) ✅
+               34 Restate (crash) ✅ / 35 Anthropic SRT (sandbox) ✅
                36-37 OpenHands (the execution world / action-observation)
 
 ━━━ Prod (Lessons 50-59): things you only meet after launch; not in the reading order ━━━
@@ -2302,7 +2302,7 @@ measured and on the page.
 
 ---
 
-## To write: the Restate part (Lesson 34)
+## ~~To write: the Restate part (Lesson 34)~~ done: exactly-once is an agreement
 
 - **Source**: [restatedev/ai-examples](https://github.com/restatedev/ai-examples)
   (already cloned into `restate-ai-examples/`, `60d1eda`). **Very small**: the two

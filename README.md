@@ -62,7 +62,7 @@ your risk rules, when to stop, or what "correct" means for you.
 | Layer | Covered by |
 |---|---|
 | **1. Agent mechanics** — model → tool → result → stop | Lessons 1-5 |
-| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-14, 28-33, 35, 37 and 38 written; 34 and 36 planned |
+| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-14, 28-35, 37 and 38 written; 36 planned |
 | **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-19 |
 | **4. Domain tools** — the ceiling is what it can operate, not prompt wording | Lesson 6; Lessons 20-27 at full scale |
 | **5. Evaluation** — otherwise you can't tell whether a change helped | Lessons 7, 22, 25 |
@@ -73,17 +73,17 @@ the full measure → find → fix → confirm loop.
 
 **If you already understand the agent loop, start at Lesson 6.**
 
-## The completed path: 36 runnable steps
+## The completed path: 37 runnable steps
 
 The thesis of the series in one sentence:
 
 > **Learn how AI agents work by reading real open-source projects, one at a
 > time, and rebuilding the smallest version of each mechanism yourself.**
 
-**The 36 steps below are written and runnable.** Steps 1-20 are the core;
+**The 37 steps below are written and runnable.** Steps 1-20 are the core;
 steps 21-28 form an optional domain branch that can be skipped *as a whole*,
-and steps 29-36 return to the harness around the loop. The planned lessons
-continue after step 36. Every step names the source you are
+and steps 29-37 return to the harness around the loop. The planned lesson
+continues after step 37. Every step names the source you are
 reading at that point.
 
 ```mermaid
@@ -92,7 +92,7 @@ flowchart LR
     P2 --> P3["Steps 8-15<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
     P3 --> P4["Steps 16-20<br/><b>Running for months</b><br/>Hermes"]
     P4 --> P5["Steps 21-28<br/><b>A whole domain</b><br/>4 search projects"]
-    P5 --> P6["Steps 29-36<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
+    P5 --> P6["Steps 29-37<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
 ```
 
 > **Lesson numbers have gaps; step numbers don't.** Nothing is vacant. 11, 13
@@ -147,26 +147,26 @@ flowchart LR
 | 29 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
 | 30 | [32 Tool search](lesson-32-tool-search/) | Ten MCP servers connected — do 200 tools even fit? | Mastra `processors/tool-search.ts` |
 | 31 | [33 Durable runs](lesson-33-durable/) | The process died at 3am — where was the run? | Mastra `workflows/state-reader.ts` |
-| 32 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
-| 33 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
-| 34 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
-| 35 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
-| 36 | [38 The cache you break yourself](lesson-38-prompt-cache/) | Which line of your prompt is costing you the whole prefix? | OpenCode `protocols/utils/cache.ts` |
+| 32 | [34 Idempotency](lesson-34-idempotency/) | The effect happened but was never recorded — retry or not? | Restate `tour-of-agents/` |
+| 33 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
+| 34 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
+| 35 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
+| 36 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| 37 | [38 The cache you break yourself](lesson-38-prompt-cache/) | Which line of your prompt is costing you the whole prefix? | OpenCode `protocols/utils/cache.ts` |
 | | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system. Lesson 35 answers step 8's other half, and needs macOS.* | |
 
 Steps 21-28 can be skipped — they are a full-scale demonstration of the method
 from step 6. Each lesson README states its own prerequisites at the top.
 
-### The planned continuation · Lessons 34 and 36 — not written yet
+### The planned continuation · Lesson 36 — not written yet
 
-These extend the same path after step 36, and **none of the lessons in this table are runnable
+This extends the same path after step 37, and **the lesson in this table is not runnable
 today**. Primary sources have been cloned and scoped; which paths and line
 counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
 still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| 34 | The process crashed after the email was sent — should resume send it again? | Restate |
 | 36 | Where does the command run, and is that world still there after? | OpenHands |
 | | *Lesson 35 (written) is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
 
@@ -182,7 +182,7 @@ the facts*). **Lesson 34 is now the one to want most**: Lesson 33 ends with a
 journal that knows a step was interrupted and cannot tell you whether its side
 effect landed, and that is exactly the gap durable execution exists to close.
 
-### Prod part · Lessons 50-59 — *not* part of the 36 steps
+### Prod part · Lessons 50-59 — *not* part of the 37 steps
 
 Different entry rule, different stage:
 
@@ -361,14 +361,16 @@ With Pi above, that is twelve:
 | [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 |
 
-One repo in the planned set has **not** been cloned yet, and the table above
+One repo in the planned set is **cloned but not yet read**, and the table above
 deliberately doesn't list it: the OpenHands agent runtime lives in
 [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk),
-which Lesson 36 will need and nobody here has read. Lesson 37 read
-`All-Hands-AI/OpenHands` instead — same organisation, different repo, and the
-runtime is not in it (4 Python files; its README is titled "Agent Canvas").
-Getting that pair mixed up is exactly the mistake this section exists to
-prevent, and the first draft of Lesson 37 made it.
+which Lesson 36 needs. Lesson 37 read `All-Hands-AI/OpenHands` instead — same
+organisation, different repo, and the runtime is not in it (4 Python files; its
+README is titled "Agent Canvas"). Getting that pair mixed up is exactly the
+mistake this section exists to prevent, and the first draft of Lesson 37 made it.
+
+It stays out of the count until a lesson actually cites it. "Cloned" and "read
+line by line" are different claims, and this section only makes the second one.
 
 ### Referenced at the concept level only
 

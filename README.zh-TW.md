@@ -56,7 +56,7 @@ flowchart LR
 | 層 | 這系列 |
 |---|---|
 | **1. 單 agent 機制** — model → tool → result → stop | Lesson 1-5 |
-| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-14、28-33、35、37、38 已寫；34、36 規劃中 |
+| **2. Harness** — 權限、server、schema、執行證據、durability、沙箱 | Lesson 8-14、28-35、37、38 已寫；36 規劃中 |
 | **3. 長期運作** — 記憶、skills、排程、委派 | Lesson 15-19 |
 | **4. 領域工具** — 能力上限取決於它能操作什麼，不是 prompt 多漂亮 | Lesson 6；Lesson 20-27 是大型示範 |
 | **5. Evaluation** — 沒有它就不知道改動到底有沒有變好 | Lesson 7、22、25 |
@@ -66,15 +66,15 @@ flowchart LR
 
 如果你已經懂 agent loop，直接從 Lesson 6 開始。
 
-## 已完成的路：36 步，都跑得起來
+## 已完成的路：37 步，都跑得起來
 
 這個系列的主旨一句話：
 
 > 透過真實開源專案的原始碼，從零開始搞懂 AI agent，
 > 一次讀一個專案，把它的機制抽成自己寫得出來的最小版本。
 
-下面 36 步都寫完了、都跑得起來。第 1-20 步是核心；第 21-28 步是一條可以整包
-跳過的領域支線，第 29-36 步回到 loop 周圍的 harness。規劃中的課接在第 36 步
+下面 37 步都寫完了、都跑得起來。第 1-20 步是核心；第 21-28 步是一條可以整包
+跳過的領域支線，第 29-37 步回到 loop 周圍的 harness。規劃中的課接在第 37 步
 後面。每一步都標出你在讀哪個專案的哪一段。
 
 ```mermaid
@@ -83,7 +83,7 @@ flowchart LR
     P2 --> P3["第 8-15 步<br/><b>從 loop 到能用的系統</b><br/>OpenWorker + Mastra"]
     P3 --> P4["第 16-20 步<br/><b>跑好幾個月</b><br/>Hermes"]
     P4 --> P5["第 21-28 步<br/><b>一整個領域</b><br/>四個搜尋專案"]
-    P5 --> P6["第 29-36 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
+    P5 --> P6["第 29-37 步<br/><b>loop 周圍那一圈</b><br/>Mastra、OpenCode、OpenHands"]
 ```
 
 > **課號會跳，步驟號不會跳。** 沒有空著的號碼。11、13、14 的內容被消化進別課，
@@ -137,25 +137,25 @@ flowchart LR
 | 29 | [31 Processor pipeline](lesson-31-processors/) | guardrail 怎麼留在 loop 外，而且 secret 不漏進任何 sink？ | Mastra `core/src/processors/` |
 | 30 | [32 工具搜尋](lesson-32-tool-search/) | 接上十個 MCP server，200 個工具塞得進去嗎？ | Mastra `processors/tool-search.ts` |
 | 31 | [33 可續跑的 run](lesson-33-durable/) | process 半夜三點死了，那個 run 在哪裡？ | Mastra `workflows/state-reader.ts` |
-| 32 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
-| 33 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
-| 34 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
-| 35 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
-| 36 | [38 你自己弄壞的那個 cache](lesson-38-prompt-cache/) | 你 prompt 裡的哪一行，讓你賠掉整個前綴？ | OpenCode `protocols/utils/cache.ts` |
+| 32 | [34 Idempotency](lesson-34-idempotency/) | 副作用發生了卻沒被記下來，要不要重試？ | Restate `tour-of-agents/` |
+| 33 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
+| 34 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
+| 35 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
+| 36 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
+| 37 | [38 你自己弄壞的那個 cache](lesson-38-prompt-cache/) | 你 prompt 裡的哪一行，讓你賠掉整個前綴？ | OpenCode `protocols/utils/cache.ts` |
 | | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。Lesson 35 回答第 8 步的另一半，需要 macOS。* | |
 
 第 21-28 步可以整包跳過，它是第 6 步那套方法的大型示範，不是任何東西的前置。
 每一課的 README 開頭都會再標一次自己的前置。
 
-### 規劃中的續篇 · Lesson 34 與 36，還沒寫
+### 規劃中的續篇 · Lesson 36，還沒寫
 
-它們接在第 36 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
+它接在第 37 步後面，而且這張表裡的課目前都跑不起來。主要來源都 clone
 下來盤點過了；哪些路徑和行數真的驗證過、哪些（CrewAI、LangGraph、x402）
 目前只是對照來源還沒盤點，照實記在 [docs/TODO.md](docs/TODO.md)。
 
 | 課 | 這課回答的問題 | 來源 |
 |---|---|---|
-| 34 | 信已經寄出去了才 crash，接回來要不要再寄一次？ | Restate |
 | 36 | 指令在哪裡跑、跑完之後那個世界還在不在？ | OpenHands |
 | | *Lesson 35（已寫）講的是**能力邊界**：這個 process 碰得到什麼。36 講的是**環境的生命週期**：agent 的世界在哪裡、能活多久。* | |
 
@@ -169,7 +169,7 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生——而那正是
 durable execution 存在要補的縫。
 
-### Prod 篇 · Lesson 50-59，不算在 36 步裡
+### Prod 篇 · Lesson 50-59，不算在 37 步裡
 
 准入條件不一樣，因為它是另一個階段：
 
@@ -327,13 +327,15 @@ Lesson 1-5 幾乎是照著它走的。
 | [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35 |
 
-規劃中的來源裡有一個還沒 clone，所以上面那張表刻意沒有列它：OpenHands 的
-agent runtime 在
+規劃中的來源裡有一個**已經 clone、但還沒讀**，所以上面那張表刻意沒有列它：
+OpenHands 的 agent runtime 在
 [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)，
-Lesson 36 會需要它，而這裡沒有人讀過。Lesson 37 讀的是
-`All-Hands-AI/OpenHands`，同一個組織、不同的 repo，而且 runtime 不在裡面
-（只有 4 個 Python 檔，README 標題是「Agent Canvas」）。
+Lesson 36 需要它。Lesson 37 讀的是 `All-Hands-AI/OpenHands`，同一個組織、不同的
+repo，而且 runtime 不在裡面（只有 4 個 Python 檔，README 標題是「Agent Canvas」）。
 把這兩個搞混正是這一節存在要防的事，而 Lesson 37 的第一版就搞混了。
+
+在真的有一課引用它之前，它不算進那個數字裡。「clone 了」跟「逐行讀過」是兩個不同
+的主張，而這一節只做後面那一個。
 
 ### 只在概念層引用的
 
