@@ -50,6 +50,7 @@ const SOURCE_ROOTS = [
 	"mastra",
 	"opencode",
 	"openhands",
+	"software-agent-sdk",
 	"crawl4ai",
 	"firecrawl",
 	"gpt-researcher",
