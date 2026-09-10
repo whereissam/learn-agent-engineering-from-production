@@ -20,6 +20,8 @@
 		"lesson-10": "bun run lesson-10-agent-server/demo.ts",
 		"lesson-10:server": "bun run lesson-10-agent-server/server.ts",
 		"lesson-10:client": "bun run lesson-10-agent-server/client.ts",
+		"lesson-11": "bun run lesson-11-credentials/demo.ts",
+		"lesson-11:agent": "bun run lesson-11-credentials/agent.ts",
 		"lesson-12": "bun run lesson-12-mcp/agent.ts",
 		"lesson-13": "bun run lesson-13-tool-drift/demo.ts",
 		"lesson-13:agent": "bun run lesson-13-tool-drift/agent.ts",

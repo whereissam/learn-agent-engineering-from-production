@@ -379,8 +379,8 @@ Other conclusions from the same review round (details in each section):
 | Lesson | Disposition |
 |---|---|
 | 10 GUI | still deferred. Tauri plus React plus Python, not portable |
-| 11 OAuth | split: token lifecycle folded into 12 (its "OAuth half-lesson"), the common abstraction over 25 connectors deferred to Prod 55 |
-| 13 scheduling | folded into Lesson 18, which names it in its own header |
+| 11 OAuth | split: the protocol half folded into 12. **The number was reused for Lesson 11, the credential lifecycle** (expiry, ownership, revocation). The common abstraction over 25 connectors stays deferred to Prod 55 |
+| 13 scheduling | folded into Lesson 18, which names it in its own header. **The number was reused for Lesson 13, tool drift** |
 | 14 audit log | **deleted**. Lesson 8's Exercise 4 is already a simplified version, and says so |
 
 > Each of those three is now stated **in the lesson it landed in**, and in the
