@@ -151,7 +151,7 @@ export class TokenVault {
 
 		const refreshed: Token = {
 			...token,
-			accessToken: `at_${server}_${Math.random().toString(36).slice(2, 10)}`,
+			accessToken: `at_DEMOONLY_${server}_${Math.random().toString(36).slice(2, 10)}`,
 			expiresAt: now + 60_000,
 		};
 		this.tokens.set(key, refreshed);

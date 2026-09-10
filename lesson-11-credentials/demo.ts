@@ -20,6 +20,17 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 const NOW = 1_800_000_000_000;
 const SERVER = "calendar";
 
+/**
+ * The fixture credential, following Lesson 31's convention: the string says
+ * DEMOONLY and its entropy is zeros.
+ *
+ * Not cosmetic. A lesson whose subject is credentials leaking into text is
+ * exactly the lesson a secret scanner will flag, and the first version used a
+ * random-looking hex suffix that tripped GitGuardian on the pull request. A
+ * fixture has to be legible as a fixture to a machine as well as a reader.
+ */
+const FAKE_ACCESS_TOKEN = "at_DEMOONLY_user-a_0000000000";
+
 function token(owner: string, offsetMs: number, refreshable = true): Token {
 	return {
 		accessToken: `at_DEMOONLY_${owner}_0000000000`,
@@ -81,7 +92,7 @@ for (const errorStyle of ["verbose", "careful"] as const) {
 	// The literal token, not something derived from the vault: the first draft of
 	// this line asked hasValidTokens() first, got `true` (Step 1), compared against
 	// an empty string, and reported every message as a leak.
-	const leaked = result.text.includes("at_DEMOONLY_user-a_0000000000");
+	const leaked = result.text.includes(FAKE_ACCESS_TOKEN);
 
 	console.log(`\n  ${errorStyle.padEnd(8)} ${leaked ? red("LEAKS THE TOKEN") : green("no credential in the text")}`);
 	for (const line of result.text.split("\n")) console.log(dim(`           ${line}`));

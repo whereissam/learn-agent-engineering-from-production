@@ -132,6 +132,6 @@ describe("what the failure says out loud（Lesson 11）", () => {
 	test("redacted() keeps enough to correlate and not enough to use", () => {
 		const shown = redacted("at_DEMOONLY_user-a_0000000000");
 		assert.ok(shown.startsWith("at_DEM"));
-		assert.ok(!shown.includes("0000000000"));
+		assert.ok(!shown.includes("user-a"));
 	});
 });
