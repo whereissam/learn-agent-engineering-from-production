@@ -12,6 +12,7 @@
  */
 
 import OpenAI from "openai";
+import { describeProviderError } from "../providers/errors.ts";
 import type {
 	AssistantBlock,
 	Message,
@@ -33,8 +34,64 @@ export interface OpenAiStreamingOptions {
 	label?: string;
 }
 
+/**
+ * A `fetch` that does not let a failure's explanation get thrown away.
+ *
+ * Two things go wrong without it, and both were found the hard way (see
+ * `shared/providers/errors.ts`):
+ *
+ *   1. on a streaming request the SDK does not always read the error body at
+ *      all, so a perfectly good explanation becomes `400 status code (no body)`
+ *   2. Google's OpenAI-compatible endpoint answers with a JSON **array**,
+ *      `[{"error": {...}}]`, where the SDK looks for `{"error": {...}}`
+ *
+ * So on any non-2xx we read the body ourselves, unwrap a single-element array,
+ * and hand the SDK a response it can parse. The status and the body's meaning
+ * are unchanged — this only stops them being lost.
+ *
+ * `content-encoding` and `content-length` are dropped because the body has been
+ * decoded by the time it is handed back; leaving them would describe bytes that
+ * no longer exist.
+ */
+export async function fetchPreservingErrorBody(
+	input: Parameters<typeof fetch>[0],
+	init?: Parameters<typeof fetch>[1],
+): Promise<Response> {
+	const response = await fetch(input, init);
+	if (response.ok) return response;
+
+	let text: string;
+	try {
+		text = await response.clone().text();
+	} catch {
+		return response;
+	}
+	if (text.trim().length === 0) return response;
+
+	let body = text;
+	try {
+		const parsed = JSON.parse(text);
+		if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object") {
+			body = JSON.stringify(parsed[0]);
+		}
+	} catch {
+		// Not JSON. Handing the text back unchanged still beats "(no body)".
+	}
+
+	const headers = new Headers(response.headers);
+	headers.delete("content-encoding");
+	headers.delete("content-length");
+	headers.set("content-type", "application/json");
+
+	return new Response(body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export function openaiStreamingProvider(options: OpenAiStreamingOptions): StreamingProvider {
-	const client = new OpenAI({ apiKey: options.apiKey, baseURL: options.baseURL });
+	const client = new OpenAI({
+		apiKey: options.apiKey,
+		baseURL: options.baseURL,
+		fetch: fetchPreservingErrorBody,
+	});
 	const tokenParam = options.tokenParam ?? "max_completion_tokens";
 
 	const provider: StreamingProvider = {
@@ -234,11 +291,9 @@ export function openaiStreamingProvider(options: OpenAiStreamingOptions): Stream
 
 				yield {
 					type: "error",
-					message: aborted
-						? "Aborted by user"
-						: error instanceof Error
-							? error.message
-							: String(error),
+					// Not `error.message`: see shared/providers/errors.ts for the hour
+					// that decision cost, and why an error string is a product surface.
+					message: aborted ? "Aborted by user" : describeProviderError(error),
 					aborted,
 				};
 			}

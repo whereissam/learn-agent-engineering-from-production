@@ -10,7 +10,8 @@
 > control.
 >
 > Source: `openworker/coworker/mcp/` (5 files, 647 lines),
-> `mastra/packages/mcp/src/{client,server}`
+> `mastra/packages/mcp/src/{client,server}` — including `oauth.py`, which was
+> originally the token-lifecycle half of Lesson 11 and folded into this lesson.
 
 ## Questions this lesson answers
 

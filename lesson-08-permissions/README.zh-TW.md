@@ -509,6 +509,11 @@ Lesson 6 的 `create_incident_report` 目前是 `mutating: true`。
 
 （OpenWorker 有 `coworker/audit.py`，174 行，做的就是這件事。）
 
+這個練習就是 Lesson 14 原本要寫的東西。它被刪掉而不是寫出來，因為一整課只會重複
+你在這裡二十行就能做完的事。它答不出來的那一半——**上週這個 agent 到底做了什麼**，
+跨越好幾輪、好幾個 session——需要的是 tracing 而不是 log，而那部分還沒寫：它在
+Prod 53。
+
 ### ~~練習 5：接回 Lesson 2 的 agent~~ → 已經變成課程本體
 
 原本這是一題 ⭐⭐⭐ 練習，而那是錯的安排：把引擎接進 loop 不是延伸，

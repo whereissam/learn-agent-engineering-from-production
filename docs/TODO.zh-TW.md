@@ -49,6 +49,252 @@ Lesson 27 把門檻關掉（舒肥食譜排到第 4）。關不掉的機制講�
 > 一個判準如果只會對爛東西說不，那它沒有用；
 > 這張表的價值正在於它會對**好東西**說不。
 
+### 新候選：vLLM Semantic Router（2026-09-09 盤點）
+
+[`vllm-project/semantic-router`](https://github.com/vllm-project/semantic-router)
+——Go 寫的，一整排模型前面的路由層。
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 沒有。它是 dispatcher，不是 agent |
+| 2 核心問題 | 工具（選擇）、以及模型路由 |
+| 3 可跑實驗 | 有，而且已經有一個了——就是 Lesson 32 的 |
+| 4 未覆蓋 | **否。** 工具選擇那一半已經被 Lesson 32 蓋掉 |
+| 5 可關掉 | 可以，而且他們把關掉的數字公布了 |
+
+**結論：不成為新的主線課。改成兩種用途**，兩個都已經用上：
+
+1. **Lesson 32 的生產對照，已完成。** 它的「semantic tool selection」就是
+   Lesson 32 建的那個機制，只是規模是這個 repo 到不了的：741 個工具、目錄
+   127315 個 token 壓到 1084，量在 Berkeley Function Calling Leaderboard 上。
+   它那張準確率表（49 個工具 94% → 94%、207 個 64% → 94%、417 個 20% → 94%、
+   741 個 13.62% → 43.13%）正好回答了 Lesson 32 自己量出來的那個尷尬結果——
+   128 工具的 flat 基準線在準確率上還是贏：**200 個工具的目錄坐在交叉點的近
+   側。** 沒有他們那張表，Lesson 32 就只能二選一：報一個划不來的機制，或者
+   安靜地不提。
+2. **Prod 54（模型路由）現在有來源了。** 那一課的來源欄本來是 `—`。用分類器
+   而不是靜態規則來路由，就是它在做的事；它要不要變成一課，仍然得過第 5 題。
+
+它不進主線的理由是第 1 題，跟 vLLM 本身不進主線的理由一樣：它坐在 agent 底下，
+不在 agent 裡面。而且它用 embedding 而不是 BM25 來選，那是第 22 課的決定，不是
+一個新題目。
+
+## 同題材的其他課程，以及這一份到底差在哪
+
+2026-09-09 盤點，五份被丟進來之後做的。**沒有一份改變這個 repo 的計畫**，但把
+它們各自做得好的地方寫下來，是那句定位敘述能保持誠實、不變成行銷話術的唯一辦法。
+
+| Repo | 形狀 | Stars | 它是什麼 |
+|---|---|---|---|
+| [microsoft/ai-agents-for-beginners](https://github.com/microsoft/ai-agents-for-beginners) | 18 課，每課 README + 影片 + Python 範例 | 74300 | 教 Microsoft Agent Framework 與 Foundry；需要 Azure 帳號 |
+| [rohitg00/ai-engineering-from-scratch](https://github.com/rohitg00/ai-engineering-from-scratch) | 20 個階段共 523 課，約 342 小時 | 53600 | 從線性代數往上的整套 ML；「先手刻一次，再用生產函式庫跑同一件事」 |
+| [datawhalechina/Agent-Learning-Hub](https://github.com/datawhalechina/Agent-Learning-Hub) | 8 個階段加 11 級專案階梯 | 7700 | 中文；策展連結加實作，涵蓋 LangGraph、Hermes、OpenHands、GPT Researcher |
+| [WenyuChiou/awesome-agentic-ai-zh](https://github.com/WenyuChiou/awesome-agentic-ai-zh) | 240+ 資源的學習路線，三語 | 6700 | 排序與指路，刻意不重複它指過去的文件 |
+| [bryanyzhu/agentic-ai-system-course](https://github.com/bryanyzhu/agentic-ai-system-course) | 22 章的模式，英中雙語 | 605 | 不綁框架的系統設計；明說不是一個帶著走的專案 |
+
+### 唯一誠實的差別
+
+那五份裡有兩份，指的是**跟這個 repo 讀的同一批來源專案**——OpenCode、Hermes、
+OpenHands、GPT Researcher。所以來源不是差別，宣稱它是差別就是說謊。
+
+差別在於一個來源被選中之後發生什麼事：
+
+| | 那些課程 | 這個 repo |
+|---|---|---|
+| 來源 | 點名、附連結、做摘要 | clone 進樹裡、讀到具體行號、以 `file.ts:12` 引用 |
+| 程式碼 | 一份展示概念成立的範例 | 一支**先失敗**的程式，把機制關掉跑一次 |
+| 主張 | 「你可以做 X」 | 一個真跑出來的數字，寫在 README 裡，附上 provider 與模型名稱 |
+| 主張錯了的時候 | 通常發現不了 | `check:i18n`、`check:citations` 與契約測試會抓漂移，TODO 會記下更正 |
+
+Lesson 32 就是這禮拜的例子，而且是雙向的。計畫說「成本很低」，來源引用寫的是
+`tool-search.ts:13`；真的把它建出來之後，得到的是一個錯的行號、一道沒人提過的
+provider 天花板、一個 3.5 倍的 token 結果、一個小到不能宣稱的準確率差距，以及
+一個一度看起來像是模型行為發現的量測程式 bug。**這五件事沒有一件能在對來源做
+摘要時活下來。它們只有在你真的跑過之後才會出現。**
+
+### 它們做得比較好、而這個 repo 不會做的事
+
+把這段講明白，才不會讓上面那段變成推銷：
+
+- **ai-engineering-from-scratch** 涵蓋這個 repo 完全跳過的 ML 基礎——backprop、
+  attention、tokenizer。如果你想知道模型怎麼運作、而不是怎麼在模型外面蓋東西，
+  它是更好的那一本。
+- **Agent-Learning-Hub** 與 **awesome-agentic-ai-zh** 是更好的**索引**。這個 repo
+  讀十二個專案，它們指向幾百個。還在決定要學什麼的人，該從那裡開始，不是這裡。
+- **ai-agents-for-beginners** 有影片和 50 種以上的翻譯。這個 repo 只有兩種語言
+  加一個維持它們誠實的檢查器，而那已經是上限了。
+- **agentic-ai-system-course** 是**刻意**不綁框架的，而且涵蓋協作與設計畫布這些
+  這個 repo 沒有課的地帶。
+
+這裡的範圍刻意維持窄：一條路、十二個真專案、每個機制都縮小到可以關掉並量測。
+一份閱讀清單是另一種產品，這個 repo 不該變成那個。
+
+### 這次盤點真正挖到的：三個候選
+
+把那五份課綱對著已寫的 32 課做差集，再把每個活下來的丟進本檔開頭那張判準表。
+課程裡涵蓋的東西大部分不是這裡已經有了，就是過不了第 3 或第 5 題；被打掉的
+列在候選之後，免得有人再提一次。
+
+#### ~~候選 1：你自己弄壞的那個 cache~~ → **Lesson 38，已完成**
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 是。它就住在 loop 怎麼組出一個 request 裡面 |
+| 2 核心問題 | context，以及成本 |
+| 3 可跑實驗 | 有，而且已經量過了——見下 |
+| 4 未覆蓋 | 是。Lesson 05 一句話，Lesson 26 一個子句 |
+| 5 可關掉 | 可以，而且失敗是全有全無，不是漸進的 |
+
+在提出來之前先在 `gpt-5` 上量過，而那是它出現在這張表而不是被打掉的唯一理由：
+
+```text
+turn 1 (cold)              prompt=8025 cached=0
+turn 2 (same prefix)       prompt=8025 cached=7936
+turn 3 (same prefix)       prompt=8025 cached=7936
+turn 4 (timestamp first)   prompt=8035 cached=0
+turn 5 (timestamp first)   prompt=8035 cached=0
+```
+
+在一個其他部分完全相同的 prompt 前面加一個時間戳，代價是**接下來每一輪**都少
+7936 個 cached token。
+
+**讓它成為一課而不是一個小技巧的，是另一半**：這個系列已經教過的那些機制，
+正好坐在會把 cache 弄壞的位置上。
+
+| 課 | 它做什麼 | 那對 prefix 做了什麼 |
+|---|---|---|
+| 15 記憶 | 召回的記憶進 `buildSystemPrompt()` | 每一輪都在改寫最前面那一段 |
+| 32 工具搜尋 | `session.requestTools()` 會隨著載入變長 | ~~工具清單是 prefix 的一部分~~ **錯了，見下** |
+| 05 壓縮 | 改寫歷史 | 讓改寫點之後的一切失效 |
+| 31 processor | 在送進模型的路上改內容 | 完全取決於它掛在哪 |
+
+> **Lesson 32 那一列是錯的，而把課建出來就是抓到它的方式。** 那個會長大的工具
+> 清單，量到的命中率是 96%，不是 0%。兩個理由，而且都比它們取代掉的那個說法值錢：
+>
+> 1. **它是用附加的方式長大的。** 弄壞前綴的不是「長大」，是「改寫前面已經有的
+>    東西」。一個在尾端增加項目的工具清單，跟一個在尾端增加輪次的訊息串一樣安全。
+>    該怕的形狀是被**重新排序**的工具清單——同一批工具、不同順序——而那正是一個
+>    `Set`、一份目錄列表或一個相關性排名會產生的東西。
+> 2. **你 request 物件裡的區塊順序，不是 provider 拿去雜湊的順序。** 那些數字只有
+>    在 `tools` 表現得像坐在 `messages` 後面時才對得起來。所以 `prefix.ts` 兩種
+>    順序都帶著，並且標明其中一種是量出來的、不是文件寫的。
+>
+> 這是這份檔案裡第三條被「把它描述的東西跑一次」修正掉的條目，前兩條是 Lesson 32
+> 的 `:13` 引用，以及「tracing 在 Lesson 26」那個說法。這個模式一致到可以當成一條
+> 規則：**一份計畫裡關於某個機制的肯定句，在那個機制真的跑起來之前都只是假設。**
+
+所以這一課是把這個系列拿來對付它自己，就像 2026-08-02 那一輪對三篇寫作做的事。
+那是別的課程寫不出來的部分，因為它要求你先把其他課建出來。
+
+> 這也讓一條延後失效。下面那張「暫時不開課」的表把 cache 擋在「等 Restate 跟
+> OpenCode 都讀完再說」後面。OpenCode 讀完了（Lesson 28、29）。那個條件過期了。
+
+#### ~~候選 2：你批准之後，工具的描述被改掉了~~ → **Lesson 13，已完成**
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | 是 |
+| 2 核心問題 | 工具，以及權限 |
+| 3 可跑實驗 | 有：一個本地 MCP server，第二次 `tools/list` 回不一樣的東西 |
+| 4 未覆蓋 | 是。Lesson 12 點出了那個不對稱就停在那裡 |
+| 5 可關掉 | 可以：批准時釘住 (name, description, schema) 的 hash，或者不釘 |
+
+Lesson 12 已經把重要的那一半講出來了——*「描述是誰寫的｜別人，而且你改不了」*
+——卻沒有問：他們在你**批准之後**才改掉，會怎麼樣。把釘子關掉，一個被改過描述
+的工具應該就會用新語意被呼叫；打開，它應該拒絕並說出哪個欄位動了。
+
+它跟兩門已寫的課是組合而不是重複：Lesson 8（批准到底是批准了**什麼**）與
+Lesson 32（一個在 `search` 與 `load` 之間被改掉描述的工具——那幾個 phase 本來
+就在那裡可以掛）。
+
+**已經建出來了，而且用掉了空著的 13 號**，就放在它該在的第 12 課旁邊。在 `gpt-5`
+上量，每種 policy 三次：
+
+| policy | sent to the attacker | answered the question |
+|---|---|---|
+| off | 3/3 | 3/3 |
+| block | 0/3 | 0/3 |
+| fallback | 0/3 | 3/3 |
+
+第三列是計畫裡沒有的。`block` 是最直覺的防禦，而它沒有用：它扣住了任務需要的那個
+工具，於是 agent 什麼都答不出來，而一個把每次上游改動變成故障的控制，一週內就會
+被關掉。`fallback`——工具留著、用**當初批准的**描述、忽略 server 剛送來的那份——
+既安全又還能動。
+
+#### 候選 3：什麼時候 agent 是錯的工具
+
+| 題目 | 答案 |
+|---|---|
+| 1 真的 loop | **沒有可讀的來源專案** |
+| 2 核心問題 | evaluation |
+| 3 可跑實驗 | 有：同一組 20 個任務，一次用確定性腳本、一次用 agent |
+| 4 未覆蓋 | 是，這裡沒有，別的地方也沒有 |
+| 5 可關掉 | 太容易了 |
+
+四份課程 repo 都叫你「知道什麼時候不要用 agent」。**沒有一份量過它。** 實驗是
+把同一組任務用兩種方式各跑一次，比較成功率、成本、延遲，以及重跑之間的變異
+——最後那個通常才是決定性的數字，而且沒有人報。
+
+它過不了第 1 題，於是採用 Lesson 6、7、25 已經採用過的那個豁免：開源專案在那裡
+露出來的是缺口而不是解法，而課裡必須講明。優先度低於另外兩個，正是因為這一點。
+
+#### 被打掉的，附理由，免得又回來
+
+| 題目 | 它來自哪 | 為什麼不做 |
+|---|---|---|
+| A2A / NLWeb 協定 | microsoft Lesson 11 | 是管線，沒有可關掉的失敗，跟 `connectors/` 被延後是同一個理由 |
+| planner / executor / reviewer 模式 | Agent-Learning-Hub Stage 4、agentic-ai Ch.09-10 | 上面已經以「是名詞不是問題」打掉過；真正的問題在 Lesson 19、24、33 手上 |
+| metacognition、self-evolving agent | microsoft Lesson 9、agentic-ai Ch.21 | Lesson 29 已經確立「自我回報不是證據」，而累積由 Lesson 16 蓋掉 |
+| 平行工具呼叫 | agentic-ai Ch.17 | 真的已經蓋到了：Lesson 01 介紹它，Lesson 24 把它展開 |
+| browser / computer use | Agent-Learning-Hub Stage 6、microsoft Lesson 15 | 是真的缺口，但工程量重，而它的失敗模式（selector 易碎）別處已經寫得很清楚。維持延後 |
+| 部署與擴展 | microsoft Lesson 16 | 不是 agent 的問題 |
+
+### 2026-09-10：三個從缺的來源專案，以及一次引用稽核
+
+這個系列宣稱逐行讀過的十二個專案裡，有三個**從來沒有被 clone 進這棵樹**：
+Pi（Lesson 1-6）、OpenWorker（8-10、12）、Hermes（15-19）。其他都在，這三個是
+憑筆記引用的。
+
+那留下了大約一百個沒有任何東西檢查得了的 `file.py:NN` 主張。`check:i18n` 比對的
+是一課的兩個語言版本，所以它抓得到「一邊有、另一邊沒有」的引用——它判斷不了哪一
+邊是對的，因為被引用的檔案根本不在磁碟上。
+
+三個現在都 clone 了，並且跟其他的一樣加進 `.git/info/exclude`：
+
+```bash
+git clone --depth 1 https://github.com/earendil-works/pi           pi
+git clone --depth 1 https://github.com/andrewyng/openworker        openworker
+git clone --depth 1 https://github.com/NousResearch/hermes-agent   hermes-agent
+```
+
+**稽核結果是乾淨的。** `scripts/check-citations.ts` 在 14 個來源專案裡解析了 362
+個引用，每一個都指向一個存在的行。兩個最顯眼的引用也用眼睛核過：
+
+- `agent-loop.ts:170-272` 正好是 Pi 的外圈與內圈迴圈，結束在 `agent_end`——
+  那就是 Lesson 1 說它是的東西
+- `risk.py:18` 是 `class RiskClass(str, Enum):` 加上那五個類別，那就是 Lesson 8
+  說它是的東西
+
+以這份檔案最近的紀錄來看，這個結果比預期好。這個月已經有三條紀錄因為「把它描述
+的東西跑一次」而被更正；而那些指向沒讀過的專案的引用，反倒是撐住的那部分。
+
+**這個檢查器證明的是弱的那一半**，而它自己的檔頭有講：檔案存在、而且行號在檔案
+裡面。一個已經滑掉二十行、但還落在檔案內的引用會通過。釘住那一行的**內容**考慮
+過然後被否決了——上游每次重新排版它都會紅，一個月內就會被刪掉，而那跟契約測試用
+的是同一套理由。
+
+建它的過程中發現的兩件事，都記下來，因為它們正是這個檢查器存在要抓的那類錯誤：
+
+- 它第一次回報了十個壞掉的引用，而那些都是好的。它們指向**這個 repo 自己的檔案**，
+  而它當時沒有把那些放進索引
+- 把有歧義的引用收窄到「文件有提到的那些 repo」之後，它回報 Lesson 35 的
+  `engine.ts:173` 壞了。那個引用是對的——`shared/permissions/engine.ts` 的第 173
+  行正是那一課描述的 `WRITE_LOCAL` 檢查——而那份 README 只是從來沒有用過「shared」
+  這個字。**一個自信到可以指控別人的檢查器，需要跟它檢查的東西一樣的查證。**
+
+仍然沒有 clone，而且仍然是刻意的：`OpenHands/software-agent-sdk`，Lesson 36 會
+需要它。Credits 那一段有寫，而那件事沒有變。
+
 ## 全貌
 
 ```
@@ -60,9 +306,9 @@ Lesson 08-12   變成產品 · OpenWorker 篇  權限 / 無人值守 / server / 
                （11 併入 12、13 併入 18、14 刪除）
 Lesson 15-19   跑好幾個月 · Hermes 篇    記憶 / skills / 搜尋 / 排程 / 委派     ✅ 全部
 Lesson 20-27   一整個領域 · AI Search 篇 搜尋 / 抓取 / 檢索 / research loop    ✅
-Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-31、35、37
+Lesson 28-37   loop 周圍那一圈           執行的證據 / schema / durable / 沙箱  ✅ 28-33、35、37
                28-29 OpenCode（執行的證據）✅ / 37 OpenHands（事件模型）✅
-               30-31 Mastra ✅ / 32-33 Mastra（schema 之後的抽象）
+               30-33 Mastra ✅（schema 之後的抽象）
                34 Restate（crash）/ 35 Anthropic SRT（沙箱）✅
                36-37 OpenHands（執行世界 / action-observation）
 
@@ -72,7 +318,7 @@ Lesson 50      本地模型的 tool calling   換成 Qwen / Llama 後為什麼�
 Lesson 51      Inference serving（選修）  batching / KV cache / prefix，要 GPU    待寫
 Lesson 52      串流語音輸出              取消 / 舊音訊 / 換手（Fish Speech 當工具） 待寫
 Lesson 53      Tracing / observability   span、成本歸因（Mastra、Phoenix）       待寫
-Lesson 54      Model routing / fallback  換 provider 續舊 session                待寫
+Lesson 54      Model routing / fallback  換 provider 續舊 session（vLLM Semantic Router）  待寫
 Lesson 55      OAuth / credential        token 生命週期、多使用者隔離            待寫
 Lesson 56      工具要花錢                 agent 可以自己決定付款嗎（x402）        待寫
 Lesson 57      資料邊界                  什麼能進 trace / memory / subagent       待寫
@@ -121,7 +367,7 @@ Lesson 10（agent server）✅  →  Lesson 12（MCP）✅  →  Lesson 30（sch
 Mastra 之後再接兩個**補抽象層**的來源（2026-07-28 決定，見文末兩節）：
 
 ```
-30 schema 相容 → 31 processor → 32 tool search → 33 durable state machine
+30 schema 相容 ✅ → 31 processor ✅ → 32 tool search ✅ → 33 durable state machine ✅
                                                         ↓
                               34 Restate：狀態機裡的那一步 crash 之後怎麼辦
                               35 Anthropic SRT：批准之後，進程實際碰得到什麼
@@ -138,9 +384,13 @@ Mastra 之後再接兩個**補抽象層**的來源（2026-07-28 決定，見文�
 | 課 | 處置 |
 |---|---|
 | 10 GUI | 維持延後。Tauri + React + Python，不可移植 |
-| 11 OAuth | 拆開：token 生命週期併進 12，25 個 connector 的共同抽象延後 |
-| 13 排程 | 併進 Lesson 18 |
-| 14 audit log | **刪掉**。Lesson 8 的練習 4 已經是它的簡化版 |
+| 11 OAuth | 拆開：協定那一半併進 12。**號碼被重新用在 Lesson 11，憑證的生命週期**（過期、擁有者、撤銷）。25 個 connector 的共同抽象仍然延後到 Prod 55 |
+| 13 排程 | 併進 Lesson 18，那一課自己的標頭有寫。**號碼被重新用在 Lesson 13，工具漂移** |
+| 14 audit log | **刪掉**，之後號碼被重新使用。**Lesson 14 現在是 tracing**——第 8 課練習 4 答不出來的那一半 |
+
+> 這三條現在都寫在**它們落腳的那一課裡**，也寫在 README 的編號說明裡。它們原本
+> 只記在這裡，而這裡不是讀者會去看的地方——那就是為什麼那個號碼缺口一直被讀成
+> 「漏掉了」。
 
 ### 專案定位（四個專案不在同一個抽象層級）
 
@@ -528,8 +778,15 @@ connector 讀完對學習沒有幫助。
 - **來源**：`openworker/coworker/audit.py`（174 行）
 - **決定**：Lesson 8 的練習 4 已經是這題的簡化版，
   單獨成課只會重複。「這個 agent 上週到底做了什麼」這個問題，
-  真正缺的是 tracing 而不是 log，那部分歸到 Lesson 26
-  （見 Mastra 篇的 `core/src/observability/`）
+  真正缺的是 tracing 而不是 log
+
+> **2026-09-09 更正，2026-09-10 解決。** 這一條、Mastra 的併入表、以及 roadmap
+> 缺口清單，三個地方都寫著 tracing「歸到 Lesson 26」。Lesson 26 裡連一次 span 或
+> trace 都沒有提到——它談的是 token 帳與預算。三份文件互相同意，不等於其中一份
+> 被查證過。
+>
+> 這個題目原本沒寫，現在是 **Lesson 14**，用的正是這一條自己空出來的號碼。
+> Prod 53 保留 Lesson 14 不做的部分：OTLP、exporter、抽樣、以及一個真的後端。
 
 ---
 
@@ -1623,19 +1880,114 @@ processor 全關       LEAK / LEAK / LEAK
 - **接哪裡**：Lesson 15 講的是**記憶層**的注入防禦，這課是 **I/O 邊界**的
   防禦，兩個位置不同。`cost-guard.ts` 直接接 Lesson 26
 
-### Lesson 32：200 個工具塞不進 context
+### ~~Lesson 32：200 個工具塞不進 context~~ 已完成
+
+`lesson-32-tool-search/`：`catalog.ts`（20 個服務共 200 個工具，加上 12 個照人
+真正會講的話寫的任務）、`tool-search.ts`（BM25 索引、兩個 meta-tool、三個
+phase）、`demo.ts`（離線：bytes、排名、各 phase 的拒絕）、`agent.ts`（對真模型
+跑四種模式）、`tests/tool-search.test.ts`。
+
+**把機制關掉的實驗，失敗的方式跟計畫預測的不一樣，而真正的答案更好。** 計畫寫的
+是一套 token 成本論述。實際發生的是：
+
+```text
+Mode: ceiling — all 200 tools in one request
+  rejected  400 Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 200 instead.
+```
+
+> 在 OpenAI 上，一個 200 工具的 request 不是一個合法的 request。工具搜尋通常被
+> 當成一種最佳化來賣，而最佳化是你可以拒絕的東西。這是一道天花板。
+
+量測結果，12 個任務、`gpt-5`、`MAX_TOKENS=8192`：
+
+| mode | correct | input tokens | model calls |
+|---|---|---|---|
+| flat (128 tools, expected tool always present) | 11/12 | 48950 | 12 |
+| search-bare (2 meta-tools, no instruction) | 10/12 | 14009 | 36 |
+| search (+ Mastra's injected instruction) | 9/12 | 14707 | 35 |
+
+這一輪確定了三件事，其中兩件是推翻初稿的：
+
+- **token 的節省是真的（3.5 倍），準確率的差距不是。** 12 題裡差一到兩題是雜訊。
+  寫作時就照實講，不去宣稱一個百分比。
+- **來回次數是隱藏的價格**：36 次模型呼叫對上 12 次。token 比較便宜，延遲三倍。
+- **Mastra 注入的那句指示（`tool-search.ts:438`）在足夠的 output 額度下沒有造成
+  可量測的差別。** 第一次跑的結論說它是關鍵——見下面那個量測 bug。
+
+**一個差點變成「發現」的量測 bug。** 第一次跑，search 模式是 2/12，多數是「沒有
+呼叫工具」，讀起來像是模型拒絕搜尋。當時 `MAX_TOKENS` 是 2048，而 `gpt-5` 會先
+把 output 額度花在推理上；一個空回應是截斷，不是拒絕。拉到 8192 之後 search 從
+2/12 變 9/12、search-bare 從 0/12 變 10/12。這是第 26 課那個陷阱從另一側出現，
+而 README Step 5 刻意把它留在課裡。
+
+**BM25 吃使用者原句是 7/12（top-5）**，而每一個沒中都是詞彙不重疊（「直接推
+main」對「branch protection」）。這就是為什麼查詢字串由模型寫、不是由 harness
+寫——也是生產版本改用 embedding 的理由（見上面 Semantic Router 那一節）。
+
+**兩種模式下的每一個錯，都是跨廠商的近似重複**（Datadog 對 Sentry、Slack 對
+Notion、HubSpot 對 SendGrid）。三個裡有兩個站得住腳，所以任務集只有一個正確答案
+這件事是個判斷，README 有講明。12/12 從來就不存在。
+
+留給 Lesson 33 的：已載入集合住在哪裡。Mastra 的 `tool-search-stores.ts`（258 行）
+把它做成可抽換、帶 TTL、還有一個以 thread 為鍵的版本，那是同一個「可變的 agent
+狀態住在哪裡」的問題裝在更小的盒子裡。
+
+#### 原本的計畫
 
 - **來源**：`mastra/packages/core/src/processors/processors/tool-search.ts`
   （654 行）+ `tool-search-stores.ts`
 - **會學到**：工具不是一開始全給模型，而是先 **BM25 搜工具描述**
   → 模型「載入」需要的 → 才進 active 集合。三個 phase：
-  `search` / `load` / `active`（`tool-search.ts:13`）
+  `search` / `load` / `active`（`tool-search.ts:12`）
 - **成本很低**：Lesson 17 和 20 已經有 BM25 了，直接複用，
   只是索引對象從 session 換成 tool description
 - **加分**：Claude Code 自己的 `ToolSearch` 就是這個機制，
   可以在課裡直接指給讀者看「你現在用的工具就長這樣」
 
-### Lesson 33：loop 不是 loop，是可以序列化的狀態機
+> 寫作過程產生的兩處更正：phase 型別在 `tool-search.ts:12`，不是這份檔案寫了兩
+> 個月的 `:13`；而「成本很低」對索引是對的、對這一課是錯的——貴的是做出一份誠實
+> 到可以拿來量測的任務集與工具目錄。
+
+### ~~Lesson 33：loop 不是 loop，是可以序列化的狀態機~~ 已完成
+
+`lesson-33-durable/`：`workflow.ts`（step 引擎、JSON run state、原子 store）、
+`pipeline.ts`（扣款 → 核准 → 收據，加一份 append-only ledger）、`worker.ts`
+（一次嘗試，跑在自己的 process 裡）、`demo.ts`（spawn 它然後 SIGKILL）、
+`tests/durable.test.ts`。
+
+**難度提醒是對的，而解法是把 crash 弄成真的。** demo 真的 spawn 子行程、真的送
+`SIGKILL`；`throw` 還是會跑 `finally`、還是會 flush，那會讓這一課裡每一句話都不
+成立。這個決定就是它沒有變成「讀懂架構」的原因。
+
+量測只有一個數字——卡被扣了幾次——而且是從 ledger 檔案讀的，不是從變數，因為被
+量測的那個 process 正是會死掉的那一個：
+
+| scenario | charges | emails |
+|---|---|---|
+| naive, crash after charge | 2 | 0 |
+| durable, crash after charge | 1 | 1 |
+| durable, crash before journal | 2 | 0 |
+| durable, halt on interrupted | 1 | 0 |
+
+建的過程產生了三件計畫裡沒有的東西：
+
+- **計畫裡那個三步 workflow 是對的，但少了兩個情境。**「journal 寫完之後才 crash」
+  只證明了順風的那條路。這一課真正的內容是另外兩列：crash 掉在副作用與 journal
+  寫入之間那個窗口——durability **修不好**它——以及 `halt` policy，它修好了扣款
+  次數，代價是這個 run 永遠跑不完。
+- **step 紀錄要在 step 跑之前寫，不是跑完才寫。** 這是跑出來才發現的：情境 3 原本
+  回報 `in-flight=[]`，因為狀態只在完成時才存，於是一個被中斷的 step 跟一個從來
+  沒開始過的長得一樣。每個 step 多一次寫入，換來的是 crash 可診斷這件事本身。
+- **`InterruptedPolicy` 是參數，不是預設值。** 錯的方式剛好只有兩種——
+  at-least-once 與 at-most-once——而哪一個適合某個 step 是商業決定。重跑
+  `send_receipt` 是寄出重複的信；重跑 `charge_card` 是拿走錢。
+
+**這現在是 Lesson 34 最強的鋪陳。** 這一課的結尾是一份 journal，它知道某個 step
+被中斷了，卻答不出那個副作用有沒有發生，因為 journal 跟支付商不是同一個系統。
+沒有第五種 policy 能關掉那個縫；跟另一側換一份不同的合約可以。Restate 不需要再
+被論證了——那個縫已經被量出來、寫在頁面上了。
+
+#### 原本的計畫
 
 - **來源**：`mastra/packages/core/src/agent/durable/`、
   `mastra/packages/core/src/workflows/`（`handlers/control-flow.ts`、
@@ -1657,7 +2009,7 @@ processor 全關       LEAK / LEAK / LEAK
 |---|---|---|
 | 換 provider 續舊 session（tool_use / tool_result 配對會爛掉） | `core/src/processors/provider-history-compat.ts` | Lesson 4 加一節 |
 | Structured output + 失敗時用備援模型修 | `processors/processors/structured-output.ts`（394） | Lesson 7 |
-| Tracing span、每次呼叫的成本歸因 | `core/src/observability/` | Lesson 26 |
+| Tracing span、每次呼叫的成本歸因 | `core/src/observability/` | **Lesson 14**，2026-09-10 寫完 |
 | 訊息格式正規化（1755 行的 MessageList） | `core/src/agent/message-list/message-list.ts` | Lesson 4，或當 Lesson 30 的延伸閱讀 |
 | 多 agent 委派與路由 | `core/src/loop/network/` | Lesson 19 的參考實作 |
 
@@ -2759,10 +3111,11 @@ type CompletionEvidence =
 
 | 概念 | 現在放哪 | 什麼時候才立題 |
 |---|---|---|
-| **Tracing / observability | 先併進 Lesson 26 和 Mastra `core/src/observability/`（agent span / model span / tool span / 成本歸因 / parent-child / error recording） | 讀完 Mastra 那部分之後。對照組是 Phoenix（evaluation 導向）或 Langfuse（產品資料模型），但不要讀 Langfuse 整個 server**，那會學到 ClickHouse + Next.js + queue，不是 agent。OpenLLMetry 規模比較適合讀 |
+| ~~Tracing / observability~~ | **Lesson 14，已寫。** Prod 53 保留 OTLP、exporter 與抽樣。先讀 Mastra `core/src/observability/`（agent span / model span / tool span / 成本歸因 / parent-child / error recording） | 讀完 Mastra 那部分之後。對照組是 Phoenix（evaluation 導向）或 Langfuse（產品資料模型），但不要讀 Langfuse 整個 server**，那會學到 ClickHouse + Next.js + queue，不是 agent。OpenLLMetry 規模比較適合讀 |
 | Model routing / fallback | 拆回 Lesson 4（換 provider 續舊 session）、26（成本）、30（schema 相容） | 除非讀 Mastra 之後發現有一條夠完整、可抽出的 fallback 路徑。真正跟 agent 有關的只有「模型失敗後能不能換一家、舊 session 能不能續、`tool_use`/`tool_result` 還配不配得起來」，而這些已經散在那三課裡了。不要變成比較 LLM gateway |
 | `ToolResult` 統一格式 | — | 自己設計一套 `ToolResult` 是典型的「我覺得應該要有 X」。等 Restate / OpenCode 兩邊都讀完，看它們的形狀有沒有交集 |
-| Caching / computer use / replay UI | — | 同上 |
+| computer use / replay UI | — | 同上 |
+| ~~Caching~~ | **升格為 Lesson 38**（見上面三個候選） | 那個延後條件——先讀完 Restate 與 OpenCode——在 Lesson 28、29 寫出來的時候就過期了 |
 
 ---
 

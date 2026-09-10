@@ -1,4 +1,4 @@
-# Build an AI Agent From Scratch
+# Learn Agent Engineering From Production
 
 > 🇬🇧 English　|　🇹🇼 [繁體中文](README.zh-TW.md)
 
@@ -11,6 +11,25 @@ smallest version that still runs. The exceptions are the lessons where the
 source projects expose a *gap* rather than a solution — domain tools,
 evaluation and citation verification are built from that gap, and the lessons
 say so.
+
+### What "from production" means here, concretely
+
+It is a claim, so it should be checkable:
+
+- **twelve real projects are cloned into the tree and read to line numbers**, not
+  summarised. `bun run check:citations` resolves every `file.ts:123` in every
+  lesson against the source it names and fails if one points at a line that does
+  not exist
+- **every mechanism is switched off and measured.** A lesson earns its place only
+  if turning its mechanism off produces a failure you can watch. "200 tools" is
+  not an opinion about context windows; it is a `400` from OpenAI
+- **when a measurement contradicts the plan, the lesson says so.** Several
+  lessons here overturned what [docs/TODO.md](docs/TODO.md) predicted, and the
+  corrections are left visible rather than tidied away
+
+That is the difference from building an agent from scratch: from scratch teaches
+you the loop. This teaches you what the loop grows into once other people depend
+on it — and it gets that from code that already carries them.
 
 ## The whole thing in one sentence
 
@@ -43,7 +62,7 @@ your risk rules, when to stop, or what "correct" means for you.
 | Layer | Covered by |
 |---|---|
 | **1. Agent mechanics** — model → tool → result → stop | Lessons 1-5 |
-| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-12, 28-31 and 37 written; 32-36 planned |
+| **2. Harness** — permissions, servers, schemas, evidence, durability, sandboxes | Lessons 8-14, 28-33, 35, 37 and 38 written; 34 and 36 planned |
 | **3. Long-running operation** — memory, skills, scheduling, delegation | Lessons 15-19 |
 | **4. Domain tools** — the ceiling is what it can operate, not prompt wording | Lesson 6; Lessons 20-27 at full scale |
 | **5. Evaluation** — otherwise you can't tell whether a change helped | Lessons 7, 22, 25 |
@@ -54,31 +73,39 @@ the full measure → find → fix → confirm loop.
 
 **If you already understand the agent loop, start at Lesson 6.**
 
-## The completed path: 29 runnable steps
+## The completed path: 36 runnable steps
 
 The thesis of the series in one sentence:
 
 > **Learn how AI agents work by reading real open-source projects, one at a
 > time, and rebuilding the smallest version of each mechanism yourself.**
 
-**The 29 steps below are written and runnable.** Steps 1-17 are the core;
-steps 18-25 form an optional domain branch that can be skipped *as a whole*,
-and steps 26-29 return to the harness around the loop. The planned lessons
-continue after step 29. Every step names the source you are
+**The 36 steps below are written and runnable.** Steps 1-20 are the core;
+steps 21-28 form an optional domain branch that can be skipped *as a whole*,
+and steps 29-36 return to the harness around the loop. The planned lessons
+continue after step 36. Every step names the source you are
 reading at that point.
 
 ```mermaid
 flowchart LR
     P1["Steps 1-5<br/><b>The engine</b><br/>Pi"] --> P2["Steps 6-7<br/><b>Your domain</b><br/>you"]
-    P2 --> P3["Steps 8-12<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
-    P3 --> P4["Steps 13-17<br/><b>Running for months</b><br/>Hermes"]
-    P4 --> P5["Steps 18-25<br/><b>A whole domain</b><br/>4 search projects"]
-    P5 --> P6["Steps 26-29<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
+    P2 --> P3["Steps 8-15<br/><b>From a loop to a usable system</b><br/>OpenWorker + Mastra"]
+    P3 --> P4["Steps 16-20<br/><b>Running for months</b><br/>Hermes"]
+    P4 --> P5["Steps 21-28<br/><b>A whole domain</b><br/>4 search projects"]
+    P5 --> P6["Steps 29-36<br/><b>Around the loop</b><br/>Mastra, OpenCode, OpenHands"]
 ```
 
-> **Lesson numbers have gaps; step numbers don't.** 11, 13 and 14 were merged
-> into other lessons. Follow the **Step** column and you will never wonder
-> where you are.
+> **Lesson numbers have gaps; step numbers don't.** Nothing is vacant. 11, 13
+> and 14 were resolved into other lessons, and their numbers were then reused for
+> the subjects that belong at those positions:
+>
+> | Number | Where it went |
+> |---|---|
+> | 11 connectors and OAuth | **split**, then the number was reused. The OAuth *protocol* half is the "OAuth half-lesson" inside [Lesson 12](lesson-12-mcp/); [Lesson 11](lesson-11-credentials/) is now the credential *lifecycle* — expiry, ownership, revocation. One abstraction over 25 connectors stays deferred to Prod 55 |
+> | 13 scheduled automation | **folded whole into [Lesson 18](lesson-18-scheduling/)**, which reads OpenWorker's `automation/` next to Hermes's `cron/`. The number was then reused: [Lesson 13](lesson-13-tool-drift/) is now tool drift, which belongs beside Lesson 12 |
+> | 14 audit log | **deleted**, then the number was reused. [Lesson 8](lesson-08-permissions/)'s Exercise 4 is the audit log in twenty lines; [Lesson 14](lesson-14-tracing/) is the half it cannot answer — whose request paid for this, and what did it cost |
+>
+> Follow the **Step** column and you will never wonder where you are.
 
 | Step | Lesson | The question it answers | Source you read |
 |---|---|---|---|
@@ -91,50 +118,54 @@ flowchart LR
 | | | **② Your domain · Lessons 06-07 · you**<br/>The part nobody can hand you. | |
 | 6 | [06 Domain tools](lesson-06-domain-tools/) | How does a general agent become an expert in your domain? | you (Pi shows the shape) |
 | 7 | [07 Evaluation](lesson-07-evaluation/) | You changed the prompt — did it actually get better? | you |
-| | | **③ From a loop to a usable system · Lessons 08-12 + 30 · OpenWorker, Mastra** | |
+| | | **③ From a loop to a usable system · Lessons 08-14 + 30 · OpenWorker, Mastra** | |
 | 8 | [08 Risk classes](lesson-08-permissions/) | What counts as dangerous, and who decides to ask? | OpenWorker `risk.py` |
 | 9 | [09 When nobody is there](lesson-09-unattended/) | Approval needed at 3am and you're asleep — now what? | OpenWorker `inbox.py` |
 | 10 | [10 Agent server](lesson-10-agent-server/) | It runs on a server; how does the UI know what it's doing? | OpenWorker `server/app.py` |
-| 11 | [12 MCP client](lesson-12-mcp/) | How do you use someone else's tools without being dragged down? | OpenWorker `mcp/` (647 lines) |
-| 12 | [30 Schema compatibility](lesson-30-schema-compat/) | Their schema is not yours to fix — so what breaks? | Mastra `schema-compat/` |
-| | | *Lesson 30 sits here, despite its higher number, because MCP is what makes schema compatibility unavoidable — it continues step 11's experiment directly.* | |
+| 11 | [11 Credentials](lesson-11-credentials/) | The token expired at 3am — what does it do, and whose token was it? | Mastra `mcp/client/oauth-provider.ts:368` |
+| 12 | [12 MCP client](lesson-12-mcp/) | How do you use someone else's tools without being dragged down? | OpenWorker `mcp/` (647 lines) |
+| 13 | [13 Tool drift](lesson-13-tool-drift/) | The server changed the tool after you approved it — now what? | Mastra `mcp/client/client.ts:286` |
+| 14 | [14 Tracing](lesson-14-tracing/) | What did it do last week, and whose request paid for it? | Mastra `observability/types/tracing.ts:35` |
+| 15 | [30 Schema compatibility](lesson-30-schema-compat/) | Their schema is not yours to fix — so what breaks? | Mastra `schema-compat/` |
+| | | *Lesson 30 sits here, despite its higher number, because MCP is what makes schema compatibility unavoidable — it continues step 12's experiment directly.* | |
 | | | **④ Running for months, not minutes · Lessons 15-19 · Hermes**<br/>Five faces of one question: how does it keep existing while you are not watching? | |
-| 13 | [15 Long-term memory](lesson-15-memory/) | How does it still know this next time? | Hermes `memory_manager.py` |
-| 14 | [16 Skills](lesson-16-skills/) | How do capabilities accumulate without polluting context? | Hermes `skill_utils.py` |
-| 15 | [17 Cross-session search](lesson-17-search/) | How do you find that session from last month? | Hermes `session_search_tool.py` |
-| 16 | [18 Scheduling](lesson-18-scheduling/) | It runs at 3am — who starts it, and what if it dies halfway? | Hermes `cron/` (8,727 lines) |
-| 17 | [19 Delegation](lesson-19-delegation/) | Handing a task to a sub-agent — what does it get to see? | Hermes `delegate_tool.py` |
+| 16 | [15 Long-term memory](lesson-15-memory/) | How does it still know this next time? | Hermes `memory_manager.py` |
+| 17 | [16 Skills](lesson-16-skills/) | How do capabilities accumulate without polluting context? | Hermes `skill_utils.py` |
+| 18 | [17 Cross-session search](lesson-17-search/) | How do you find that session from last month? | Hermes `session_search_tool.py` |
+| 19 | [18 Scheduling](lesson-18-scheduling/) | It runs at 3am — who starts it, and what if it dies halfway? | Hermes `cron/` (8,727 lines) |
+| 20 | [19 Delegation](lesson-19-delegation/) | Handing a task to a sub-agent — what does it get to see? | Hermes `delegate_tool.py` |
 | | | **⑤ One whole domain · Lessons 20-27 · four search projects**<br/>Optional — but it is the real thing. | |
-| 18 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
-| 19 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
-| 20 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
-| 21 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
-| 22 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
-| 23 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
-| 24 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
-| 25 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
+| 21 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
+| 22 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
+| 23 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
+| 24 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
+| 25 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
+| 26 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
+| 27 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
+| 28 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
 | | | **⑥ Around the loop · Mastra, OpenCode, OpenHands** | |
-| 26 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
-| 27 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
-| 28 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
-| 29 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
-| 30 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| 29 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
+| 30 | [32 Tool search](lesson-32-tool-search/) | Ten MCP servers connected — do 200 tools even fit? | Mastra `processors/tool-search.ts` |
+| 31 | [33 Durable runs](lesson-33-durable/) | The process died at 3am — where was the run? | Mastra `workflows/state-reader.ts` |
+| 32 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
+| 33 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
+| 34 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
+| 35 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| 36 | [38 The cache you break yourself](lesson-38-prompt-cache/) | Which line of your prompt is costing you the whole prefix? | OpenCode `protocols/utils/cache.ts` |
 | | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system. Lesson 35 answers step 8's other half, and needs macOS.* | |
 
-Steps 18-25 can be skipped — they are a full-scale demonstration of the method
+Steps 21-28 can be skipped — they are a full-scale demonstration of the method
 from step 6. Each lesson README states its own prerequisites at the top.
 
-### The planned continuation · Lessons 32-34 and 36 — not written yet
+### The planned continuation · Lessons 34 and 36 — not written yet
 
-These extend the same path after step 30, and **none of the lessons in this table are runnable
+These extend the same path after step 36, and **none of the lessons in this table are runnable
 today**. Primary sources have been cloned and scoped; which paths and line
 counts are actually verified — and which sources (CrewAI, LangGraph, x402) are
 still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| 32 | 200 tools don't fit in the context window | Mastra |
-| 33 | The process died — how do you resume elsewhere? | Mastra, LangGraph |
 | 34 | The process crashed after the email was sent — should resume send it again? | Restate |
 | 36 | Where does the command run, and is that world still there after? | OpenHands |
 | | *Lesson 35 (written) is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
@@ -147,11 +178,11 @@ good ones.
 
 **The evidence branch is complete** (29 → 28 → 37: measurement, lifecycle,
 type system — all three saying *the record must not be more optimistic than
-the facts*). **Lesson 33 is now the one to want most**: the loop as a
-serialisable state machine, which is what suspend/resume needs and what every
-"durable agent" claim rests on.
+the facts*). **Lesson 34 is now the one to want most**: Lesson 33 ends with a
+journal that knows a step was interrupted and cannot tell you whether its side
+effect landed, and that is exactly the gap durable execution exists to close.
 
-### Prod part · Lessons 50-59 — *not* part of the 29 steps
+### Prod part · Lessons 50-59 — *not* part of the 36 steps
 
 Different entry rule, different stage:
 
@@ -314,7 +345,8 @@ Lessons 1-5 follow it closely.
 
 ### Read line by line, then rebuilt
 
-Each of these was cloned, inventoried, and cited down to file and line number:
+Each of these was cloned, inventoried, and cited down to file and line number.
+With Pi above, that is twelve:
 
 | Project | What it taught | Lessons |
 |---|---|---|

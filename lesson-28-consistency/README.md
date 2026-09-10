@@ -301,7 +301,7 @@ never happened**. Delta granularity is not yours to control — another instance
 |---|---|
 | introducing 13 kinds of stream event | this lesson's criterion is that matrix, not an event list. **This is the lesson's biggest risk**, written down in advance in `docs/TODO.md` |
 | computing a real git diff | `diff()` is a parameter. "How do you know a file really changed" is [Lesson 29](../lesson-29-evidence/)'s subject, and its `snapshot.patch()` is the real version |
-| how to **resume** after an interruption | that is Lesson 33 (serialisable state machines). This lesson only cares whether the record left behind is honest |
+| how to **resume** after an interruption | that is [Lesson 33](../lesson-33-durable/) (serialisable state machines). This lesson only cares whether the record left behind is honest |
 | multi-turn / multi-message sessions | one turn suffices to show all six cells. A session tree would only blur the matrix |
 | retrying an interrupted tool | **deliberately not done**: whether an `interrupted` tool deserves a retry is decided by the nature of the job (Lesson 18's `unknown`, Lesson 34's idempotency) |
 
