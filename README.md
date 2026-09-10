@@ -361,14 +361,16 @@ With Pi above, that is twelve:
 | [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 |
 
-One repo in the planned set has **not** been cloned yet, and the table above
+One repo in the planned set is **cloned but not yet read**, and the table above
 deliberately doesn't list it: the OpenHands agent runtime lives in
 [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk),
-which Lesson 36 will need and nobody here has read. Lesson 37 read
-`All-Hands-AI/OpenHands` instead — same organisation, different repo, and the
-runtime is not in it (4 Python files; its README is titled "Agent Canvas").
-Getting that pair mixed up is exactly the mistake this section exists to
-prevent, and the first draft of Lesson 37 made it.
+which Lesson 36 needs. Lesson 37 read `All-Hands-AI/OpenHands` instead — same
+organisation, different repo, and the runtime is not in it (4 Python files; its
+README is titled "Agent Canvas"). Getting that pair mixed up is exactly the
+mistake this section exists to prevent, and the first draft of Lesson 37 made it.
+
+It stays out of the count until a lesson actually cites it. "Cloned" and "read
+line by line" are different claims, and this section only makes the second one.
 
 ### Referenced at the concept level only
 

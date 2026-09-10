@@ -327,13 +327,15 @@ Lesson 1-5 幾乎是照著它走的。
 | [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35 |
 
-規劃中的來源裡有一個還沒 clone，所以上面那張表刻意沒有列它：OpenHands 的
-agent runtime 在
+規劃中的來源裡有一個**已經 clone、但還沒讀**，所以上面那張表刻意沒有列它：
+OpenHands 的 agent runtime 在
 [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)，
-Lesson 36 會需要它，而這裡沒有人讀過。Lesson 37 讀的是
-`All-Hands-AI/OpenHands`，同一個組織、不同的 repo，而且 runtime 不在裡面
-（只有 4 個 Python 檔，README 標題是「Agent Canvas」）。
+Lesson 36 需要它。Lesson 37 讀的是 `All-Hands-AI/OpenHands`，同一個組織、不同的
+repo，而且 runtime 不在裡面（只有 4 個 Python 檔，README 標題是「Agent Canvas」）。
 把這兩個搞混正是這一節存在要防的事，而 Lesson 37 的第一版就搞混了。
+
+在真的有一課引用它之前，它不算進那個數字裡。「clone 了」跟「逐行讀過」是兩個不同
+的主張，而這一節只做後面那一個。
 
 ### 只在概念層引用的
 
