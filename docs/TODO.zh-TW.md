@@ -104,7 +104,7 @@ OpenHands、GPT Researcher。所以來源不是差別，宣稱它是差別就是
 | 來源 | 點名、附連結、做摘要 | clone 進樹裡、讀到具體行號、以 `file.ts:12` 引用 |
 | 程式碼 | 一份展示概念成立的範例 | 一支**先失敗**的程式，把機制關掉跑一次 |
 | 主張 | 「你可以做 X」 | 一個真跑出來的數字，寫在 README 裡，附上 provider 與模型名稱 |
-| 主張錯了的時候 | 通常發現不了 | `check:i18n` 與契約測試會抓漂移，TODO 會記下更正 |
+| 主張錯了的時候 | 通常發現不了 | `check:i18n`、`check:citations` 與契約測試會抓漂移，TODO 會記下更正 |
 
 Lesson 32 就是這禮拜的例子，而且是雙向的。計畫說「成本很低」，來源引用寫的是
 `tool-search.ts:13`；真的把它建出來之後，得到的是一個錯的行號、一道沒人提過的
@@ -248,6 +248,52 @@ Lesson 32（一個在 `search` 與 `load` 之間被改掉描述的工具——�
 | 平行工具呼叫 | agentic-ai Ch.17 | 真的已經蓋到了：Lesson 01 介紹它，Lesson 24 把它展開 |
 | browser / computer use | Agent-Learning-Hub Stage 6、microsoft Lesson 15 | 是真的缺口，但工程量重，而它的失敗模式（selector 易碎）別處已經寫得很清楚。維持延後 |
 | 部署與擴展 | microsoft Lesson 16 | 不是 agent 的問題 |
+
+### 2026-09-10：三個從缺的來源專案，以及一次引用稽核
+
+這個系列宣稱逐行讀過的十一個專案裡，有三個**從來沒有被 clone 進這棵樹**：
+Pi（Lesson 1-6）、OpenWorker（8-10、12）、Hermes（15-19）。其他都在，這三個是
+憑筆記引用的。
+
+那留下了大約一百個沒有任何東西檢查得了的 `file.py:NN` 主張。`check:i18n` 比對的
+是一課的兩個語言版本，所以它抓得到「一邊有、另一邊沒有」的引用——它判斷不了哪一
+邊是對的，因為被引用的檔案根本不在磁碟上。
+
+三個現在都 clone 了，並且跟其他的一樣加進 `.git/info/exclude`：
+
+```bash
+git clone --depth 1 https://github.com/earendil-works/pi           pi
+git clone --depth 1 https://github.com/andrewyng/openworker        openworker
+git clone --depth 1 https://github.com/NousResearch/hermes-agent   hermes-agent
+```
+
+**稽核結果是乾淨的。** `scripts/check-citations.ts` 在 14 個來源專案裡解析了 362
+個引用，每一個都指向一個存在的行。兩個最顯眼的引用也用眼睛核過：
+
+- `agent-loop.ts:170-272` 正好是 Pi 的外圈與內圈迴圈，結束在 `agent_end`——
+  那就是 Lesson 1 說它是的東西
+- `risk.py:18` 是 `class RiskClass(str, Enum):` 加上那五個類別，那就是 Lesson 8
+  說它是的東西
+
+以這份檔案最近的紀錄來看，這個結果比預期好。這個月已經有三條紀錄因為「把它描述
+的東西跑一次」而被更正；而那些指向沒讀過的專案的引用，反倒是撐住的那部分。
+
+**這個檢查器證明的是弱的那一半**，而它自己的檔頭有講：檔案存在、而且行號在檔案
+裡面。一個已經滑掉二十行、但還落在檔案內的引用會通過。釘住那一行的**內容**考慮
+過然後被否決了——上游每次重新排版它都會紅，一個月內就會被刪掉，而那跟契約測試用
+的是同一套理由。
+
+建它的過程中發現的兩件事，都記下來，因為它們正是這個檢查器存在要抓的那類錯誤：
+
+- 它第一次回報了十個壞掉的引用，而那些都是好的。它們指向**這個 repo 自己的檔案**，
+  而它當時沒有把那些放進索引
+- 把有歧義的引用收窄到「文件有提到的那些 repo」之後，它回報 Lesson 35 的
+  `engine.ts:173` 壞了。那個引用是對的——`shared/permissions/engine.ts` 的第 173
+  行正是那一課描述的 `WRITE_LOCAL` 檢查——而那份 README 只是從來沒有用過「shared」
+  這個字。**一個自信到可以指控別人的檢查器，需要跟它檢查的東西一樣的查證。**
+
+仍然沒有 clone，而且仍然是刻意的：`OpenHands/software-agent-sdk`，Lesson 36 會
+需要它。Credits 那一段有寫，而那件事沒有變。
 
 ## 全貌
 

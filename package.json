@@ -70,6 +70,7 @@
 		"lesson-38:probe": "bun run lesson-38-prompt-cache/probe.ts",
 		"eval": "bun run lesson-07-evaluation/eval.ts",
 		"check:i18n": "bun run scripts/check-translations.ts",
+		"check:citations": "bun run scripts/check-citations.ts",
 		"reset": "bun run scripts/reset-playgrounds.ts",
 		"test": "bun test ./tests/",
 		"typecheck": "tsc --noEmit"

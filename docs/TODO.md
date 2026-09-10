@@ -115,7 +115,7 @@ The difference is what happens to a source after it is chosen:
 | the source | named, linked, summarised | cloned into the tree, read to specific line numbers, cited as `file.ts:12` |
 | the code | a sample that demonstrates the concept working | a program that **fails first**, with the mechanism switched off |
 | the claim | "you can do X" | a number from a real run, in the README, with the provider and model named |
-| when the claim is wrong | usually not discoverable | `check:i18n` and the contract tests catch drift; the TODO records the corrections |
+| when the claim is wrong | usually not discoverable | `check:i18n`, `check:citations` and the contract tests catch drift; the TODO records the corrections |
 
 Lesson 32 is this week's example of the difference, in both directions. The
 plan said "the cost is low" and the source citation said `tool-search.ts:13`;
@@ -278,6 +278,59 @@ that.
 | parallel tool calls | agentic-ai Ch.17 | genuinely covered: Lesson 01 introduces them, Lesson 24 fans them out |
 | browser / computer use | Agent-Learning-Hub Stage 6, microsoft Lesson 15 | a real gap, but a heavy build whose failure mode (selector brittleness) is well documented elsewhere. Stays deferred |
 | deploying scalable agents | microsoft Lesson 16 | not an agent problem |
+
+### 2026-09-10: the three missing source repositories, and a citation audit
+
+Three of the eleven projects this series claims to have read line by line were
+**never cloned into this tree**: Pi (Lessons 1-6), OpenWorker (8-10, 12) and
+Hermes (15-19). Everything else was here; those three were cited from notes.
+
+That left roughly a hundred `file.py:NN` claims that nothing could check.
+`check:i18n` compares the two language versions of a lesson, so it catches a
+citation that appears in one and not the other — it cannot tell whether either
+is right, because the cited file was not on the disk.
+
+All three are now cloned and added to `.git/info/exclude` alongside the others:
+
+```bash
+git clone --depth 1 https://github.com/earendil-works/pi           pi
+git clone --depth 1 https://github.com/andrewyng/openworker        openworker
+git clone --depth 1 https://github.com/NousResearch/hermes-agent   hermes-agent
+```
+
+**The audit came back clean.** `scripts/check-citations.ts` resolves 362
+citations across 14 source repositories and every one points at a line that
+exists. The two headline citations were checked by eye as well:
+
+- `agent-loop.ts:170-272` is exactly Pi's outer and inner loop, ending at
+  `agent_end` — which is what Lesson 1 says it is
+- `risk.py:18` is `class RiskClass(str, Enum):` with the five classes, which is
+  what Lesson 8 says it is
+
+That is a better result than this file's recent record suggested it would be.
+Three entries here have been corrected this month by running the thing they
+described; the citations into unread repositories turned out to be the part
+that held.
+
+**What the checker proves is the weak half**, and it says so in its own header:
+the file exists and the line is inside it. A citation that has slid twenty lines
+and still lands in the file passes. Pinning the line's *content* was considered
+and rejected — it would fail on every upstream reformat and be deleted within a
+month, which is the same reasoning the contract tests use.
+
+Two things found while building it, both recorded because they are the same
+class of error the checker exists to catch:
+
+- it first reported ten broken citations that were fine. They pointed into
+  **this repo's own files**, which it was not indexing
+- narrowing ambiguous citations to the repositories a document names then
+  reported Lesson 35's `engine.ts:173` as broken. It is correct — line 173 of
+  `shared/permissions/engine.ts` is the `WRITE_LOCAL` check the lesson
+  describes — and the README simply never uses the word "shared". **A checker
+  confident enough to accuse needs the same verification as the thing it checks.**
+
+Still not cloned, and still deliberately: `OpenHands/software-agent-sdk`, which
+Lesson 36 will need. The Credits section says so and that has not changed.
 
 ## The whole picture
 
