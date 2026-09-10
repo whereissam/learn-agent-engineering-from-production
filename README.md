@@ -16,7 +16,7 @@ say so.
 
 It is a claim, so it should be checkable:
 
-- **eleven real projects are cloned into the tree and read to line numbers**, not
+- **twelve real projects are cloned into the tree and read to line numbers**, not
   summarised. `bun run check:citations` resolves every `file.ts:123` in every
   lesson against the source it names and fails if one points at a line that does
   not exist
@@ -345,7 +345,8 @@ Lessons 1-5 follow it closely.
 
 ### Read line by line, then rebuilt
 
-Each of these was cloned, inventoried, and cited down to file and line number:
+Each of these was cloned, inventoried, and cited down to file and line number.
+With Pi above, that is twelve:
 
 | Project | What it taught | Lessons |
 |---|---|---|

@@ -133,14 +133,14 @@ Saying this out loud is what keeps the paragraph above from being a sales pitch:
   tokenizers — that this repo skips entirely. If you want to know how the model
   works rather than how to build around one, it is the better book.
 - **Agent-Learning-Hub** and **awesome-agentic-ai-zh** are better *indexes*. This
-  repo reads eleven projects; they point at hundreds. Someone deciding what to
+  repo reads twelve projects; they point at hundreds. Someone deciding what to
   learn should start there, not here.
 - **ai-agents-for-beginners** has video and 50+ translations. This repo has two
   languages and a checker to keep them honest, and that is already the limit.
 - **agentic-ai-system-course** is framework-agnostic *by design* and covers
   coordination and design-canvas territory this repo has no lessons for.
 
-The scope here stays narrow on purpose: one path, eleven real projects, every
+The scope here stays narrow on purpose: one path, twelve real projects, every
 mechanism rebuilt small enough to switch off and measure. A reading list is a
 different product and this repo should not become one.
 
@@ -281,7 +281,7 @@ that.
 
 ### 2026-09-10: the three missing source repositories, and a citation audit
 
-Three of the eleven projects this series claims to have read line by line were
+Three of the twelve projects this series claims to have read line by line were
 **never cloned into this tree**: Pi (Lessons 1-6), OpenWorker (8-10, 12) and
 Hermes (15-19). Everything else was here; those three were cited from notes.
 
