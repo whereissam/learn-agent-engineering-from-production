@@ -386,7 +386,7 @@ Mastra 之後再接兩個**補抽象層**的來源（2026-07-28 決定，見文�
 | 10 GUI | 維持延後。Tauri + React + Python，不可移植 |
 | 11 OAuth | 拆開：協定那一半併進 12。**號碼被重新用在 Lesson 11，憑證的生命週期**（過期、擁有者、撤銷）。25 個 connector 的共同抽象仍然延後到 Prod 55 |
 | 13 排程 | 併進 Lesson 18，那一課自己的標頭有寫。**號碼被重新用在 Lesson 13，工具漂移** |
-| 14 audit log | **刪掉**。Lesson 8 的練習 4 已經是它的簡化版，而且有講 |
+| 14 audit log | **刪掉**，之後號碼被重新使用。**Lesson 14 現在是 tracing**——第 8 課練習 4 答不出來的那一半 |
 
 > 這三條現在都寫在**它們落腳的那一課裡**，也寫在 README 的編號說明裡。它們原本
 > 只記在這裡，而這裡不是讀者會去看的地方——那就是為什麼那個號碼缺口一直被讀成
@@ -780,10 +780,13 @@ connector 讀完對學習沒有幫助。
   單獨成課只會重複。「這個 agent 上週到底做了什麼」這個問題，
   真正缺的是 tracing 而不是 log
 
-> **2026-09-09 更正。** 這一條、Mastra 的併入表、以及 roadmap 缺口清單，三個地方
-> 都寫著 tracing「歸到 Lesson 26」。Lesson 26 裡連一次 span 或 trace 都沒有提到
-> ——它談的是 token 帳與預算。這個題目**還沒寫**，它的位置是 Prod 53。三份文件
-> 互相同意，不等於其中一份被查證過。
+> **2026-09-09 更正，2026-09-10 解決。** 這一條、Mastra 的併入表、以及 roadmap
+> 缺口清單，三個地方都寫著 tracing「歸到 Lesson 26」。Lesson 26 裡連一次 span 或
+> trace 都沒有提到——它談的是 token 帳與預算。三份文件互相同意，不等於其中一份
+> 被查證過。
+>
+> 這個題目原本沒寫，現在是 **Lesson 14**，用的正是這一條自己空出來的號碼。
+> Prod 53 保留 Lesson 14 不做的部分：OTLP、exporter、抽樣、以及一個真的後端。
 
 ---
 
@@ -2006,7 +2009,7 @@ Notion、HubSpot 對 SendGrid）。三個裡有兩個站得住腳，所以任務
 |---|---|---|
 | 換 provider 續舊 session（tool_use / tool_result 配對會爛掉） | `core/src/processors/provider-history-compat.ts` | Lesson 4 加一節 |
 | Structured output + 失敗時用備援模型修 | `processors/processors/structured-output.ts`（394） | Lesson 7 |
-| Tracing span、每次呼叫的成本歸因 | `core/src/observability/` | **Prod 53**（不是 Lesson 26——見 Lesson 14 那一條） |
+| Tracing span、每次呼叫的成本歸因 | `core/src/observability/` | **Lesson 14**，2026-09-10 寫完 |
 | 訊息格式正規化（1755 行的 MessageList） | `core/src/agent/message-list/message-list.ts` | Lesson 4，或當 Lesson 30 的延伸閱讀 |
 | 多 agent 委派與路由 | `core/src/loop/network/` | Lesson 19 的參考實作 |
 
@@ -3108,7 +3111,7 @@ type CompletionEvidence =
 
 | 概念 | 現在放哪 | 什麼時候才立題 |
 |---|---|---|
-| **Tracing / observability | Prod 53，還沒寫。先讀 Mastra `core/src/observability/`（agent span / model span / tool span / 成本歸因 / parent-child / error recording） | 讀完 Mastra 那部分之後。對照組是 Phoenix（evaluation 導向）或 Langfuse（產品資料模型），但不要讀 Langfuse 整個 server**，那會學到 ClickHouse + Next.js + queue，不是 agent。OpenLLMetry 規模比較適合讀 |
+| ~~Tracing / observability~~ | **Lesson 14，已寫。** Prod 53 保留 OTLP、exporter 與抽樣。先讀 Mastra `core/src/observability/`（agent span / model span / tool span / 成本歸因 / parent-child / error recording） | 讀完 Mastra 那部分之後。對照組是 Phoenix（evaluation 導向）或 Langfuse（產品資料模型），但不要讀 Langfuse 整個 server**，那會學到 ClickHouse + Next.js + queue，不是 agent。OpenLLMetry 規模比較適合讀 |
 | Model routing / fallback | 拆回 Lesson 4（換 provider 續舊 session）、26（成本）、30（schema 相容） | 除非讀 Mastra 之後發現有一條夠完整、可抽出的 fallback 路徑。真正跟 agent 有關的只有「模型失敗後能不能換一家、舊 session 能不能續、`tool_use`/`tool_result` 還配不配得起來」，而這些已經散在那三課裡了。不要變成比較 LLM gateway |
 | `ToolResult` 統一格式 | — | 自己設計一套 `ToolResult` 是典型的「我覺得應該要有 X」。等 Restate / OpenCode 兩邊都讀完，看它們的形狀有沒有交集 |
 | computer use / replay UI | — | 同上 |

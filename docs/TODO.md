@@ -434,7 +434,7 @@ Other conclusions from the same review round (details in each section):
 | 10 GUI | still deferred. Tauri plus React plus Python, not portable |
 | 11 OAuth | split: the protocol half folded into 12. **The number was reused for Lesson 11, the credential lifecycle** (expiry, ownership, revocation). The common abstraction over 25 connectors stays deferred to Prod 55 |
 | 13 scheduling | folded into Lesson 18, which names it in its own header. **The number was reused for Lesson 13, tool drift** |
-| 14 audit log | **deleted**. Lesson 8's Exercise 4 is already a simplified version, and says so |
+| 14 audit log | **deleted**, then the number was reused. **Lesson 14 is now tracing** — the half Lesson 8's Exercise 4 cannot answer |
 
 > Each of those three is now stated **in the lesson it landed in**, and in the
 > README's numbering note. They were recorded here and nowhere a reader would
@@ -878,11 +878,15 @@ with an identically named tool", because tools routinely share verb prefixes.
   lesson would only repeat it. For the question "what did this agent actually do last
   week", what is really missing is tracing rather than logs
 
-> **Corrected 2026-09-09.** This entry, the Mastra fold table and the roadmap gap
-> list all said tracing "belongs to Lesson 26". Lesson 26 does not contain a single
-> mention of a span or a trace — it is about token accounting and budget. The
-> subject is **unwritten**, and its home is Prod 53. Three documents agreeing with
-> each other is not the same as one of them being checked.
+> **Corrected 2026-09-09, resolved 2026-09-10.** This entry, the Mastra fold
+> table and the roadmap gap list all said tracing "belongs to Lesson 26".
+> Lesson 26 does not contain a single mention of a span or a trace — it is about
+> token accounting and budget. Three documents agreeing with each other is not
+> the same as one of them being checked.
+>
+> The subject was unwritten and is now **Lesson 14**, which took this entry's own
+> vacated number. Prod 53 keeps the parts Lesson 14 leaves out: OTLP, exporters,
+> sampling and a real backend.
 
 ---
 
@@ -2282,7 +2286,7 @@ measured and on the page.
 |---|---|---|
 | switching provider mid-session (tool_use / tool_result pairing breaks) | `core/src/processors/provider-history-compat.ts` | a section added to Lesson 4 |
 | structured output plus repair by a fallback model on failure | `processors/processors/structured-output.ts` (394) | Lesson 7 |
-| tracing spans, per-call cost attribution | `core/src/observability/` | **Prod 53** (not Lesson 26 — see the Lesson 14 entry) |
+| tracing spans, per-call cost attribution | `core/src/observability/` | **Lesson 14**, written 2026-09-10 |
 | message format normalisation (a 1755-line MessageList) | `core/src/agent/message-list/message-list.ts` | Lesson 4, or as further reading for Lesson 30 |
 | multi-agent delegation and routing | `core/src/loop/network/` | a reference implementation for Lesson 19 |
 
@@ -3509,7 +3513,7 @@ mechanism in the source first, then let it grow into a lesson):
 
 | Concept | Where it lives now | When it becomes a lesson |
 |---|---|---|
-| **tracing / observability | Prod 53, unwritten. Read Mastra's `core/src/observability/` first (agent span / model span / tool span / cost attribution / parent-child / error recording) | after reading that part of Mastra. The references are Phoenix (evaluation-oriented) or Langfuse (a product data model), but do not read Langfuse's whole server**, which teaches ClickHouse plus Next.js plus queues, not agents. OpenLLMetry is a more readable size |
+| ~~tracing / observability~~ | **Lesson 14, written.** Prod 53 keeps OTLP, exporters and sampling. Read Mastra's `core/src/observability/` first (agent span / model span / tool span / cost attribution / parent-child / error recording) | after reading that part of Mastra. The references are Phoenix (evaluation-oriented) or Langfuse (a product data model), but do not read Langfuse's whole server**, which teaches ClickHouse plus Next.js plus queues, not agents. OpenLLMetry is a more readable size |
 | model routing / fallback | split back into Lesson 4 (switching provider mid-session), 26 (cost) and 30 (schema compatibility) | unless reading Mastra reveals a complete, extractable fallback path. The only genuinely agent-related parts are "can you switch vendor after a failure, does the old session continue, do `tool_use`/`tool_result` still pair up", and those are already spread across those three lessons. Do not turn it into a comparison of LLM gateways |
 | a unified `ToolResult` format | — | designing your own `ToolResult` is the classic "I feel there should be an X". Wait until both Restate and OpenCode have been read and see whether their shapes intersect |
 | computer use / replay UI | — | as above |

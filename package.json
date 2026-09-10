@@ -25,6 +25,8 @@
 		"lesson-12": "bun run lesson-12-mcp/agent.ts",
 		"lesson-13": "bun run lesson-13-tool-drift/demo.ts",
 		"lesson-13:agent": "bun run lesson-13-tool-drift/agent.ts",
+		"lesson-14": "bun run lesson-14-tracing/demo.ts",
+		"lesson-14:agent": "bun run lesson-14-tracing/agent.ts",
 		"lesson-15": "bun run lesson-15-memory/demo.ts",
 		"lesson-15:attack": "bun run lesson-15-memory/agent.ts",
 		"lesson-16": "bun run lesson-16-skills/demo.ts",
