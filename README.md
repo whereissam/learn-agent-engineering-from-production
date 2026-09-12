@@ -109,7 +109,7 @@ flowchart LR
 
 | Step | Lesson | The question it answers | Source you read |
 |---|---|---|---|
-| | | **① The engine · Lessons 01-05 · Pi**<br/>These mechanisms are extracted from Pi, not invented as teaching abstractions. | |
+| | | **① The engine · Lessons 01-05 · [Pi](https://github.com/earendil-works/pi)**<br/>These mechanisms are extracted from Pi, not invented as teaching abstractions. | |
 | 1 | [01 Minimal agent loop](lesson-01-agent-loop/) | Why can it keep going on its own? | Pi `agent-loop.ts:170-272` |
 | 2 | [02 More tools](lesson-02-tools/) | Once it can change things, how do you not break things? | Pi tools + approval |
 | 3 | [03 Streaming and interruption](lesson-03-streaming/) | How do you stop it mid-run? | Pi `agent.ts` events |
@@ -118,7 +118,7 @@ flowchart LR
 | | | **② Your domain · Lessons 06-07 · you**<br/>The part nobody can hand you. | |
 | 6 | [06 Domain tools](lesson-06-domain-tools/) | How does a general agent become an expert in your domain? | you (Pi shows the shape) |
 | 7 | [07 Evaluation](lesson-07-evaluation/) | You changed the prompt — did it actually get better? | you |
-| | | **③ From a loop to a usable system · Lessons 08-14 + 30 · OpenWorker, Mastra** | |
+| | | **③ From a loop to a usable system · Lessons 08-14 + 30 · [OpenWorker](https://github.com/andrewyng/openworker), [Mastra](https://github.com/mastra-ai/mastra)** | |
 | 8 | [08 Risk classes](lesson-08-permissions/) | What counts as dangerous, and who decides to ask? | OpenWorker `risk.py` |
 | 9 | [09 When nobody is there](lesson-09-unattended/) | Approval needed at 3am and you're asleep — now what? | OpenWorker `inbox.py` |
 | 10 | [10 Agent server](lesson-10-agent-server/) | It runs on a server; how does the UI know what it's doing? | OpenWorker `server/app.py` |
@@ -128,30 +128,30 @@ flowchart LR
 | 14 | [14 Tracing](lesson-14-tracing/) | What did it do last week, and whose request paid for it? | Mastra `observability/types/tracing.ts:35` |
 | 15 | [30 Schema compatibility](lesson-30-schema-compat/) | Their schema is not yours to fix — so what breaks? | Mastra `schema-compat/` |
 | | | *Lesson 30 sits here, despite its higher number, because MCP is what makes schema compatibility unavoidable — it continues step 12's experiment directly.* | |
-| | | **④ Running for months, not minutes · Lessons 15-19 · Hermes**<br/>Five faces of one question: how does it keep existing while you are not watching? | |
+| | | **④ Running for months, not minutes · Lessons 15-19 · [Hermes](https://github.com/NousResearch/hermes-agent)**<br/>Five faces of one question: how does it keep existing while you are not watching? | |
 | 16 | [15 Long-term memory](lesson-15-memory/) | How does it still know this next time? | Hermes `memory_manager.py` |
 | 17 | [16 Skills](lesson-16-skills/) | How do capabilities accumulate without polluting context? | Hermes `skill_utils.py` |
 | 18 | [17 Cross-session search](lesson-17-search/) | How do you find that session from last month? | Hermes `session_search_tool.py` |
 | 19 | [18 Scheduling](lesson-18-scheduling/) | It runs at 3am — who starts it, and what if it dies halfway? | Hermes `cron/` (8,727 lines) |
 | 20 | [19 Delegation](lesson-19-delegation/) | Handing a task to a sub-agent — what does it get to see? | Hermes `delegate_tool.py` |
 | | | **⑤ One whole domain · Lessons 20-27 · four search projects**<br/>Optional — but it is the real thing. | |
-| 21 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | deep-research |
-| 22 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | Crawl4AI, Firecrawl |
-| 23 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | txtai |
+| 21 | [20 Minimal search agent](lesson-20-search-agent/) | How does a model see anything outside its training data? | [deep-research](https://github.com/dzhng/deep-research) |
+| 22 | [21 Crawl and extraction](lesson-21-crawl/) | What happens after you click the search result? | [Crawl4AI](https://github.com/unclecode/crawl4ai), [Firecrawl](https://github.com/firecrawl/firecrawl) |
+| 23 | [22 Retrieval and ranking](lesson-22-retrieval/) | You got a hundred results — which ones matter? | [txtai](https://github.com/neuml/txtai) |
 | 24 | [23 Reading the real source](lesson-23-real-world/) | How far is our toy from a real product? | all four, line by line |
 | 25 | [24 Deep research loop](lesson-24-research-loop/) | Across dozens of pages, who owns control flow? | `deep-research.ts:230` |
 | 26 | [25 Citations](lesson-25-citations/) | Are the citations in the report real? | nobody — none of the four verify |
-| 27 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | gpt-researcher `costs.py:63` |
+| 27 | [26 Cost and budget](lesson-26-cost/) | Which step is the money actually going to? | [gpt-researcher](https://github.com/assafelovic/gpt-researcher) `costs.py:63` |
 | 28 | [27 Local docs + web](lesson-27-local-docs/) | How do your own documents mix with the web? | gpt-researcher `document/` |
-| | | **⑥ Around the loop · Mastra, OpenCode, OpenHands** | |
+| | | **⑥ Around the loop · Mastra, [OpenCode](https://github.com/anomalyco/opencode), [OpenHands](https://github.com/All-Hands-AI/OpenHands)** | |
 | 29 | [31 Processor pipeline](lesson-31-processors/) | How do guardrails stay out of the loop—and secrets out of every sink? | Mastra `core/src/processors/` |
 | 30 | [32 Tool search](lesson-32-tool-search/) | Ten MCP servers connected — do 200 tools even fit? | Mastra `processors/tool-search.ts` |
 | 31 | [33 Durable runs](lesson-33-durable/) | The process died at 3am — where was the run? | Mastra `workflows/state-reader.ts` |
-| 32 | [34 Idempotency](lesson-34-idempotency/) | The effect happened but was never recorded — retry or not? | Restate `tour-of-agents/` |
+| 32 | [34 Idempotency](lesson-34-idempotency/) | The effect happened but was never recorded — retry or not? | [Restate](https://github.com/restatedev/ai-examples) `tour-of-agents/` |
 | 33 | [29 Evidence of completion](lesson-29-evidence/) | The model says "done" — why would you believe it? | OpenCode `snapshot/index.ts` |
 | 34 | [28 Interrupted mid-stream](lesson-28-consistency/) | Killed halfway — can the stored session still be trusted? | OpenCode `session/processor.ts` |
 | 35 | [37 Action and observation](lesson-37-trajectory/) | The agent claimed, the environment measured — same field? | OpenHands `core/events/` |
-| 36 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | Anthropic SRT `macos-sandbox-utils.ts` |
+| 36 | [35 A permission engine is not a sandbox](lesson-35-sandbox/) | The command was allowed — what can it reach now? | [Anthropic SRT](https://github.com/anthropic-experimental/sandbox-runtime) `macos-sandbox-utils.ts` |
 | 37 | [38 The cache you break yourself](lesson-38-prompt-cache/) | Which line of your prompt is costing you the whole prefix? | OpenCode `protocols/utils/cache.ts` |
 | | | *Lesson 29 comes before 28 on purpose: it answers step 8's open question directly, 28 is the harder version of the same one, and 37 puts the answer into the type system. Lesson 35 answers step 8's other half, and needs macOS.* | |
 
@@ -167,7 +167,7 @@ still only comparison points — is recorded in [docs/TODO.md](docs/TODO.md).
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| 36 | Where does the command run, and is that world still there after? | OpenHands |
+| 36 | Where does the command run, and is that world still there after? | [OpenHands software-agent-sdk](https://github.com/OpenHands/software-agent-sdk) |
 | | *Lesson 35 (written) is about **capability boundaries** — what may this process touch. 36 is about **environment lifecycle** — where the agent's world lives and how long it survives.* | |
 
 This list is short on purpose. A project earns a **main-line** lesson only if
@@ -194,13 +194,13 @@ earlier gives the knowledge nothing to attach to.
 
 | Lesson | The question it answers | Source |
 |---|---|---|
-| 50 | Swapped the API for a local Qwen — why did tool calling break? | vLLM (83 parsers, 14,307 lines) |
+| 50 | Swapped the API for a local Qwen — why did tool calling break? | [vLLM](https://github.com/vllm-project/vllm) (83 parsers, 14,307 lines) |
 | 51 | *Optional infrastructure*: batching, KV cache, prefix caching | vLLM — **needs a GPU** |
-| 52 | Streaming voice out: cancellation, stale audio, turn-taking | Fish Speech (as a tool) |
-| 53 | Tracing: spans and cost attribution | Mastra, Phoenix |
+| 52 | Streaming voice out: cancellation, stale audio, turn-taking | [Fish Speech](https://github.com/fishaudio/fish-speech) (as a tool) |
+| 53 | Tracing: spans and cost attribution | Mastra, [Phoenix](https://github.com/Arize-ai/phoenix) |
 | 54 | Swapping providers mid-session without breaking history | — |
 | 55 | OAuth, token rotation, per-user credential isolation | connectors |
-| 56 | The tool costs money — may the agent decide to pay? | x402 |
+| 56 | The tool costs money — may the agent decide to pay? | [x402](https://github.com/coinbase/x402) |
 | 57 | What may cross into a trace, a memory, or a subagent? | Mastra + production systems TBD |
 | 58-59 | reserved — packaging, auto-update, monitoring | — |
 
