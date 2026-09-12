@@ -165,9 +165,10 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 只會對爛專案說不的判準沒有用，**這一個會對好專案說不**。
 
 「證據」這條線完整了（29 → 28 → 37：量測、生命週期、型別，三課講的是同一句話：
-紀錄不能比事實更樂觀）。現在最想要的是 Lesson 34：Lesson 33 的結尾是一份
-journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生——而那正是
-durable execution 存在要補的縫。
+紀錄不能比事實更樂觀）。**durability 這條線也完整了**：Lesson 33 的結尾是一份
+journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生，而
+[Lesson 34](lesson-34-idempotency/) 補的就是那道縫——exactly-once 原來是兩方之間的
+協定，不是 runtime 能直接給你的功能。**主線只剩 Lesson 36 還沒寫。**
 
 ### Prod 篇 · Lesson 50-59，不算在 37 步裡
 
@@ -200,7 +201,7 @@ vLLM 和 Fish Speech 都 clone 下來盤點過才放進這一篇的，行數、�
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # 不用 API key
-bun run test                        # 188 通過、1 skip；不用 API key
+bun run test                        # 319 通過、1 skip；不用 API key
 ```
 
 `fake` 是照腳本回應的假模型。它不會思考，但整個 loop 是完全真實的：
@@ -233,8 +234,8 @@ Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案，`bun run reset` 
 
 > 模型是這個系列裡唯一一個你不用蓋的零件。
 
-- **機制**（權限、inbox、排序、引用檢查、檢索）由 189 個確定性檢查覆蓋：
-  188 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
+- **機制**（權限、inbox、排序、引用檢查、檢索）由 320 個確定性檢查覆蓋：
+  319 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
 - **模型行為**分開量，用真的 Gemini 3.6 Flash 反覆跑，每一次都記在
   [docs/TODO.md](docs/TODO.md) 裡，包括結果跟我預期相反的那幾次
   （Lesson 17、27）和結果很難看的那次（Lesson 8）。
@@ -321,10 +322,10 @@ Lesson 1-5 幾乎是照著它走的。
 | [deep-research](https://github.com/dzhng/deep-research) | research loop、結構性預算 | 20、24 |
 | [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | context 壓縮、成本會計、本地文件 | 23-27 |
 | [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | 正文抽取，以及它的靜默失敗 | 21、23 |
-| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、邊界 processor | 30-31；32-33 規劃中 |
+| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、邊界 processor、tool search、durable run | 30-33 |
 | [OpenCode](https://github.com/anomalyco/opencode) | 檔案系統證據、tool lifecycle、中斷後的收尾 | 28-29 |
 | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | action–observation 事件模型（707 行型別） | 37 |
-| [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
+| [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34 |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35 |
 
 規劃中的來源裡有一個**已經 clone、但還沒讀**，所以上面那張表刻意沒有列它：

@@ -178,9 +178,11 @@ good ones.
 
 **The evidence branch is complete** (29 → 28 → 37: measurement, lifecycle,
 type system — all three saying *the record must not be more optimistic than
-the facts*). **Lesson 34 is now the one to want most**: Lesson 33 ends with a
-journal that knows a step was interrupted and cannot tell you whether its side
-effect landed, and that is exactly the gap durable execution exists to close.
+the facts*). **So is the durability branch**: Lesson 33 ended holding a journal
+that knew a step was interrupted and could not say whether its side effect
+landed, and [Lesson 34](lesson-34-idempotency/) closes that gap — exactly-once
+turns out to be an agreement between two parties, not a feature a runtime hands
+you. **Lesson 36 is the only main-line step still unwritten.**
 
 ### Prod part · Lessons 50-59 — *not* part of the 37 steps
 
@@ -215,7 +217,7 @@ Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # no API key needed
-bun run test                        # 188 pass, 1 skipped; no API key needed
+bun run test                        # 319 pass, 1 skipped; no API key needed
 ```
 
 `fake` is a scripted model. It doesn't think, but **the loop is entirely
@@ -251,7 +253,7 @@ work — what they teach doesn't live in the model.
 > **The model is the one part of this series you don't have to build.**
 
 - **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
-  covered by **189 deterministic checks: 188 passing, 1 intentionally skipped**
+  covered by **320 deterministic checks: 319 passing, 1 intentionally skipped**
   (a live-provider contract test that only runs when `PROVIDER` is set, because
   it spends money).
 - **Model behaviour** is measured separately against live Gemini 3.6 Flash,
@@ -355,10 +357,10 @@ With Pi above, that is twelve:
 | [deep-research](https://github.com/dzhng/deep-research) | The research loop, structural budgets | 20, 24 |
 | [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | Context compression, cost accounting, local documents | 23-27 |
 | [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | Content extraction and its silent failures | 21, 23 |
-| [Mastra](https://github.com/mastra-ai/mastra) | Provider schema compatibility, boundary processors | 30-31; 32-33 planned |
+| [Mastra](https://github.com/mastra-ai/mastra) | Provider schema compatibility, boundary processors, tool search, durable runs | 30-33 |
 | [OpenCode](https://github.com/anomalyco/opencode) | Filesystem evidence, tool lifecycle, interruption cleanup | 28-29 |
 | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | The action–observation event model (707 lines of types) | 37 |
-| [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 (planned) |
+| [Restate](https://github.com/restatedev/ai-examples) | Durable execution, retries, idempotent side effects | 34 |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | OS-level filesystem and network restriction | 35 |
 
 One repo in the planned set is **cloned but not yet read**, and the table above
