@@ -99,7 +99,7 @@ flowchart LR
 
 | 步 | 課 | 這一步回答的問題 | 你讀的原始碼 |
 |---|---|---|---|
-| | | **① 引擎本體 · Lesson 01-05 · Pi**<br/>這些機制是從 Pi 抽出來的，不是為了教學憑空設計的抽象。 | |
+| | | **① 引擎本體 · Lesson 01-05 · [Pi](https://github.com/earendil-works/pi)**<br/>這些機制是從 Pi 抽出來的，不是為了教學憑空設計的抽象。 | |
 | 1 | [01 最小的 agent loop](lesson-01-agent-loop/) | 它為什麼能自己一直做下去？ | Pi `agent-loop.ts:170-272` |
 | 2 | [02 更多工具](lesson-02-tools/) | 能改東西之後，怎麼不弄壞東西？ | Pi 的工具與批准 |
 | 3 | [03 Streaming 與中斷](lesson-03-streaming/) | 執行到一半怎麼喊停？ | Pi `agent.ts` 事件 |
@@ -108,7 +108,7 @@ flowchart LR
 | | | **② 你的領域 · Lesson 06-07 · 自己做**<br/>沒有人能替你做的那一段。 | |
 | 6 | [06 領域工具](lesson-06-domain-tools/) | 通用 agent 怎麼變成你領域的專家？ | 自己做（Pi 只給形狀） |
 | 7 | [07 Evaluation](lesson-07-evaluation/) | 改了 prompt，到底有沒有變好？ | 自己做 |
-| | | **③ 從一個 loop 變成能用的系統 · Lesson 08-14 + 30 · OpenWorker、Mastra** | |
+| | | **③ 從一個 loop 變成能用的系統 · Lesson 08-14 + 30 · [OpenWorker](https://github.com/andrewyng/openworker)、[Mastra](https://github.com/mastra-ai/mastra)** | |
 | 8 | [08 風險分級](lesson-08-permissions/) | 「危險」怎麼分級？誰決定要不要問？ | OpenWorker `risk.py` |
 | 9 | [09 沒人在場的時候](lesson-09-unattended/) | 半夜三點需要批准，但你在睡覺？ | OpenWorker `inbox.py` |
 | 10 | [10 Agent server](lesson-10-agent-server/) | agent 在 server 上跑，UI 怎麼知道它在幹嘛？ | OpenWorker `server/app.py` |
@@ -118,30 +118,30 @@ flowchart LR
 | 14 | [14 Tracing](lesson-14-tracing/) | 它上週做了什麼，而那是誰的請求付的錢？ | Mastra `observability/types/tracing.ts:35` |
 | 15 | [30 Schema 相容](lesson-30-schema-compat/) | 別人的 schema 你改不了，那會壞在哪？ | Mastra `schema-compat/` |
 | | | *Lesson 30 號碼比較大卻排在這裡，是因為 MCP 才讓 schema 相容變成非解不可，它直接接續第 12 步的實驗。* | |
-| | | **④ 跑好幾個月，不是跑幾分鐘 · Lesson 15-19 · Hermes**<br/>同一個問題的五個面向：你不看著的時候，它怎麼繼續存在。 | |
+| | | **④ 跑好幾個月，不是跑幾分鐘 · Lesson 15-19 · [Hermes](https://github.com/NousResearch/hermes-agent)**<br/>同一個問題的五個面向：你不看著的時候，它怎麼繼續存在。 | |
 | 16 | [15 長期記憶](lesson-15-memory/) | 這次學到的，下次怎麼還記得？ | Hermes `memory_manager.py` |
 | 17 | [16 Skills](lesson-16-skills/) | 能力怎麼累積，又不弄髒 context？ | Hermes `skill_utils.py` |
 | 18 | [17 跨 session 搜尋](lesson-17-search/) | 上個月那個 session 怎麼找回來？ | Hermes `session_search_tool.py` |
 | 19 | [18 排程與無人值守](lesson-18-scheduling/) | 半夜三點自己跑，跑到一半死掉怎麼辦？ | Hermes `cron/`（8,727 行） |
 | 20 | [19 委派](lesson-19-delegation/) | 把任務交給子 agent，它看得到什麼？ | Hermes `delegate_tool.py` |
 | | | **⑤ 一整個領域 · Lesson 20-27 · 四個搜尋專案**<br/>可以跳過，但它才是真實的樣子。 | |
-| 21 | [20 最小的 search agent](lesson-20-search-agent/) | 模型怎麼看到訓練資料以外的東西？ | deep-research |
-| 22 | [21 Crawl 與內容抽取](lesson-21-crawl/) | 搜尋結果點進去之後呢？ | Crawl4AI、Firecrawl |
-| 23 | [22 檢索與排序](lesson-22-retrieval/) | 找到一堆結果，哪些真的相關？ | txtai |
+| 21 | [20 最小的 search agent](lesson-20-search-agent/) | 模型怎麼看到訓練資料以外的東西？ | [deep-research](https://github.com/dzhng/deep-research) |
+| 22 | [21 Crawl 與內容抽取](lesson-21-crawl/) | 搜尋結果點進去之後呢？ | [Crawl4AI](https://github.com/unclecode/crawl4ai)、[Firecrawl](https://github.com/firecrawl/firecrawl) |
+| 23 | [22 檢索與排序](lesson-22-retrieval/) | 找到一堆結果，哪些真的相關？ | [txtai](https://github.com/neuml/txtai) |
 | 24 | [23 對照真實原始碼](lesson-23-real-world/) | 真實產品跟我們的玩具差在哪？ | 四個專案逐行對照 |
 | 25 | [24 Deep Research loop](lesson-24-research-loop/) | 研究幾十個網頁，控制流誰說了算？ | `deep-research.ts:230` |
 | 26 | [25 引用與評估](lesson-25-citations/) | 報告裡的引用是真的嗎？ | 沒有人，四個專案都不驗 |
-| 27 | [26 成本與預算](lesson-26-cost/) | 錢到底花在哪一步？ | gpt-researcher `costs.py:63` |
+| 27 | [26 成本與預算](lesson-26-cost/) | 錢到底花在哪一步？ | [gpt-researcher](https://github.com/assafelovic/gpt-researcher) `costs.py:63` |
 | 28 | [27 本地文件 + web](lesson-27-local-docs/) | 自己的文件跟 web 怎麼混在一起搜？ | gpt-researcher `document/` |
-| | | **⑥ loop 周圍那一圈 · Mastra、OpenCode、OpenHands** | |
+| | | **⑥ loop 周圍那一圈 · Mastra、[OpenCode](https://github.com/anomalyco/opencode)、[OpenHands](https://github.com/All-Hands-AI/OpenHands)** | |
 | 29 | [31 Processor pipeline](lesson-31-processors/) | guardrail 怎麼留在 loop 外，而且 secret 不漏進任何 sink？ | Mastra `core/src/processors/` |
 | 30 | [32 工具搜尋](lesson-32-tool-search/) | 接上十個 MCP server，200 個工具塞得進去嗎？ | Mastra `processors/tool-search.ts` |
 | 31 | [33 可續跑的 run](lesson-33-durable/) | process 半夜三點死了，那個 run 在哪裡？ | Mastra `workflows/state-reader.ts` |
-| 32 | [34 Idempotency](lesson-34-idempotency/) | 副作用發生了卻沒被記下來，要不要重試？ | Restate `tour-of-agents/` |
+| 32 | [34 Idempotency](lesson-34-idempotency/) | 副作用發生了卻沒被記下來，要不要重試？ | [Restate](https://github.com/restatedev/ai-examples) `tour-of-agents/` |
 | 33 | [29 完成的證據](lesson-29-evidence/) | 模型說「改好了」，憑什麼相信它？ | OpenCode `snapshot/index.ts` |
 | 34 | [28 中斷之後的一致性](lesson-28-consistency/) | 跑到一半被殺掉，存下來的 session 還能相信嗎？ | OpenCode `session/processor.ts` |
 | 35 | [37 Action / observation](lesson-37-trajectory/) | agent 宣稱的跟環境量到的，可以放在同一個欄位嗎？ | OpenHands `core/events/` |
-| 36 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | Anthropic SRT `macos-sandbox-utils.ts` |
+| 36 | [35 權限引擎不是沙箱](lesson-35-sandbox/) | 指令被准了，它現在碰得到什麼？ | [Anthropic SRT](https://github.com/anthropic-experimental/sandbox-runtime) `macos-sandbox-utils.ts` |
 | 37 | [38 你自己弄壞的那個 cache](lesson-38-prompt-cache/) | 你 prompt 裡的哪一行，讓你賠掉整個前綴？ | OpenCode `protocols/utils/cache.ts` |
 | | | *29 排在 28 前面是刻意的：它直接回答第 8 步留下的問題，28 是同一個問題更難的版本，而 37 把答案寫進型別。Lesson 35 回答第 8 步的另一半，需要 macOS。* | |
 
@@ -156,7 +156,7 @@ flowchart LR
 
 | 課 | 這課回答的問題 | 來源 |
 |---|---|---|
-| 36 | 指令在哪裡跑、跑完之後那個世界還在不在？ | OpenHands |
+| 36 | 指令在哪裡跑、跑完之後那個世界還在不在？ | [OpenHands software-agent-sdk](https://github.com/OpenHands/software-agent-sdk) |
 | | *Lesson 35（已寫）講的是**能力邊界**：這個 process 碰得到什麼。36 講的是**環境的生命週期**：agent 的世界在哪裡、能活多久。* | |
 
 這張表刻意很短。一個專案要換到主線的一課，必須有真正的 agent loop 或
@@ -165,9 +165,10 @@ workflow、碰到 tools / context / memory / permission / session 之一，
 只會對爛專案說不的判準沒有用，**這一個會對好專案說不**。
 
 「證據」這條線完整了（29 → 28 → 37：量測、生命週期、型別，三課講的是同一句話：
-紀錄不能比事實更樂觀）。現在最想要的是 Lesson 34：Lesson 33 的結尾是一份
-journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生——而那正是
-durable execution 存在要補的縫。
+紀錄不能比事實更樂觀）。**durability 這條線也完整了**：Lesson 33 的結尾是一份
+journal，它知道某個 step 被中斷了，卻答不出那個副作用到底有沒有發生，而
+[Lesson 34](lesson-34-idempotency/) 補的就是那道縫——exactly-once 原來是兩方之間的
+協定，不是 runtime 能直接給你的功能。**主線只剩 Lesson 36 還沒寫。**
 
 ### Prod 篇 · Lesson 50-59，不算在 37 步裡
 
@@ -180,13 +181,13 @@ durable execution 存在要補的縫。
 
 | 課 | 這課回答的問題 | 來源 |
 |---|---|---|
-| 50 | 把 API 換成本地 Qwen，tool calling 為什麼壞掉？ | vLLM（83 個 parser、14,307 行） |
+| 50 | 把 API 換成本地 Qwen，tool calling 為什麼壞掉？ | [vLLM](https://github.com/vllm-project/vllm)（83 個 parser、14,307 行） |
 | 51 | *選修的基礎設施*：batching、KV cache、prefix caching | vLLM，**要有 GPU** |
-| 52 | 串流語音輸出：取消、播到一半的舊音訊、換手 | Fish Speech（當工具用） |
-| 53 | Tracing：span 與成本歸因 | Mastra、Phoenix |
+| 52 | 串流語音輸出：取消、播到一半的舊音訊、換手 | [Fish Speech](https://github.com/fishaudio/fish-speech)（當工具用） |
+| 53 | Tracing：span 與成本歸因 | Mastra、[Phoenix](https://github.com/Arize-ai/phoenix) |
 | 54 | 換 provider 之後，舊 session 還能不能續 | — |
 | 55 | OAuth、token 輪替、多使用者 credential 隔離 | connectors |
-| 56 | 工具要花錢，agent 可以自己決定付嗎？ | x402 |
+| 56 | 工具要花錢，agent 可以自己決定付嗎？ | [x402](https://github.com/coinbase/x402) |
 | 57 | 什麼東西可以進 trace、進 memory、進 subagent？ | Mastra + 其他待盤點 |
 | 58-59 | 保留：打包、自動更新、監控 | — |
 
@@ -200,7 +201,7 @@ vLLM 和 Fish Speech 都 clone 下來盤點過才放進這一篇的，行數、�
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # 不用 API key
-bun run test                        # 188 通過、1 skip；不用 API key
+bun run test                        # 319 通過、1 skip；不用 API key
 ```
 
 `fake` 是照腳本回應的假模型。它不會思考，但整個 loop 是完全真實的：
@@ -233,8 +234,8 @@ Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案，`bun run reset` 
 
 > 模型是這個系列裡唯一一個你不用蓋的零件。
 
-- **機制**（權限、inbox、排序、引用檢查、檢索）由 189 個確定性檢查覆蓋：
-  188 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
+- **機制**（權限、inbox、排序、引用檢查、檢索）由 320 個確定性檢查覆蓋：
+  319 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
 - **模型行為**分開量，用真的 Gemini 3.6 Flash 反覆跑，每一次都記在
   [docs/TODO.md](docs/TODO.md) 裡，包括結果跟我預期相反的那幾次
   （Lesson 17、27）和結果很難看的那次（Lesson 8）。
@@ -321,10 +322,10 @@ Lesson 1-5 幾乎是照著它走的。
 | [deep-research](https://github.com/dzhng/deep-research) | research loop、結構性預算 | 20、24 |
 | [GPT Researcher](https://github.com/assafelovic/gpt-researcher) | context 壓縮、成本會計、本地文件 | 23-27 |
 | [Crawl4AI](https://github.com/unclecode/crawl4ai) · [Firecrawl](https://github.com/firecrawl/firecrawl) | 正文抽取，以及它的靜默失敗 | 21、23 |
-| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、邊界 processor | 30-31；32-33 規劃中 |
+| [Mastra](https://github.com/mastra-ai/mastra) | provider schema 相容、邊界 processor、tool search、durable run | 30-33 |
 | [OpenCode](https://github.com/anomalyco/opencode) | 檔案系統證據、tool lifecycle、中斷後的收尾 | 28-29 |
 | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | action–observation 事件模型（707 行型別） | 37 |
-| [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34（規劃中） |
+| [Restate](https://github.com/restatedev/ai-examples) | durable execution、重試、冪等副作用 | 34 |
 | [Anthropic Sandbox Runtime](https://github.com/anthropic-experimental/sandbox-runtime) | 作業系統層的檔案與網路限制 | 35 |
 
 規劃中的來源裡有一個**已經 clone、但還沒讀**，所以上面那張表刻意沒有列它：

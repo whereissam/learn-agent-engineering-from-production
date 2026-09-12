@@ -292,8 +292,10 @@ git clone --depth 1 https://github.com/NousResearch/hermes-agent   hermes-agent
   行正是那一課描述的 `WRITE_LOCAL` 檢查——而那份 README 只是從來沒有用過「shared」
   這個字。**一個自信到可以指控別人的檢查器，需要跟它檢查的東西一樣的查證。**
 
-仍然沒有 clone，而且仍然是刻意的：`OpenHands/software-agent-sdk`，Lesson 36 會
-需要它。Credits 那一段有寫，而那件事沒有變。
+**後來 clone 了，2026-09-11**：`OpenHands/software-agent-sdk`，Lesson 36 會
+需要它。在有課真的引用它之前，它不算進「十二個」裡面，因為「clone 了」跟
+「一行一行讀過」是兩個不同的宣稱，而 Credits 那張表只宣稱後者。盤點結果、
+以及它解開的那個決定，在下面 Lesson 36 那一節。
 
 ## 全貌
 
@@ -2545,7 +2547,7 @@ OpenHands/software-agent-sdk
 | 要學的東西 | 去哪 | 語言 |
 |---|---|---|
 | **事件模型（action / observation / trajectory） | `All-Hands-AI/OpenHands` 的 `src/types/agent-server/core/events/`，707 行純型別定義** | TypeScript |
-| runtime / sandbox / workspace | `OpenHands/software-agent-sdk` 的 `agent_server` | Python，還沒 clone |
+| runtime / sandbox / workspace | `OpenHands/software-agent-sdk` 的 `agent_server` 和 `openhands-workspace` | Python，2026-09-11 clone 了 |
 
 第一份小到可以整份讀完，而且跟本系列同語言。Lesson 37 先做這個。
 
@@ -2704,7 +2706,7 @@ write_file(../../etc/hosts)   harness HIGH   detached HIGH 3/3   motivated LOW�
 
 ### Lesson 36：coding agent 的執行世界
 
-- **來源：`OpenHands/software-agent-sdk` 的 `agent_server`（還沒 clone**）
+- **來源：`OpenHands/software-agent-sdk` 的 `agent_server` 和 `openhands-workspace`**，2026-09-11 clone
 - 它跟 Lesson 35 不是同一件事，順序不能反：
 
   ```
@@ -2729,6 +2731,64 @@ write_file(../../etc/hosts)   harness HIGH   detached HIGH 3/3   motivated LOW�
 - **難度提醒**：這是所有待寫課程裡**最容易寫成「讀懂架構」**的一課
   （Lesson 10、33 都掛過同樣的警告）。而且是 Python、要 Docker。
   **建議等 35 和 37 都寫完再決定要不要寫**，那時候會很清楚它還剩下什麼沒講
+
+#### 2026-09-12：那個條件到了，結論是寫
+
+35 和 37 都寫完了，上面那個條件成立。這個決定是讀 repo 讀出來的，不是照計畫寫的，
+而且讀完之後計畫被改了。
+
+**盤點**（commit `1a33e94`，1,289 個 `.py` 檔）：
+
+| 套件 | 行數 | 是什麼 |
+|---|---|---|
+| `openhands-sdk` | 72,164 | agent loop、conversation、事件 |
+| `openhands-agent-server` | 27,334 | 包在一段 conversation 外面的 HTTP server |
+| `openhands-tools` | 16,793 | bash、改檔、瀏覽器 |
+| `openhands-workspace` | 2,478 | **四種執行環境：docker、apptainer、remote_api、cloud** |
+
+最小的那個套件就是這一課。`openhands-sdk/openhands/sdk/workspace/base.py:27`
+是 `class BaseWorkspace(DiscriminatedUnionMixin, ABC)`，它的 docstring 一句話就把
+題目講完了：所有實作都「support the context manager protocol for safe resource
+management」。
+
+> **一個 workspace 就是一個 `with` 區塊。** agent 的世界是一個有生命週期的資源，
+> 而那個生命週期得有人負責。
+
+**結論：要寫，而且要縮小。** 不是「同一個任務跑三種方式」——那正是上面那條警告
+說的讀架構，產出的是架構圖不是失敗。改成一個問題，而且是整個系列已經鋪到、
+卻答不出來的那一個：
+
+> Lesson 33 可以在 process 死掉之後把 run 接回來。它接回去的是「世界現在剛好長
+> 什麼樣」，而這個系列裡沒有任何東西在管那個世界。
+
+journal 說第 2 步做完了；第 3 步預設第 2 步裝的東西還在硬碟上。Lesson 34 讓
+*副作用* exactly-once，但那完全沒有說「副作用當時跑的那個*環境*」還在不在。
+這是新的失敗，跟 33、34 是接續而不是重複，而且關得掉。
+
+**「關掉」就是這個 repo 現在的狀態**：到目前為止每一課都是在 host 上設個 `cwd`
+跑指令，workspace 只是一個字串。「打開」是 `DockerWorkspace`，而原始碼把上面那些
+問題答得夠具體，具體到可以標行號：
+
+| 問題 | 原始碼裡的答案 |
+|---|---|
+| 跑完之後那個世界還在嗎？ | 不在。`docker run … --rm` 在 `openhands-workspace/openhands/workspace/docker/workspace.py:241`，`cleanup()` 送的是 `docker stop`，在 `openhands-workspace/openhands/workspace/docker/workspace.py:371`——有 `--rm`，停掉*就是*刪掉 |
+| 誰結束它？ | `__exit__` 在 `openhands-workspace/openhands/workspace/docker/workspace.py:349`——還有 `__del__`，在 `openhands-workspace/openhands/workspace/docker/workspace.py:353`。**拆除綁在 Python 的垃圾回收上**，這值得單獨寫一段：一個生命週期由 refcount 決定的環境，就是一個沒有人講清楚生命週期的環境 |
+| 活著跟消失之間有沒有第三種狀態？ | 有。`pause()` 和 `resume()`，在 `openhands-workspace/openhands/workspace/docker/workspace.py:386` 和 `openhands-workspace/openhands/workspace/docker/workspace.py:404`，底下是 `docker pause`——這個系列從來沒有過的第三種狀態 |
+| host 的 secret 怎麼進去？ | `forward_env`，在 `openhands-workspace/openhands/workspace/docker/workspace.py:89`，一份明確的白名單，在 `openhands-workspace/openhands/workspace/docker/workspace.py:210` 被展開成 `-e KEY=value`。agent 從來不讀 host 的環境變數；是 harness 指名什麼可以跨過去 |
+
+最後那一列是 Lesson 35 的直接延伸：**35 決定一個正在跑的 process 碰得到什麼，
+36 決定它開始跑之前那個世界裡有什麼。**
+
+**原本寫的兩個成本，其中一個不是成本。**「它是 Python」不構成反對——Lesson 8-10
+和 12 讀的是 OpenWorker 的 Python，Lesson 15-19 讀的是 Hermes 的，兩批都用
+TypeScript 重建。真正的成本是 Docker，那會讓它變成第二堂不是每台機器都跑得起來的
+課（35 是只有 macOS），緩解方式也是老方法：預設的 scenario 自己管一個子行程和一個
+暫存目錄，沒裝 daemon 也看得到生命週期的問題，容器那個 scenario 另外開。
+
+**還沒驗證，而且課裡宣稱之前一定要先驗**：`DockerWorkspace` 在父 Python 行程被
+`SIGKILL` 之後到底活不活得下來，還是 `--rm` 加上 daemon 自己的清理會把它收掉。
+`SIGKILL` 不會跑 `__del__`，這正是這個問題有趣的地方，也是第一件該量而不是該推理
+的事。
 
 ### 這一輪其他專案的處置（都不開新課）
 

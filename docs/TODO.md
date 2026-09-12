@@ -329,8 +329,11 @@ class of error the checker exists to catch:
   describes — and the README simply never uses the word "shared". **A checker
   confident enough to accuse needs the same verification as the thing it checks.**
 
-Still not cloned, and still deliberately: `OpenHands/software-agent-sdk`, which
-Lesson 36 will need. The Credits section says so and that has not changed.
+**Cloned since, on 2026-09-11**: `OpenHands/software-agent-sdk`, which Lesson 36
+needs. It stays out of the count of twelve until a lesson cites it, because
+"cloned" and "read line by line" are different claims and the Credits table only
+makes the second one. The inventory, and the decision it unblocked, are in the
+Lesson 36 section below.
 
 ## The whole picture
 
@@ -2888,7 +2891,7 @@ So the OpenHands thread splits into two sources:
 | What to learn | Where | Language |
 |---|---|---|
 | **the event model (action / observation / trajectory) | `All-Hands-AI/OpenHands`'s `src/types/agent-server/core/events/`, 707 lines of pure type definitions** | TypeScript |
-| runtime / sandbox / workspace | `OpenHands/software-agent-sdk`'s `agent_server` | Python, not cloned yet |
+| runtime / sandbox / workspace | `OpenHands/software-agent-sdk`'s `agent_server` and `openhands-workspace` | Python, cloned 2026-09-11 |
 
 The first is small enough to read whole and is in the same language as this series.
 Lesson 37 does it first.
@@ -3060,7 +3063,7 @@ The one-line version (already in the README):
 
 ### Lesson 36: a coding agent's execution world
 
-- **Source: `agent_server` in `OpenHands/software-agent-sdk` (not cloned yet**)
+- **Source: `agent_server` and `openhands-workspace` in `OpenHands/software-agent-sdk`**, cloned 2026-09-11
 - It is not the same thing as Lesson 35, and the order cannot be reversed:
 
   ```
@@ -3089,6 +3092,70 @@ The one-line version (already in the README):
   is Python and needs Docker.
   **Decide whether to write it only after 35 and 37 are done**, when it will be clear
   what is left unsaid
+
+#### 2026-09-12: that gate is open, and the verdict is write it
+
+35 and 37 are both written, so the condition above is met. The decision was made
+by reading the repository rather than the plan, and the reading changed it.
+
+**The inventory** (commit `1a33e94`, 1,289 `.py` files):
+
+| Package | Lines | What it is |
+|---|---|---|
+| `openhands-sdk` | 72,164 | the agent loop, conversation, events |
+| `openhands-agent-server` | 27,334 | the HTTP server wrapped around one conversation |
+| `openhands-tools` | 16,793 | bash, file editing, browser |
+| `openhands-workspace` | 2,478 | **four execution environments: docker, apptainer, remote_api, cloud** |
+
+The smallest package is the lesson. `openhands-sdk/openhands/sdk/workspace/base.py:27`
+is `class BaseWorkspace(DiscriminatedUnionMixin, ABC)`, and its docstring states
+the subject in one sentence: implementations "support the context manager
+protocol for safe resource management".
+
+> **A workspace is a `with` block.** The agent's world is a resource with a
+> lifetime, and something has to own that lifetime.
+
+**Verdict: write it, and narrow it.** Not "run the same task three ways" — that
+is the architecture tour the warning above is about, and it produces a diagram,
+not a failure. One question instead, and it is one the series has already built
+up to and cannot answer:
+
+> Lesson 33 can resume a run after the process dies. It resumes into whatever
+> the world happens to look like now, and nothing in this series owns that world.
+
+The journal says step 2 finished; step 3 assumes step 2's install is still on
+disk. Lesson 34 makes the *effect* exactly-once, which says nothing about
+whether the *environment* that effect ran in still exists. New failure, composes
+with 33 and 34 instead of repeating them, and switchable.
+
+**Switched off is this repo's status quo**: every lesson so far runs commands on
+the host with a `cwd` set, and the workspace is a string. Switched on is
+`DockerWorkspace`, and the source answers the questions above concretely enough
+to cite:
+
+| The question | The answer, in the source |
+|---|---|
+| does the world survive the run? | no. `docker run … --rm` at `openhands-workspace/openhands/workspace/docker/workspace.py:241`, and `cleanup()` issues `docker stop` at `openhands-workspace/openhands/workspace/docker/workspace.py:371` — with `--rm`, stopping *is* deleting |
+| who ends it? | `__exit__` at `openhands-workspace/openhands/workspace/docker/workspace.py:349` — and `__del__` at `openhands-workspace/openhands/workspace/docker/workspace.py:353`. **Teardown is tied to Python garbage collection**, which is worth its own paragraph: an environment whose lifetime is decided by a refcount is an environment whose lifetime nobody states |
+| is there anything between alive and gone? | yes. `pause()` and `resume()` at `openhands-workspace/openhands/workspace/docker/workspace.py:386` and `openhands-workspace/openhands/workspace/docker/workspace.py:404`, which are `docker pause` — a third state the series has never had |
+| how do host secrets get in? | `forward_env` at `openhands-workspace/openhands/workspace/docker/workspace.py:89`, an explicit allow-list copied into `-e KEY=value` at `openhands-workspace/openhands/workspace/docker/workspace.py:210`. The agent never reads the host environment; the harness names what crosses |
+
+That last row is the direct continuation of Lesson 35: **35 decides what a
+running process may touch, 36 decides what was in its world before it started.**
+
+**One of the two stated costs is not a cost.** "It is Python" is not an
+objection — Lessons 8-10 and 12 read OpenWorker's Python and Lessons 15-19 read
+Hermes's, and both rebuild in TypeScript. The real cost is Docker, which would
+make this the second lesson that cannot run everywhere (35 is macOS-only), and
+the mitigation is the usual one: the default scenario owns a child process and a
+temp directory, so the lifetime question is visible with no daemon installed,
+and the container scenario is opt-in.
+
+**Still unverified, and must be before the lesson claims it**: whether a
+`DockerWorkspace` actually survives a `SIGKILL` of the parent Python process, or
+whether `--rm` plus the daemon's own cleanup removes it. `__del__` does not run
+on `SIGKILL`, which is the whole reason the question is interesting, and it is
+the first thing to measure rather than reason about.
 
 ### The other projects from this round (none becomes a new lesson)
 
