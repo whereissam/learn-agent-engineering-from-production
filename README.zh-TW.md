@@ -201,7 +201,7 @@ vLLM 和 Fish Speech 都 clone 下來盤點過才放進這一篇的，行數、�
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # 不用 API key
-bun run test                        # 319 通過、1 skip；不用 API key
+bun run test                        # 321 通過、1 skip；不用 API key
 ```
 
 `fake` 是照腳本回應的假模型。它不會思考，但整個 loop 是完全真實的：
@@ -234,8 +234,8 @@ Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案，`bun run reset` 
 
 > 模型是這個系列裡唯一一個你不用蓋的零件。
 
-- **機制**（權限、inbox、排序、引用檢查、檢索）由 320 個確定性檢查覆蓋：
-  319 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
+- **機制**（權限、inbox、排序、引用檢查、檢索）由 322 個確定性檢查覆蓋：
+  321 通過，1 個是刻意 skip 的（那是要真 provider 才跑的契約測試，因為它會花錢）。
 - **模型行為**分開量，用真的 Gemini 3.6 Flash 反覆跑，每一次都記在
   [docs/TODO.md](docs/TODO.md) 裡，包括結果跟我預期相反的那幾次
   （Lesson 17、27）和結果很難看的那次（Lesson 8）。

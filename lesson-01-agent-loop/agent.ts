@@ -11,8 +11,8 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createInterface } from "node:readline/promises";
 import { selectProvider } from "../shared/providers/index.ts";
+import { LineReader } from "../shared/repl.ts";
 import type { Message, Provider, ToolResult, ToolSpec } from "../shared/providers/types.ts";
 
 // ─────────────────────────────────────────────────────────────
@@ -181,19 +181,17 @@ async function main(): Promise<void> {
 		// Lesson 4 persists it to disk.
 	const messages: Message[] = [];
 
-	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	const reader = new LineReader();
 
 	console.log(dim(`provider: ${provider.name}  model: ${provider.model}`));
 	console.log(dim("Ask a question. /exit or Ctrl+C to leave\n"));
 
 	try {
 		while (true) {
-			let input: string;
-			try {
-				input = (await rl.question("\x1b[36m> \x1b[0m")).trim();
-			} catch {
-				break; // stdin closed (Ctrl+D, or piped input ran out)
-			}
+			const line = await reader.next("\x1b[36m> \x1b[0m");
+			if (line === null) break; // stdin closed (Ctrl+D, or piped input ran out)
+
+			const input = line.trim();
 			if (!input) continue;
 			if (input === "/exit") break;
 
@@ -202,7 +200,7 @@ async function main(): Promise<void> {
 			console.log();
 		}
 	} finally {
-		rl.close();
+		reader.close();
 	}
 }
 

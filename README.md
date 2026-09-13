@@ -217,7 +217,7 @@ Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # no API key needed
-bun run test                        # 319 pass, 1 skipped; no API key needed
+bun run test                        # 321 pass, 1 skipped; no API key needed
 ```
 
 `fake` is a scripted model. It doesn't think, but **the loop is entirely
@@ -253,7 +253,7 @@ work — what they teach doesn't live in the model.
 > **The model is the one part of this series you don't have to build.**
 
 - **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
-  covered by **320 deterministic checks: 319 passing, 1 intentionally skipped**
+  covered by **322 deterministic checks: 321 passing, 1 intentionally skipped**
   (a live-provider contract test that only runs when `PROVIDER` is set, because
   it spends money).
 - **Model behaviour** is measured separately against live Gemini 3.6 Flash,
