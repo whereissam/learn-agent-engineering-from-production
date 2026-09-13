@@ -217,7 +217,7 @@ Needs [Bun](https://bun.sh) 1.3+ (recommended) or Node.js 22+.
 ```bash
 bun install
 PROVIDER=fake bun run lesson-01     # no API key needed
-bun run test                        # 319 pass, 1 skipped; no API key needed
+bun run test                        # 321 pass, 1 skipped; no API key needed
 ```
 
 `fake` is a scripted model. It doesn't think, but **the loop is entirely
@@ -253,7 +253,7 @@ work — what they teach doesn't live in the model.
 > **The model is the one part of this series you don't have to build.**
 
 - **Mechanisms** (permissions, inbox, ranking, citation checks, retrieval) are
-  covered by **320 deterministic checks: 319 passing, 1 intentionally skipped**
+  covered by **322 deterministic checks: 321 passing, 1 intentionally skipped**
   (a live-provider contract test that only runs when `PROVIDER` is set, because
   it spends money).
 - **Model behaviour** is measured separately against live Gemini 3.6 Flash,
@@ -265,10 +265,17 @@ work — what they teach doesn't live in the model.
 > It is a prayer.
 
 Not yet verified: the Anthropic provider has never run against a live model
-(no key). OpenAI has, and that run measured a real cross-provider difference —
-for `total - input - output`, Gemini leaves a 93-1353 token gap (thinking
-isn't in `output`) while OpenAI is always 0 (reasoning already is). Same field
-name, different meaning.
+(no key). Gemini and OpenAI both have, and they measure a real cross-provider
+difference in `total - input - output`: **OpenAI is 0 in every case** (reasoning
+is already inside `output`), while **Gemini is never 0** (thinking is not).
+Same field name, different meaning.
+
+The Gemini gap is not a constant, and this file used to quote it as though it
+were. Four runs of `bun run lesson-26:probe` against `gemini-3.6-flash` have
+recorded 94-1250, 93-1353 and 92-1385 at different times — same shape, different
+numbers, because the model decides how much to think each time. **Take the zero
+and the non-zero as the finding; treat any particular range as one run's
+receipt.**
 
 ## Findings that changed the lessons
 
