@@ -242,10 +242,15 @@ Lesson 2 之後 agent 會真的改 `playground/` 裡的檔案，`bun run reset` 
 
 > 如果一個機制的正確性要靠模型才能驗證，那它就不是機制，是祈禱。
 
-還沒驗證的：Anthropic 的 provider 沒跑過真模型（沒有 key）。OpenAI 跑過，
-而且量到一個跨 provider 的差異：同樣是 `total - input - output`，
-Gemini 的差額是 93~1353（thinking 不算在 output 裡），
-OpenAI 全部是 0（reasoning 已經含在裡面）。同一個欄位名，兩家語意不同。
+還沒驗證的：Anthropic 的 provider 沒跑過真模型（沒有 key）。Gemini 和 OpenAI
+都跑過，而且量到一個跨 provider 的差異：同樣是 `total - input - output`，
+**OpenAI 每一格都是 0**（reasoning 已經含在 output 裡），**Gemini 從來不是 0**
+（thinking 不算在裡面）。同一個欄位名，兩家語意不同。
+
+Gemini 的差額不是一個常數，而這份文件以前把它當成常數在寫。對
+`gemini-3.6-flash` 跑過四次 `bun run lesson-26:probe`，不同時候記到的是
+94-1250、93-1353、92-1385——形狀一樣，數字不一樣，因為模型每次自己決定要想多少。
+**「是 0」和「不是 0」才是結論；任何一個區間都只是某一次執行的收據。**
 
 ## 幾個把課程改掉的實測結果
 
