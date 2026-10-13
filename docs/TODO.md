@@ -3157,6 +3157,71 @@ whether `--rm` plus the daemon's own cleanup removes it. `__del__` does not run
 on `SIGKILL`, which is the whole reason the question is interesting, and it is
 the first thing to measure rather than reason about.
 
+#### 2026-10-13: a second source, and the state the table above is missing
+
+**Source: [ColeMurray/background-agents](https://github.com/ColeMurray/background-agents)**
+(Open-Inspect, `background-agents/`, `1bcac4d`), an open-source copy of Ramp's
+Inspect. A background coding agent: one Durable Object per session as the
+control plane, one cloud sandbox per session (Modal, Daytona, E2B and others) as
+the data plane, OpenCode or the Claude Agent SDK inside it.
+
+Through the five questions at the top: 1 yes, 2 environment, and most of the repo
+then fails 4 or 5 — Slack / GitHub / Linear bots, teams, provider accounts and
+prebuilt images are plumbing with no failure to watch. What passes is one idea,
+and it is the one the OpenHands table above does not have.
+
+The table has alive, gone, and paused. **Open-Inspect lives in a fourth state:
+saved and restored.** Its sandboxes do not persist; they are snapshotted after
+each prompt and restored for the next one. And a restore brings back more than
+you meant to save, which the repo handles case by case:
+
+| What comes back | How the source handles it | Switched off |
+|---|---|---|
+| a half-provisioned workspace | `background-agents/packages/sandbox-runtime/src/sandbox_runtime/boot_attach.py:128`: "A half-booted filesystem is not a snapshot", the runtime drops `snapshot` while booting, and no boot-failure path takes one (`background-agents/docs/HOW_IT_WORKS.md:412`) | snapshot after a failed `setup.sh`, and every later session starts broken |
+| data addressed to the previous machine | `background-agents/packages/sandbox-runtime/src/sandbox_runtime/tunnel_environment.py:39`: `clear_stale_file()` deletes `/workspace/.tunnels.env` unless it carries this sandbox's `TUNNEL_SANDBOX_ID` | `start.sh` reads the old sandbox's tunnel URLs |
+| a cached credential | **not handled, and said so**: "snapshots can retain them. Grant removal does not immediately revoke issued tokens" (`background-agents/README.md:56`) | already off: revoke, restore, the token still works |
+| old runtime code | not handled: a parent restored from an older snapshot "will not see `send-child-prompt`" (`background-agents/docs/HOW_IT_WORKS.md:532`) | a new tool is silently missing |
+
+> **A restore is not a resume.** Lesson 33 resumes the *run* into whatever the
+> world looks like now; a snapshot restores the *world* to whatever it looked like
+> then. Both are wrong in the same way: nothing checks that the world and the run
+> agree.
+
+**Disposition: a second source for Lesson 36, not a replacement.** The OpenHands
+`with` block stays the spine, because "who owns the lifetime" has to come before
+"what survives it". Open-Inspect adds one step at the end:
+
+- **the scenario**: the default scenario already owns a temp directory, so a
+  snapshot is a copy of it. Take one mid-setup and one with a file stamped by the
+  old "sandbox", restore both, and run step 3 against them
+- **switched off**: step 3 runs on a half-installed tree and reads the stale file.
+  **Switched on**: refuse a snapshot while booting, and drop anything whose stamp
+  is not this sandbox's. Two checks, both in the source above, both small
+- **the gap stays a gap**: the credential row has no fix in the source. Lesson
+  36 says so and points to Lesson 11, which is where it belongs
+
+ADR 0004 is the theory paragraph, in its own words: a lost provider response "is
+unknown", and "expiring a timer does not establish remote cancellation"
+(`background-agents/docs/adr/0004-sandbox-checkpoint-and-shutdown.md:51-53`).
+That is Lesson 34's crash reasoning applied to the sandbox instead of the effect,
+and it means the `SIGKILL` question above has a second form: if the parent dies
+mid-snapshot, is the snapshot the restore point or not?
+
+**Three smaller findings from the same reading, assigned rather than left
+floating:**
+
+| Finding | Goes to |
+|---|---|
+| ADR 0003: send the snapshot and register the socket "without an `await` between those operations" (`background-agents/docs/adr/0003-session-snapshot-handoff.md:27`). One `await` in that gap loses every event written during it: in neither the snapshot nor the stream | **Lesson 10, an exercise.** Lesson 10 already replays on reconnect; this is the race inside that replay, a two-line switch with a deterministic failure |
+| after compaction rewrites the chain, output is claimed for a prompt by creation time, not ID: OpenCode IDs truncate the timestamp to 48 bits and stop sorting every ~795 days (`background-agents/packages/sandbox-runtime/src/sandbox_runtime/message_attribution.py:82`) | **Lesson 37, a footnote.** "Which output belongs to which prompt" on a shared stream; not a lesson on its own |
+| the Claude SDK merges `os.environ` into the child, so a wrapper strips the auth mode that is not in use (`background-agents/packages/sandbox-runtime/src/sandbox_runtime/harness/claude_env.py:146`) | **Lesson 11, an exercise.** The wrong credential reaches the child and the wrong account is billed |
+
+Not taken, with reasons: prompt queueing (Lesson 10), parent/child sessions
+(Lesson 19), memory and skills (Lessons 15 and 16), budgets (Lesson 26),
+automations (Lesson 18), commit attribution to the prompting user (product
+policy, no loop failure), sandbox warming and prebuilt images (latency, not
+agent engineering).
+
 ### The other projects from this round (none becomes a new lesson)
 
 | Project | Disposition | Reason |

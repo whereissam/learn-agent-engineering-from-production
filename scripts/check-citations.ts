@@ -59,6 +59,7 @@ const SOURCE_ROOTS = [
 	"sandbox-runtime",
 	"vllm",
 	"fish-speech",
+	"background-agents",
 ];
 
 /**
