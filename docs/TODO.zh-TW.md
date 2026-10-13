@@ -2790,6 +2790,64 @@ TypeScript 重建。真正的成本是 Docker，那會讓它變成第二堂不�
 `SIGKILL` 不會跑 `__del__`，這正是這個問題有趣的地方，也是第一件該量而不是該推理
 的事。
 
+#### 2026-10-13：第二個來源，以及上面那張表少掉的狀態
+
+**來源：[ColeMurray/background-agents](https://github.com/ColeMurray/background-agents)**
+（Open-Inspect，`background-agents/`，`1bcac4d`），Ramp 的 Inspect 的開源版本。
+一個背景跑的 coding agent：每個 session 一個 Durable Object 當控制面，每個 session
+一個雲端 sandbox（Modal、Daytona、E2B 等）當資料面，裡面跑 OpenCode 或 Claude
+Agent SDK。
+
+拿最上面那五個問題過一遍：1 是，2 是環境，然後這個 repo 大部分在 4 或 5 被刷掉——
+Slack / GitHub / Linear bot、team、provider 帳號、預建 image，都是看不到失敗的
+管線。通過的只有一個想法，而且正好是上面 OpenHands 那張表沒有的那一個。
+
+那張表有活著、消失、暫停。**Open-Inspect 活在第四種狀態：存起來再還原。** 它的
+sandbox 不會一直留著；每個 prompt 跑完就拍 snapshot，下一個 prompt 再還原。而
+還原帶回來的東西比你想存的多，這個 repo 是一個一個處理的：
+
+| 帶回來的是什麼 | 原始碼怎麼處理 | 關掉的話 |
+|---|---|---|
+| 裝到一半的 workspace | `background-agents/packages/sandbox-runtime/src/sandbox_runtime/boot_attach.py:128`：「A half-booted filesystem is not a snapshot」，開機中 runtime 直接丟掉 `snapshot` 指令，而且任何開機失敗的路徑都不拍（`background-agents/docs/HOW_IT_WORKS.md:412`） | `setup.sh` 失敗之後拍了 snapshot，之後每個 session 一開始就是壞的 |
+| 寫給上一台機器的資料 | `background-agents/packages/sandbox-runtime/src/sandbox_runtime/tunnel_environment.py:39`：`clear_stale_file()` 會刪掉 `/workspace/.tunnels.env`，除非裡面的 `TUNNEL_SANDBOX_ID` 是這台 sandbox 的 | `start.sh` 讀到舊 sandbox 的 tunnel URL |
+| 快取在硬碟上的 credential | **沒有處理，而且自己講了**：「snapshots can retain them. Grant removal does not immediately revoke issued tokens」（`background-agents/README.md:56`） | 本來就是關的：撤銷、還原，token 照樣能用 |
+| 舊版 runtime 的程式碼 | 沒有處理：從較舊 snapshot 還原的 parent「will not see `send-child-prompt`」（`background-agents/docs/HOW_IT_WORKS.md:532`） | 新工具悄悄不見 |
+
+> **還原不是續跑。** Lesson 33 把 *run* 接回到世界「現在」的樣子；snapshot 把
+> *世界*還原到「當時」的樣子。兩個錯在同一個地方：沒有任何東西檢查世界跟 run
+> 對不對得上。
+
+**處置：當 Lesson 36 的第二個來源，不取代。** OpenHands 的 `with` 區塊還是主幹，
+因為「誰擁有生命週期」必須排在「什麼東西活過它」前面。Open-Inspect 在最後加一步：
+
+- **scenario**：預設的 scenario 本來就自己管一個暫存目錄，所以 snapshot 就是把它
+  複製一份。setup 到一半拍一份、帶著舊「sandbox」戳記的檔案拍一份，兩份都還原，
+  然後讓第 3 步在上面跑
+- **關掉**：第 3 步跑在裝一半的目錄上，還讀到過期的檔案。**打開**：開機中拒絕
+  snapshot，戳記不是這台 sandbox 的就丟掉。兩個檢查，都在上面的原始碼裡，都很小
+- **缺口留著當缺口**：credential 那一列原始碼裡沒有解法。Lesson 36 直接講出來，
+  然後指向 Lesson 11，那才是它該去的地方
+
+ADR 0004 就是理論那一段，用它自己的話：provider 的回應掉了「is unknown」，而且
+「expiring a timer does not establish remote cancellation」
+（`background-agents/docs/adr/0004-sandbox-checkpoint-and-shutdown.md:51-53`）。
+那是 Lesson 34 的 crash 推理，只是對象從副作用換成 sandbox；也代表上面那個
+`SIGKILL` 的問題有第二種形式：父行程在拍 snapshot 的途中死掉，那份 snapshot
+算不算還原點？
+
+**同一次閱讀裡另外三個較小的發現，直接分派，不讓它們懸著：**
+
+| 發現 | 去哪裡 |
+|---|---|
+| ADR 0003：送出 snapshot 和註冊 socket 要「without an `await` between those operations」（`background-agents/docs/adr/0003-session-snapshot-handoff.md:27`）。那個縫裡多一個 `await`，期間寫進去的每個事件都會丟掉：既不在 snapshot 裡，也不在 stream 裡 | **Lesson 10，一個練習。** Lesson 10 已經做了重連時重播；這是那個重播裡面的 race，兩行就能開關，失敗是確定性的 |
+| compaction 改寫訊息鏈之後，輸出是按建立時間而不是 ID 歸給某個 prompt：OpenCode 的 ID 把時間戳截成 48 bit，大約每 795 天就不再單調排序（`background-agents/packages/sandbox-runtime/src/sandbox_runtime/message_attribution.py:82`） | **Lesson 37，一個註腳。** 共用的 stream 上「哪段輸出屬於哪個 prompt」；單獨成不了一課 |
+| Claude SDK 會把 `os.environ` 合併進子行程，所以用一個 wrapper 把沒在用的那種認證模式剝掉（`background-agents/packages/sandbox-runtime/src/sandbox_runtime/harness/claude_env.py:146`） | **Lesson 11，一個練習。** 錯的 credential 進了子行程，帳單記到錯的帳號 |
+
+沒拿的，附理由：prompt 排隊（Lesson 10）、parent/child session（Lesson 19）、
+記憶和 skill（Lesson 15 和 16）、預算（Lesson 26）、自動化（Lesson 18）、commit
+掛在下 prompt 的人名下（產品政策，不是 loop 的失敗）、sandbox 預熱和預建 image
+（延遲問題，不是 agent 工程）。
+
 ### 這一輪其他專案的處置（都不開新課）
 
 | 專案 | 處置 | 理由 |
