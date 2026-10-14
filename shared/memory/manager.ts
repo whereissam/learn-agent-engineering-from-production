@@ -58,9 +58,18 @@ const SYSTEM_NOTE =
  * That forged system message has escaped the fence.
  *
  * So the order must always be sanitise first, fence second.
+ *
+ * One pass is not enough. Removing a tag joins what was on either side of it, so
+ * `</memory-</memory-context>context>` comes out of a single pass as a real `</memory-context>`.
+ * It repeats until nothing changes.
  */
 export function sanitizeContext(text: string): string {
-	return text.replace(FENCED_BLOCK, "").replace(SYSTEM_NOTE, "").replace(FENCE_TAG, "");
+	let current = text;
+	for (;;) {
+		const next = current.replace(FENCED_BLOCK, "").replace(SYSTEM_NOTE, "").replace(FENCE_TAG, "");
+		if (next === current) return current;
+		current = next;
+	}
 }
 
 /**

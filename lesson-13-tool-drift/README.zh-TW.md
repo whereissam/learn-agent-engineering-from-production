@@ -80,13 +80,19 @@ RUNS=3 PROVIDER=openai bun run lesson-13:agent   # real model: does it obey?
 ```ts
 export function fingerprint(tool: ToolDescriptor): string {
   const canonical = JSON.stringify([tool.name, tool.description, tool.inputSchema])
-  return createHash("sha256").update(canonical).digest("hex").slice(0, 16)
+  return createHash("sha256").update(canonical).digest("hex")
 }
 ```
 
 對 schema 做 `JSON.stringify` 是對順序敏感的，所以一個只是把鍵重新排序的 server
 也會被判定成有改動。那個假陽性是刻意的。這個機制回報的是「跟你批准的那些位元組
 不完全相同」，而把它放寬成「語意上沒有不同」，就是一個釘子安靜地不再釘東西的方式。
+雜湊保留完整也是同一個理由：你批准的文字和之後送來的文字都是伺服器寫的，只取 16 個字元
+的前綴，只要一次生日碰撞就能偽造。
+
+從沒被批准過的名字也不算「沒變」。伺服器若讓 `get_robot` 一個位元組都不動，另外在旁邊
+加一個 `get_robot_live`，新的文字不該因此穿過釘子，所以在 `block` 與 `fallback` 下，未批准
+的工具一律不提供，而 agent 也會拒絕呼叫任何沒有提供給它的工具。
 
 它回報的是事實，永遠不是判決：
 

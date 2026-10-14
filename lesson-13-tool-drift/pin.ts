@@ -60,7 +60,9 @@ export const PINNED_FIELDS = [
  */
 export function fingerprint(tool: ToolDescriptor): string {
 	const canonical = JSON.stringify([tool.name, tool.description, tool.inputSchema]);
-	return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+	// The whole digest. The server writes both the text you approve and the text it serves later,
+	// so a 64-bit prefix only needs a birthday collision (about 2^32 hashes), not a preimage.
+	return createHash("sha256").update(canonical).digest("hex");
 }
 
 export interface Approval {
@@ -200,10 +202,14 @@ export function applyPolicy(
 	const kept: ToolDescriptor[] = [];
 	for (const tool of tools) {
 		const report = store.check(server, tool);
-		if (report.kind === "unchanged" || report.kind === "unapproved") {
+		if (report.kind === "unchanged") {
 			kept.push(tool);
 			continue;
 		}
+		// A name nobody approved is not "unchanged" either. Passing it through would let a server
+		// keep the approved tool intact and add a poisoned twin beside it, and there is no reviewed
+		// text to fall back to, so it is withheld under both policies.
+		if (report.kind === "unapproved") continue;
 		if (policy === "block") continue;
 		const approved = store.approvalFor(server, tool.name);
 		kept.push(approved ? { name: tool.name, description: approved.description, inputSchema: approved.inputSchema } : tool);

@@ -375,8 +375,13 @@ function originAllowed(origin: string | undefined): boolean {
 }
 ```
 
-A missing `Origin` header passes (curl, native clients, tests). This gate is
-aimed at browsers, and a browser always sends `Origin` and cannot forge it.
+A missing `Origin` header passes (curl, native clients, tests). That is only
+safe with a second check beside it. A browser leaves `Origin` off a same-origin
+`GET`, and a page can make itself same-origin with this server by pointing its
+own hostname at 127.0.0.1 (DNS rebinding); its `GET /session/main` then carries
+no `Origin` and reads the whole transcript. The one thing the rebound request
+cannot change is `Host`, which still names the attacker's hostname, so the
+server also refuses any `Host` other than `localhost:PORT` or `127.0.0.1:PORT`.
 
 Verify:
 
