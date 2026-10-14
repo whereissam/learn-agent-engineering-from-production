@@ -13,10 +13,12 @@
  */
 
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
+import { promisify } from "node:util";
 import {
 	compare,
 	hasStructuralDivergence,
@@ -24,6 +26,8 @@ import {
 	type ToolRecord,
 } from "../lesson-29-evidence/evidence.ts";
 import { Snapshot } from "../lesson-29-evidence/snapshot.ts";
+
+const run = promisify(execFile);
 
 // ─────────────────────────────────────────────────────────────
 // compare()
@@ -188,5 +192,35 @@ describe("the shadow git snapshot (Lesson 29)", () => {
 			[],
 			"With zero net change the patch must be empty — the tool results say it was edited twice",
 		);
+	});
+
+	test("a .gitignore the agent writes into the workspace cannot hide a change", async () => {
+		const snapshot = new Snapshot({ workspace, gitdir });
+		const hash = await snapshot.track();
+		await writeFile(join(workspace, ".gitignore"), ".gitignore\npayload\n", "utf8");
+		await writeFile(join(workspace, "payload"), "x\n", "utf8");
+		try {
+			assert.deepEqual((await snapshot.patch(hash)).files, [".gitignore", "payload"]);
+		} finally {
+			await rm(join(workspace, ".gitignore"));
+			await rm(join(workspace, "payload"));
+		}
+	});
+
+	test("a nested repository is refused instead of being recorded as one opaque entry", async () => {
+		const snapshot = new Snapshot({ workspace, gitdir });
+		const hash = await snapshot.track();
+		const nested = join(workspace, "nested");
+		await mkdir(nested);
+		await writeFile(join(nested, "f.txt"), "f\n", "utf8");
+		const git = (...args: string[]) => run("git", ["-C", nested, "-c", "user.email=t@t", "-c", "user.name=t", ...args]);
+		try {
+			await git("init", "--quiet");
+			await git("add", "f.txt");
+			await git("commit", "--quiet", "-m", "m");
+			await assert.rejects(snapshot.patch(hash), /Nested git repository/);
+		} finally {
+			await rm(nested, { recursive: true, force: true });
+		}
 	});
 });

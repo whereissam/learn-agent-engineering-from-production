@@ -23,6 +23,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
+import { resolveInRoot } from "../shared/tools/paths.ts";
 import type { Message, ModelResponse, StreamingProvider, ToolResult, ToolSpec } from "../shared/streaming/types.ts";
 import { DELEGATE_TOOL, runChild } from "./delegate.ts";
 import { mentionsCaveat, resetWorkspace, scoreCodes, WORKSPACE } from "./workspace.ts";
@@ -71,9 +72,12 @@ const FILE_TOOLS: ToolSpec[] = [
 	},
 ];
 
+// Paths go through the same resolveInRoot as every other lesson's file tools. A bare
+// join(WORKSPACE, path) also collapses "..", so "../../.env" would leave the workspace,
+// and children run this same function.
 async function execute(name: string, args: Record<string, unknown>): Promise<string> {
 	if (name === "list_files") {
-		const dir = join(WORKSPACE, String(args.path ?? "."));
+		const dir = resolveInRoot(WORKSPACE, args.path ?? ".");
 		const entries = await readdir(dir, { withFileTypes: true, recursive: true });
 		return entries
 			.filter((e) => e.isFile())
@@ -82,7 +86,7 @@ async function execute(name: string, args: Record<string, unknown>): Promise<str
 			.join("\n");
 	}
 	if (name === "read_file") {
-		return await readFile(join(WORKSPACE, String(args.path)), "utf8");
+		return await readFile(resolveInRoot(WORKSPACE, args.path), "utf8");
 	}
 	throw new Error(`Unknown tool ${name}`);
 }

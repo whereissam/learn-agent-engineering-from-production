@@ -429,8 +429,12 @@ function startTurn(session: Session, text: string): void {
  * block the request arriving, and arriving is enough to start the agent running.
  *
  * So origin must be checked as an allowlist, not configured as a CORS header.
- * Requests with no Origin header (curl, native clients, tests) are allowed through;
- * this gate targets browsers, and a browser always sends an unforgeable Origin.
+ * Requests with no Origin header (curl, native clients, tests) are allowed through.
+ * That alone would be a hole: a browser leaves Origin off a same-origin GET, and a
+ * page can become "same-origin" with this server by pointing its own hostname at
+ * 127.0.0.1 (DNS rebinding). Its GET /session/main then carries no Origin and reads
+ * the transcript. What the rebound request cannot change is the Host header, which
+ * still names the attacker's hostname, so Host is checked on every request too.
  *
  * openworker/coworker/server/app.py:26-46 states the reasoning more completely.
  */
@@ -438,6 +442,12 @@ const ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 function originAllowed(origin: string | undefined): boolean {
 	return origin === undefined || ALLOWED_ORIGIN.test(origin);
+}
+
+const ALLOWED_HOST = new RegExp(`^(localhost|127\\.0\\.0\\.1):${PORT}$`);
+
+function hostAllowed(host: string | undefined): boolean {
+	return host !== undefined && ALLOWED_HOST.test(host);
 }
 
 /** A crude cap on upstream requests. Loopback is unauthenticated; any local process can reach it. */
@@ -535,6 +545,10 @@ function openStream(req: IncomingMessage, res: ServerResponse, session: Session)
 
 const server = createServer((req, res) => {
 	void (async () => {
+		if (!hostAllowed(req.headers.host)) {
+			json(res, 403, { error: "Host not allowed" });
+			return;
+		}
 		if (!originAllowed(req.headers.origin)) {
 			json(res, 403, { error: "Origin not allowed" });
 			return;

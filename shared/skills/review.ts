@@ -45,14 +45,25 @@
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { renderSkill, type Skill, validateSkill, type ValidationIssue } from "./types.ts";
+import { parseSkill, renderSkill, type Skill, validateSkill, type ValidationIssue } from "./types.ts";
 
 export interface Proposal {
 	skill: Skill;
 	/** The automated checks' results. */
 	issues: ValidationIssue[];
-	/** Whether any blocking problem was found. */
+	/** Whether any blocking problem was found. A blocked proposal is not written anywhere. */
 	blocked: boolean;
+}
+
+/**
+ * The name becomes a filename, so it is checked before any path is built from it, not just reported.
+ * validateSkill flags a bad name too, but a flag returned after writeFile has already run
+ * lets `../active/x` land in the active directory with no review at all.
+ */
+function assertSkillName(name: string): void {
+	if (!/^[a-z0-9-]+$/.test(name)) {
+		throw new Error(`Invalid skill name "${name}": only lowercase letters, digits and hyphens`);
+	}
 }
 
 export type ReviewDecision =
@@ -87,13 +98,20 @@ export class SkillReviewQueue {
 			origin: "proposed",
 			proposedFrom: { ...from, createdAt: new Date().toISOString() },
 		};
+		if (blocked) return { skill: stamped, issues, blocked };
 
+		assertSkillName(skill.frontmatter.name);
 		await mkdir(this.proposedDir, { recursive: true });
+		// "wx": a pending proposal is never replaced. A human may already have read it, and approval
+		// goes by name, so overwriting it would get unread text approved under the old review.
 		await writeFile(
 			join(this.proposedDir, `${skill.frontmatter.name}.md`),
 			renderSkill(stamped),
-			"utf8",
-		);
+			{ encoding: "utf8", flag: "wx" },
+		).catch((error: NodeJS.ErrnoException) => {
+			if (error.code !== "EEXIST") throw error;
+			throw new Error(`"${skill.frontmatter.name}" is already awaiting review; wait for the decision`);
+		});
 
 		return { skill: stamped, issues, blocked };
 	}
@@ -115,6 +133,7 @@ export class SkillReviewQueue {
 		 * so one proposal never exists in two states at once.
 	 */
 	async decide(name: string, decision: ReviewDecision): Promise<string> {
+		assertSkillName(name);
 		const src = join(this.proposedDir, `${name}.md`);
 
 		let raw: string;
@@ -125,7 +144,10 @@ export class SkillReviewQueue {
 		}
 
 		if (decision.action === "revise") {
-				// Left in place with the comment recorded. The agent can revise and propose again.
+				// Archived with the comment recorded, which frees the name: the agent proposes a revised
+				// version as a new proposal, and that one gets a fresh review.
+			await mkdir(this.archiveDir, { recursive: true });
+			await rename(src, join(this.archiveDir, `revise-${Date.now()}-${name}.md`));
 			return `Requested changes to "${name}": ${decision.note}`;
 		}
 
@@ -138,7 +160,12 @@ export class SkillReviewQueue {
 			return `Rejected and archived "${name}": ${decision.note}`;
 		}
 
-		// approve
+		// approve: check again what is actually on disk, since that is what becomes active
+		const onDisk = parseSkill(raw, "proposed");
+		const problems = validateSkill(onDisk).filter((i) => i.blocking);
+		if (onDisk.frontmatter.name !== name || problems.length > 0) {
+			throw new Error(`Refusing to enable "${name}": the pending file no longer passes the checks`);
+		}
 		const withReview = raw.replace(
 			/^---\n/,
 			`---\n# reviewed-by: ${decision.reviewer}\n# reviewed-at: ${new Date().toISOString()}\n`,

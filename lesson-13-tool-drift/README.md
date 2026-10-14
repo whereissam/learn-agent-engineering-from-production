@@ -87,14 +87,22 @@ recorded at approval:
 ```ts
 export function fingerprint(tool: ToolDescriptor): string {
   const canonical = JSON.stringify([tool.name, tool.description, tool.inputSchema])
-  return createHash("sha256").update(canonical).digest("hex").slice(0, 16)
+  return createHash("sha256").update(canonical).digest("hex")
 }
 ```
 
 `JSON.stringify` on the schema is order-sensitive, so a server that merely
 reorders keys registers as a change. That false positive is intentional. The
 mechanism reports *not byte-identical to what you approved*, and softening it
-into *not semantically different* is how a pin quietly stops pinning.
+into *not semantically different* is how a pin quietly stops pinning. The hash
+is kept whole for the same reason: the server writes both the text you approve
+and the text it serves later, so a 16-character prefix would only take a birthday
+collision to fake.
+
+A name that was never approved is not *unchanged* either. A server that keeps
+`get_robot` byte-identical and adds a `get_robot_live` beside it should not get
+the new text past the pin, so under `block` and `fallback` an unapproved tool is
+withheld, and the agent refuses a call to any tool it was not offered.
 
 What it reports is a fact, never a verdict:
 

@@ -39,14 +39,16 @@ import { LineReader } from "../shared/repl.ts";
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { Message, StreamingProvider, ToolResult } from "../shared/streaming/types.ts";
 import {
+	describeCall,
 	listFilesTool,
 	readFileTool,
+	realLocation,
 	type ToolContext,
 	ToolRegistry,
 	writeFileTool,
 } from "../shared/tools/index.ts";
 import { sandboxFakeProvider } from "./fake-provider.ts";
-import { run as sandboxRun, type SandboxConfig, wasDenied } from "./sandbox.ts";
+import { normalizePath, run as sandboxRun, type SandboxConfig, wasDenied } from "./sandbox.ts";
 
 const HERE = import.meta.dirname;
 const WORKSPACE = resolve(HERE, "workspace");
@@ -136,12 +138,24 @@ const POLICY: SandboxConfig = TIGHTEN ? ENCLOSING : ENUMERATING;
  */
 const AGREE = process.env.AGREE !== "off";
 
-/** Does `POLICY` permit reading this absolute path? The deny-then-allow rule, in TypeScript. */
-function readAllowedByPolicy(absolute: string): boolean {
+/**
+ * Does `POLICY` permit reading this path? The kernel's rule order, in TypeScript.
+ *
+ * It has to follow `buildProfile` rule for rule, including the step that profile needed a bug to
+ * learn: a deny lying inside an allow-back is emitted again after it, so under the enclosing
+ * policy `.secrets/` stays denied even though the workspace around it is allowed back.
+ * The kernel also matches on resolved paths, so the policy's paths are resolved the same way
+ * (`normalizePath`) and so is the target (`realLocation`): a link planted by a sandboxed
+ * `ln -s` is judged by where it points, as the kernel would judge it.
+ */
+function readAllowedByPolicy(path: string): boolean {
+	const absolute = realLocation(path);
 	const inside = (root: string) => absolute === root || absolute.startsWith(`${root}/`);
-	const denied = (POLICY.read?.deny ?? []).some(inside);
-	if (!denied) return true;
-	return (POLICY.read?.allowBack ?? []).some(inside); // allowBack beats deny
+	const denied = (POLICY.read?.deny ?? []).map((p) => normalizePath(p));
+	const allowedBack = (POLICY.read?.allowBack ?? []).map((p) => normalizePath(p));
+	if (!denied.some(inside)) return true;
+	if (!allowedBack.some(inside)) return false;
+	return !denied.some((deny) => inside(deny) && allowedBack.some((back) => deny.startsWith(`${back}/`)));
 }
 
 /**
@@ -452,7 +466,9 @@ async function main(): Promise<void> {
 		args: Record<string, unknown>,
 	): Promise<boolean> => {
 		console.log(`\n${yellow("┌ approval needed")}`);
-		console.log(`${yellow("│")} ${toolName}(${summarize(args)})`);
+		const shown = describeCall(toolName, args);
+		console.log(`${yellow("│")} ${shown.summary}`);
+		for (const line of shown.detail?.split("\n") ?? []) console.log(`${yellow("│")} ${dim(line)}`);
 		console.log(`${yellow("│")} ${dim(decision.reason)}`);
 		console.log(yellow("└"));
 		if (process.env.ANSWER) return process.env.ANSWER.toLowerCase().startsWith("y");

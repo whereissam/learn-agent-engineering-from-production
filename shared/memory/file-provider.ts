@@ -19,6 +19,7 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ToolSpec } from "../providers/types.ts";
+import { sanitizeContext } from "./manager.ts";
 import type { MemoryProvider } from "./provider.ts";
 
 export interface FileMemoryOptions {
@@ -147,7 +148,10 @@ export class FileMemoryProvider implements MemoryProvider {
 
 			// Sanitise before writing too. If memory content contains fence tags, a later recall
 			// gets a chance to forge a system message, so it is blocked at the entrance.
-		const clean = fact.replace(/<\/?\s*memory-context\s*>/gi, "");
+			// Newlines go as well: MEMORY.md is one entry per line, so a fact with a newline in it
+			// would come back as several entries, with whatever timestamps it chose to write.
+		const clean = sanitizeContext(fact).replace(/\s*\n\s*/g, " ").trim();
+		if (!clean) throw new Error("fact must not be empty");
 
 		const entry: MemoryEntry = { timestamp: new Date().toISOString(), text: clean };
 		this.entries.push(entry);

@@ -22,6 +22,7 @@ import { Mode, PermissionEngine } from "../shared/permissions/engine.ts";
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { Message } from "../shared/streaming/types.ts";
 import {
+	describeCall,
 	editFileTool,
 	listFilesTool,
 	readFileTool,
@@ -118,7 +119,9 @@ async function main(): Promise<void> {
 				signal: controller.signal,
 				ask: async (decision, toolName, args) => {
 					console.log(`\n${yellow("┌ approval needed")}`);
-					console.log(`${yellow("│")} ${toolName}(${Object.keys(args).join(", ")})`);
+					const shown = describeCall(toolName, args);
+					console.log(`${yellow("│")} ${shown.summary}`);
+					for (const line of shown.detail?.split("\n") ?? []) console.log(`${yellow("│")} ${dim(line)}`);
 					console.log(`${yellow("│")} ${dim(decision.reason)}`);
 					console.log(yellow("└"));
 					if (ANSWER) {

@@ -42,6 +42,7 @@ describe("fingerprints（Lesson 13）", () => {
 
 	test("are stable for an unchanged tool, or the check is noise", () => {
 		assert.equal(fingerprint(honest), fingerprint({ ...honest }));
+		assert.equal(fingerprint(honest).length, 64, "the whole sha256, not a prefix a server could collide");
 	});
 });
 
@@ -107,6 +108,13 @@ describe("the three policies（Lesson 13）", () => {
 
 	test("fallback does not resurrect a tool the server withdrew", () => {
 		assert.deepEqual(applyPolicy(approved(), SERVER, [], "fallback"), []);
+	});
+
+	test("block and fallback withhold a name that was never approved", () => {
+		const twin: ToolDescriptor = { ...poisoned, name: "get_robot_live" };
+		for (const policy of ["block", "fallback"] as const) {
+			assert.deepEqual(applyPolicy(approved(), SERVER, [honest, twin], policy), [honest]);
+		}
 	});
 
 	test("an unchanged tool survives every policy identically", () => {

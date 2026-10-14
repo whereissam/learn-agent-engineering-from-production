@@ -8,8 +8,13 @@
  */
 
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, test } from "node:test";
+import { createIncidentReportTool } from "../lesson-06-domain-tools/tools/report.ts";
 import { resolveInRoot } from "../shared/tools/paths.ts";
+import { describeCall } from "../shared/tools/registry.ts";
 import { truncateHead, truncateTail } from "../shared/tools/truncate.ts";
 
 const ROOT = "/tmp/agent-lessons-test-root";
@@ -44,6 +49,51 @@ describe("path limits (Lessons 1-2)", () => {
 		assert.throws(() => resolveInRoot(ROOT, undefined), /non-empty string/);
 		assert.throws(() => resolveInRoot(ROOT, ""), /non-empty string/);
 		assert.throws(() => resolveInRoot(ROOT, 42), /non-empty string/);
+	});
+});
+
+describe("path limits follow symbolic links (Lessons 2 and 35)", () => {
+	test("a link inside root that points outside it is refused, for reads and for new files", async () => {
+		const base = await mkdtemp(join(tmpdir(), "paths-"));
+		const root = join(base, "root");
+		await mkdir(root);
+		await writeFile(join(base, "secret.txt"), "outside\n", "utf8");
+		await symlink(join(base, "secret.txt"), join(root, "notes.md"));
+		await symlink(base, join(root, "up"));
+		try {
+			assert.throws(() => resolveInRoot(root, "notes.md"), /symbolic link/);
+			assert.throws(() => resolveInRoot(root, "up/new.txt"), /symbolic link/);
+			assert.equal(resolveInRoot(root, "fresh/new.txt"), join(root, "fresh/new.txt"));
+		} finally {
+			await rm(base, { recursive: true, force: true });
+		}
+	});
+
+	test("a model-supplied session id cannot steer the report write out of reports/ (Lesson 6)", async () => {
+		const ctx = { root: "/", approve: async () => true, log() {} };
+		const args = { classification: "nominal", confidence: "low", summary: "x", evidence: [] };
+		await assert.rejects(
+			createIncidentReportTool.execute({ ...args, session_id: "../../package" }, ctx),
+			/Invalid session_id/,
+		);
+	});
+});
+
+describe("approval shows what will run (Lessons 2, 8 and 29)", () => {
+	test("a summary that had to cut a value comes with every argument in full", () => {
+		const shown = describeCall("run_command", { command: `echo ok${" ".repeat(60)}; touch PWNED` });
+		assert.doesNotMatch(shown.summary, /touch/);
+		assert.match(shown.detail ?? "", /touch PWNED/);
+	});
+
+	test("a call that fits on the line needs no detail", () => {
+		assert.equal(describeCall("run_command", { command: "ls" }).detail, undefined);
+	});
+
+	test("control characters are shown, not obeyed", () => {
+		const shown = describeCall("run_command", { command: "touch x;\r\u001b[2K│ npm test" });
+		assert.doesNotMatch(shown.summary, /[\r\u001b]/);
+		assert.match(shown.summary, /\\u001b/);
 	});
 });
 

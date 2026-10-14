@@ -86,7 +86,7 @@ const patch = await snapshot.patch(base)  // which files changed between the bas
 底下就是 git，但**不是你的那個 git**：
 
 ```bash
-git --git-dir=<shadow> --work-tree=<workspace> add --all .
+git --git-dir=<shadow> --work-tree=<workspace> add --all --force .
 git --git-dir=<shadow> --work-tree=<workspace> write-tree
 git --git-dir=<shadow> --work-tree=<workspace> diff --cached --name-only <hash>
 ```
@@ -118,6 +118,11 @@ opencode 把 `--git-dir` 指到 `Global.Path.data/snapshot/…`
 
 二、`add --all`，不能只是 `add .`。
 少了 `--all`，刪除記不到。`tests/evidence.test.ts` 有一條專門守這個。
+
+三、`--force`。workspace 自己的 `.gitignore` 對一般的 `add` 依然有效，而 agent 自己就能寫
+一個：在裡面列出 `.gitignore` 與 `payload`，再建立 `payload`，patch 就是空的。`--force` 連被
+忽略的檔案也記下來。巢狀 repo（在 workspace 底下某處 `git init`）是同一招的另一種形式，
+git 會把它存成一個看不到內容的項目，所以 `add()` 直接拒絕。
 
 ---
 
@@ -345,7 +350,8 @@ type CompletionEvidence =
 |---|---|
 | `must live outside the workspace` | 影子 gitdir 被設在 workspace 裡面了。它會記錄到自己，patch 永遠不是空的 |
 | `patch` 永遠是空的 | 基準點抓晚了。看 `CAPTURE`，預設值 `pre-stream` 才是對的 |
-| 新增的檔案沒出現在 patch | `diff` 之前忘了 `add`（untracked 不會出現在 `--cached` 的比較裡） |
+| 新增的檔案沒出現在 patch | `diff` 之前忘了 `add`（untracked 不會出現在 `--cached` 的比較裡），或拿掉了 `--force`，於是 workspace 裡的 `.gitignore`（agent 自己就能寫）把它們藏起來了 |
+| `Nested git repository in the workspace` | 有東西在 workspace 底下跑了 `git init`。Git 會把巢狀 repo 記成一個看不到內容的項目，所以快照寧可拒絕，也不回報「沒有改變」 |
 | 每次都多出一堆檔案 | 影子 gitdir 沒有進 `.gitignore`，或它在 work-tree 底下 |
 | 真模型那次沒有分歧 | 恭喜，工作真的發生了。換 `ANSWER=n` 再跑一次 |
 

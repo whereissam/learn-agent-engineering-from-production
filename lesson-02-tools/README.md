@@ -426,7 +426,10 @@ instead:
 └
 ```
 
-Hint: `ApprovalRequest` already has a `detail` field and no tool fills it in.
+Hint: `ApprovalRequest` already has a `detail` field. Today only the registry
+fills it, with every argument in full whenever the one-line summary had to cut
+one (a 60-character preview of a command is not the command you are approving),
+and no tool contributes its own.
 You need a way for a tool to contribute information before approval, so ask
 yourself whether that changes the `Tool` interface.
 

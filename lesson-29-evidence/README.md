@@ -94,7 +94,7 @@ const patch = await snapshot.patch(base)  // which files changed between the bas
 Underneath it is git, but **not your git**:
 
 ```bash
-git --git-dir=<shadow> --work-tree=<workspace> add --all .
+git --git-dir=<shadow> --work-tree=<workspace> add --all --force .
 git --git-dir=<shadow> --work-tree=<workspace> write-tree
 git --git-dir=<shadow> --work-tree=<workspace> diff --cached --name-only <hash>
 ```
@@ -126,6 +126,12 @@ appear in the patch" raises no error; it just loses a line.
 
 Second, `add --all`, not just `add .`. Without `--all`, deletions are not recorded.
 `tests/evidence.test.ts` has a case guarding exactly this.
+
+Third, `--force`. The workspace's own `.gitignore` still applies to a plain `add`,
+and the agent can write one: list `.gitignore` and `payload` in it, create
+`payload`, and the patch comes back empty. `--force` records ignored files too.
+A nested repo (`git init` somewhere under the workspace) is the same trick in
+another form, since git stores it as one opaque entry, so `add()` refuses it.
 
 ---
 
@@ -369,7 +375,8 @@ The thesis does not change; only what that environment looks like does.
 |---|---|
 | `must live outside the workspace` | the shadow gitdir was placed inside the workspace. It records itself, so the patch is never empty |
 | `patch` is always empty | the baseline was taken too late. Check `CAPTURE`; the default `pre-stream` is the right one |
-| new files do not appear in the patch | you forgot `add` before `diff` (untracked files never appear in a `--cached` comparison) |
+| new files do not appear in the patch | you forgot `add` before `diff` (untracked files never appear in a `--cached` comparison), or dropped `--force`, so a `.gitignore` inside the workspace (which the agent can write) hid them |
+| `Nested git repository in the workspace` | something ran `git init` under the workspace. Git records a nested repo as one opaque entry, so the snapshot refuses rather than report no change |
 | a pile of extra files every time | the shadow gitdir is not in `.gitignore`, or it is under the work-tree |
 | the real-model run showed no divergence | congratulations, work really happened. Run again with `ANSWER=n` |
 

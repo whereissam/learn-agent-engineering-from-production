@@ -273,6 +273,11 @@ function createApprover(reader: LineReader) {
 
 		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
+		if (request.detail) {
+			for (const line of request.detail.split("\n")) {
+				console.log(`${yellow("│")} ${dim(line)}`);
+			}
+		}
 		console.log(yellow("└"));
 
 		const line = await reader.next(

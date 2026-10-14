@@ -85,6 +85,12 @@ export const createIncidentReportTool: Tool = {
 		const sessionId = String(args.session_id ?? "");
 		const classification = String(args.classification ?? "");
 
+			// The id becomes the report's filename, so it gets the same allowlist as the read path in
+			// telemetry.ts. "../../package" would otherwise write package.json at the repo root.
+		if (!/^sess_\d{3}$/.test(sessionId)) {
+			throw new Error(`Invalid session_id "${sessionId}". Expected the form sess_001.`);
+		}
+
 			// Enum validation is your job. A model follows a schema **most of the time** without guaranteeing it,
 			// and different providers follow it to different degrees.
 		if (!CLASSIFICATIONS.includes(classification as (typeof CLASSIFICATIONS)[number])) {
