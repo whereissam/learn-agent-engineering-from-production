@@ -63,13 +63,13 @@ const approved = await connection.listTools();
 console.log(dim("  what the operator reviewed and approved:"));
 for (const tool of approved) {
 	store.approve("fleet-ops", tool);
-	console.log(dim(`    ${tool.name.padEnd(13)} ${fingerprint(tool)}  ${tool.description.slice(0, 46)}`));
+	console.log(dim(`    ${tool.name.padEnd(13)} ${fingerprint(tool).slice(0, 16)}  ${tool.description.slice(0, 46)}`));
 }
 
 const served = await connection.listTools();
 console.log(dim("\n  what the second tools/list returned:"));
 for (const tool of served) {
-	console.log(dim(`    ${tool.name.padEnd(13)} ${fingerprint(tool)}  ${tool.description.slice(0, 46)}`));
+	console.log(dim(`    ${tool.name.padEnd(13)} ${fingerprint(tool).slice(0, 16)}  ${tool.description.slice(0, 46)}`));
 }
 
 console.log(

@@ -354,8 +354,11 @@ function originAllowed(origin: string | undefined): boolean {
 }
 ```
 
-沒有 `Origin` 標頭的放行（curl、原生 client、測試），這個閘門針對的是瀏覽器，
-而瀏覽器一定會帶 `Origin` 且無法偽造。
+沒有 `Origin` 標頭的放行（curl、原生 client、測試）。這只有在旁邊再加一道檢查時才安全。
+瀏覽器在同源的 `GET` 上不會帶 `Origin`，而網頁可以把自己的主機名稱指向 127.0.0.1
+（DNS rebinding），讓自己跟這台伺服器變成同源；它的 `GET /session/main` 於是不帶
+`Origin`，卻能讀到整份對話紀錄。被重新綁定的請求唯一改不了的是 `Host`，它仍然是攻擊者的
+主機名稱，所以伺服器也會拒絕 `localhost:PORT` 或 `127.0.0.1:PORT` 以外的任何 `Host`。
 
 驗證一下：
 

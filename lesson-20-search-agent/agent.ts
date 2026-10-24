@@ -209,6 +209,11 @@ function createApprover(reader: LineReader) {
 		if (AUTO_APPROVE || alwaysAllow.has(request.toolName)) return true;
 		console.log(`\n${yellow("┌ approval needed")}`);
 		console.log(`${yellow("│")} ${request.summary}`);
+		if (request.detail) {
+			for (const line of request.detail.split("\n")) {
+				console.log(`${yellow("│")} ${dim(line)}`);
+			}
+		}
 		console.log(yellow("└"));
 		const line = await reader.next(
 			`  ${yellow("[y]")} allow  ${yellow("[a]")} always  ${yellow("[n]")} deny › `,

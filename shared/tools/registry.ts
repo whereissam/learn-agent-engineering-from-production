@@ -96,10 +96,7 @@ export class ToolRegistry {
 		const tool = this.get(name);
 
 		if (tool.mutating) {
-			const approved = await ctx.approve({
-				toolName: name,
-				summary: describeCall(name, args),
-			});
+			const approved = await ctx.approve({ toolName: name, ...describeCall(name, args) });
 			if (!approved) {
 					// A refusal is not a crash but a normal result.
 					// The model must be told **the user refused**, or it will blindly retry the same thing.
@@ -114,14 +111,44 @@ export class ToolRegistry {
 	}
 }
 
-function describeCall(name: string, args: Record<string, unknown>): string {
-	const parts = Object.entries(args)
+/**
+ * What the human sees before saying yes.
+ *
+ * The summary is one line, so long arguments (a whole file's contents, say) show only their opening.
+ * But a "y" approves everything the tool will receive, not the part that fit on the line:
+ * `echo ok` followed by 60 spaces and `; rm -rf ~` reads as `echo ok` once cut. So whenever the
+ * summary had to cut something, `detail` carries every argument in full.
+ *
+ * Every value is also made visible: a raw \r or ESC from the model would let it redraw the line
+ * the human is reading.
+ */
+export function describeCall(
+	name: string,
+	args: Record<string, unknown>,
+): { summary: string; detail?: string } {
+	let cut = false;
+	const parts = Object.entries(args).map(([key, value]) => {
+		const text = visible(typeof value === "string" ? value : JSON.stringify(value), false);
+		if (text.length <= 60) return `${key}=${text}`;
+		cut = true;
+		return `${key}=${text.slice(0, 60)}…`;
+	});
+	const summary = `${name}  ${parts.join("  ")}`;
+	if (!cut) return { summary };
+
+	const detail = Object.entries(args)
 		.map(([key, value]) => {
-			const text = typeof value === "string" ? value : JSON.stringify(value);
-				// Long arguments (a whole file's contents, say) show only their opening in the summary
-			const short = text.length > 60 ? `${text.slice(0, 60)}…` : text;
-			return `${key}=${short}`;
+			const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+			return `${key}:\n${visible(text, true)}`;
 		})
-		.join("  ");
-	return `${name}  ${parts}`;
+		.join("\n");
+	return { summary, detail };
+}
+
+/** Escape control characters so the terminal shows them instead of obeying them. */
+function visible(text: string, keepNewlines: boolean): string {
+	return text.replace(/[\u0000-\u001f\u007f-\u009f]/g, (char) => {
+		if (keepNewlines && (char === "\n" || char === "\t")) return char;
+		return `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
+	});
 }

@@ -28,8 +28,11 @@
  *   2. **the workspace does not need to be a git repo at all** (this lesson's is not;
  *      it is just a subdirectory of the main repo)
  *
- * And a second benefit in passing: the main repo's root `.gitignore` is outside the work-tree,
- * so files the agent changed cannot be excluded by accident.
+ * And a second benefit in passing: the main repo's root `.gitignore` is outside the work-tree.
+ * That is not enough on its own to stop files being excluded. A `.gitignore` *inside* the
+ * workspace, or one the developer's global git config points at, still applies to a plain
+ * `git add`, and the agent can write the first of those itself. So `add()` forces past every
+ * ignore rule, and refuses a nested repository, whose files git would record as one opaque entry.
  */
 
 import { execFile } from "node:child_process";
@@ -154,7 +157,19 @@ export class Snapshot {
 
 	private async add(): Promise<void> {
 			// `--all` is what records deletions. Without it, "the agent deleted a file" is invisible in the patch.
-		await this.git(["add", "--all", "."]);
+			// `--force` is what records ignored files. Without it, writing `.gitignore` (listing itself and
+			// whatever else) is enough to make a change vanish from the evidence.
+		await this.git(["add", "--all", "--force", "."]);
+			// A directory with its own `.git` is added as a single gitlink (mode 160000), so nothing
+			// inside it can ever show up in the patch. Fail loudly rather than report "no change".
+		const { stdout } = await this.git(["ls-files", "--stage"]);
+		const nested = stdout
+			.split("\n")
+			.filter((line) => line.startsWith("160000 "))
+			.map((line) => line.split("\t")[1]);
+		if (nested.length > 0) {
+			throw new Error(`Nested git repository in the workspace, so its changes cannot be snapshotted: ${nested.join(", ")}`);
+		}
 	}
 
 	private async git(args: string[]): Promise<{ stdout: string; stderr: string }> {

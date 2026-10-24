@@ -34,6 +34,7 @@ import {
 import { selectStreamingProvider } from "../shared/streaming/index.ts";
 import type { Message, StreamingProvider, ToolResult } from "../shared/streaming/types.ts";
 import {
+	describeCall,
 	editFileTool,
 	listFilesTool,
 	readFileTool,
@@ -285,7 +286,9 @@ function makeAsker(reader: LineReader) {
 		args: Record<string, unknown>,
 	): Promise<boolean> => {
 		console.log(`\n${yellow("┌ approval needed")}`);
-		console.log(`${yellow("│")} ${toolName}(${summarize(args)})`);
+		const shown = describeCall(toolName, args);
+		console.log(`${yellow("│")} ${shown.summary}`);
+		for (const line of shown.detail?.split("\n") ?? []) console.log(`${yellow("│")} ${dim(line)}`);
 		console.log(`${yellow("│")} ${dim(decision.reason)}`);
 		console.log(yellow("└"));
 
